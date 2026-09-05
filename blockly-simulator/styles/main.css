@@ -145,7 +145,7 @@ html, body {
 }
 
 #editor { grid-area: editor; }
-#editor .panel-body { background: var(--n-0); }
+#editor .panel-body { background: var(--n-700); }
 
 #editor-blockly {
   position: absolute;

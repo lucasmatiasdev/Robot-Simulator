@@ -11,6 +11,24 @@
 
   var RS = global.RS = global.RS || {};
 
+  // Dark workspace theme. Literal hex mirrors the --n-* ramp in styles/main.css;
+  // Blockly reads componentStyles in JS, so CSS custom properties cannot be used.
+  function crearTema() {
+    return Blockly.Theme.defineTheme('rs-dark', {
+      base: Blockly.Themes.Classic,
+      componentStyles: {
+        workspaceBackgroundColour: '#1c2733', // --n-700
+        toolboxBackgroundColour: '#141b24',   // --n-800
+        toolboxForegroundColour: '#e8edf3',   // --n-100
+        flyoutBackgroundColour: '#141b24',    // --n-800
+        flyoutOpacity: 1,                     // overrides default fill-opacity .8
+        scrollbarColour: '#64748b',           // --n-400
+        insertionMarkerColour: '#e8edf3',     // --n-100
+        cursorColour: '#e8edf3'               // --n-100
+      }
+    });
+  }
+
   function iniciar() {
     var editorDiv = document.getElementById('editor-blockly');
     var canvas = document.getElementById('sim-canvas');
@@ -19,9 +37,10 @@
 
     var workspace = Blockly.inject(editorDiv, {
       toolbox: RS.toolbox,
+      theme: crearTema(),
       trashcan: true,
       zoom: { controls: true, wheel: true, startScale: 0.9 },
-      grid: { spacing: 20, length: 3, colour: '#e6e6e6', snap: true }
+      grid: { spacing: 20, length: 3, colour: '#2b3948', snap: true }
     });
 
     RS.ui.initHighlight(workspace);
