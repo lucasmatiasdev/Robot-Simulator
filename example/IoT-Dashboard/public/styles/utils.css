@@ -1,0 +1,108 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Open Sans', sans-serif, Arial, Helvetica;
+}
+
+:root {
+  /*https://colormagic.app/palette/TsszryOWlOzRhmSqYVjD*/
+  --verde: #4CAF50;
+  --rojo: #f42727;
+  --naranja: #e05e0d;
+  --azul: #112ed4;
+  --azulOscuro: #0c1a27;
+  --blanco: #fcfcfd;
+  --grisClaro: #eee;
+  --gris: #89a1ae;
+  --grisOscuro: #3c5b6d;
+  --negro: #010101;
+}
+
+.borderGreen {
+  border-radius: 15px;
+  border: var(--verde) solid 3px;
+  overflow: hidden;
+}
+
+.borderRed {
+  border-radius: 15px;
+  border: var(--rojo) solid 3px;
+  overflow: hidden;
+}
+
+.borderBlue {
+  border-radius: 15px;
+  border: var(--azul) solid 3px;
+  overflow: hidden;
+}
+
+.borderBlack {
+  border-radius: 15px;
+  border: var(--negro) solid 3px;
+  overflow: hidden;
+}
+
+.bold {
+  font-weight: bold;
+}
+
+body {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 13px;
+}
+
+.info,
+.success,
+.warning,
+.error,
+.validation {
+  border: 1px solid;
+  margin: 10px 0px;
+  padding: 15px 30px ;
+  background-repeat: no-repeat;
+  background-position: 10px center;
+  border-radius: 5px;
+}
+
+.info {
+  color: #00529B;
+  background-color: #BDE5F8;
+}
+
+.success {
+  color: #4F8A10;
+  background-color: #DFF2BF;
+}
+
+.warning {
+  color: #9F6000;
+  background-color: #FEEFB3;
+}
+
+.error {
+  color: #D8000C;
+  background-color: #FFBABA;
+}
+
+.validation {
+  color: #D63301;
+  background-color: #FFCCBA;
+}
+
+.cancelBtn {
+  width: auto;
+  padding: 10px 18px;
+  background-color: var(--rojo);
+}
+
+@media screen and (max-width: 600px) {
+  .login__psw {
+    display: block;
+    float: none;
+  }
+
+  .cancelBtn {
+    width: 100%;
+  }
+}

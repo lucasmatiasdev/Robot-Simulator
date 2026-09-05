@@ -1,0 +1,220 @@
+:root {
+  /* spacing — 4px base scale */
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 24px; --sp-6: 32px;
+  /* neutral ramp (single ramp, cool slate) */
+  --n-900: #0d1218; --n-800: #141b24; --n-700: #1c2733; --n-600: #2b3948;
+  --n-400: #64748b; --n-200: #cbd5e1; --n-100: #e8edf3; --n-0: #ffffff;
+  /* accents */
+  --a-500: #4f6ef7; --a-600: #3d59d8;      /* primary  */
+  --ok-500: #16a34a; --ok-600: #12833c;    /* Ejecutar */
+  --dg-500: #dc2626; --dg-600: #b91c1c;    /* Detener  */
+  --amber: #f5c518;                         /* active line / LED */
+  /* type */
+  --ff-ui: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --ff-code: ui-monospace, 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+  --fs-xs: 11px; --fs-sm: 12px; --fs-base: 13px; --fs-code: 12.5px;
+  /* elevation + shape */
+  --r-md: 10px; --r-sm: 6px;
+  --sh-1: 0 1px 2px rgba(0, 0, 0, .10);
+  --sh-2: 0 2px 4px rgba(0, 0, 0, .08), 0 8px 20px rgba(0, 0, 0, .10);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  font-family: var(--ff-ui);
+  font-size: var(--fs-base);
+  background: var(--n-900);
+  color: var(--n-100);
+}
+
+#app {
+  display: grid;
+  grid-template-columns: minmax(320px, 40fr) 60fr;
+  grid-template-rows: 48px 1fr minmax(180px, 34%);
+  grid-template-areas:
+    "barra  barra"
+    "editor sim"
+    "editor codigo";
+  height: 100vh;
+  padding: var(--sp-3);
+  gap: var(--sp-3);
+  background: var(--n-900);
+  overflow: hidden;
+}
+
+#barra {
+  grid-area: barra;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: 0 var(--sp-2);
+  color: var(--n-100);
+}
+
+#barra button {
+  height: 32px;
+  padding: 0 var(--sp-4);
+  border-radius: var(--r-sm);
+  border: 1px solid transparent;
+  font-family: var(--ff-ui);
+  font-weight: 600;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease, opacity 120ms ease;
+}
+
+#barra button:focus-visible {
+  outline: 2px solid var(--a-500);
+  outline-offset: 2px;
+}
+
+#btn-ejecutar {
+  background: var(--ok-500);
+  color: var(--n-0);
+}
+#btn-ejecutar:hover:not(:disabled) { background: var(--ok-600); }
+
+#btn-detener {
+  background: var(--dg-500);
+  color: var(--n-0);
+}
+#btn-detener:hover:not(:disabled) { background: var(--dg-600); }
+
+#btn-reiniciar {
+  background: transparent;
+  border-color: var(--n-600);
+  color: var(--n-100);
+}
+#btn-reiniciar:hover:not(:disabled) { border-color: var(--n-400); }
+
+#barra button:disabled {
+  background: var(--n-600);
+  border-color: var(--n-600);
+  color: var(--n-200);
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+#feedback-linea {
+  margin-left: var(--sp-2);
+  font-size: var(--fs-sm);
+  color: var(--n-200);
+}
+
+#feedback-linea.feedback-error {
+  color: #ff9a8b;
+  font-weight: 600;
+}
+
+/* ---- Panels: titled cards, auto/1fr internal grid ---- */
+.panel {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  background: var(--n-800);
+  border-radius: var(--r-md);
+  box-shadow: var(--sh-2);
+  overflow: hidden;
+  min-width: 0;
+  min-height: 0;
+}
+
+.panel-cab {
+  height: 28px;
+  display: flex;
+  align-items: center;
+  padding: 0 var(--sp-3);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--n-200);
+  background: var(--n-700);
+  border-bottom: 1px solid var(--n-600);
+  min-width: 0;
+}
+
+.panel-body {
+  min-width: 0;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+#editor { grid-area: editor; }
+#editor .panel-body { background: var(--n-0); }
+
+#editor-blockly {
+  position: absolute;
+  inset: 0;
+}
+
+#sim { grid-area: sim; }
+#sim .panel-body {
+  background: var(--n-700);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sp-2);
+}
+
+#sim-canvas {
+  max-width: 100%;
+  max-height: 100%;
+  aspect-ratio: 800 / 600;
+  background: #f4f6f8;
+  border-radius: var(--r-sm);
+  box-shadow: var(--sh-1);
+}
+
+#codigo { grid-area: codigo; }
+#codigo .panel-body {
+  background: var(--n-900);
+  overflow: auto;
+}
+
+.codigo-cpp {
+  margin: 0;
+  padding: var(--sp-2) 0;
+  font-family: var(--ff-code);
+  font-size: var(--fs-code);
+  line-height: 1.5;
+  color: var(--n-100);
+}
+
+.linea {
+  display: block;
+  white-space: pre;
+  padding: 0 var(--sp-3);
+}
+
+/* Accent-bar active line: keeps syntax token colors intact instead of a
+   solid fill that would otherwise need per-token color overrides. */
+.linea.activa {
+  background: rgba(245, 197, 24, .14);
+  box-shadow: inset 3px 0 0 var(--amber);
+}
+
+.gutter {
+  display: inline-block;
+  width: 2.5em;
+  color: var(--n-400);
+  user-select: none;
+}
+
+.indent {
+  white-space: pre;
+}
+
+/* cpp-view token classes */
+.kw { color: #c586c0; }
+.call { color: #4ec9b0; }
+.num { color: #b5cea8; }
+.punct { color: var(--n-100); }
+.pre { color: #c586c0; }
+.tipo { color: #569cd6; }
+.fn { color: #dcdcaa; }
+.com { color: #6a8759; font-style: italic; }

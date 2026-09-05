@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IoT Server LRFIA - UAI</title>
+  <link rel="icon" type="image/x-icon" href="./images/iconoIoT.ico">
+  <link rel="stylesheet" href="./styles/index.css">
+  <link rel="stylesheet" href="./styles/utils.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,300;1,400;1,500;1,600;1,700;1,800&display=swap"
+    rel="stylesheet">
+</head>
+
+<body>
+  <main class="login__main">
+    <section class="login__titleContainer">
+      <h1 class="login__title">Laboratorio de robótica física e inteligencia artificial</h1>
+      <p>Universidad Abierta Interamericana</p>
+    </section>
+    <section class="login__formContainer">
+      <form id="formLogin" class="borderGreen login__form" method="post">
+        <div class="container">
+          <label class="bold">Nombre de usuario</label>
+          <input type="text" class="inputText" placeholder="Ingrese su nombre de usuario" name="uname" required>
+
+          <label class="bold">Contraseña</label>
+          <input type="password" class="inputText" placeholder="Ingrese su contraseña" name="psw" required>
+
+          <button type="submit">Iniciar sesión</button>
+          <section class="login__msgBoxContainer success">
+            <p id="msg">Por favor, ingrese los datos solicitados.</p>
+          </section>
+          <!-- 
+          <div class="login__checkbox">
+            <p>Recordarme</p>
+            <input type="checkbox" checked="checked">
+            <a class="login__psw" href="#">¿Se olvido su contraseña?</a>
+          </div>
+        </div>-->
+      </form>
+    </section>
+
+  </main>
+  <script src="./js/index.js"></script>
+</body>
+
+</html>

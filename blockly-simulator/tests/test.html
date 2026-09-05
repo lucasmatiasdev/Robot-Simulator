@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<title>RS — Test harness (sin runner externo)</title>
+<style>
+  body { font-family: Consolas, monospace; padding: 16px; background: #10151c; color: #d6dee7; }
+  .ok { color: #7ee787; }
+  .fail { color: #ff7b72; font-weight: bold; }
+  .grupo { margin-top: 18px; font-weight: bold; color: #79c0ff; }
+  #resumen { margin-top: 20px; padding: 10px; border: 1px solid #30363d; }
+</style>
+</head>
+<body>
+<h1>RS — Test harness (double-click, no test runner)</h1>
+<div id="salida"></div>
+<div id="resumen"></div>
+
+<!-- Modules under test. Blocks/toolbox are NOT loaded here: they require
+     the Blockly global and are exercised only through fake block/workspace
+     stubs below, matching the minimal API program-tree.js actually calls. -->
+<script src="../src/config.js"></script>
+<script src="../src/generator/program-tree.js"></script>
+<script src="../src/generator/cpp-view.js"></script>
+<script src="../src/sim/world.js"></script>
+<script src="../src/sim/robot.js"></script>
+<script src="../src/sim/sensors.js"></script>
+<script src="../src/runtime/interpreter.js"></script>
+<script src="../src/ui/code-panel.js"></script>
+<script src="../src/ui/highlight.js"></script>
+<script src="../src/ui/feedback.js"></script>
+<script src="../src/runtime/scheduler.js"></script>
+
+<script>
+(function () {
+  'use strict';
+
+  var salida = document.getElementById('salida');
+  var total = 0, fallidos = 0;
+  var grupoActual = null;
+
+  function grupo(nombre) {
+    grupoActual = document.createElement('div');
+    grupoActual.className = 'grupo';
+    grupoActual.textContent = nombre;
+    salida.appendChild(grupoActual);
+  }
+
+  function linea(texto, ok) {
+    var div = document.createElement('div');
+    div.className = ok ? 'ok' : 'fail';
+    div.textContent = (ok ? 'PASS ' : 'FAIL ') + texto;
+    salida.appendChild(div);
+  }
+
+  function assert(cond, mensaje) {
+    total++;
+    if (!cond) fallidos++;
+    linea(mensaje, !!cond);
+  }
+
+  function iguales(a, b) {
+    if (a === b) return true;
+    if (typeof a !== typeof b) return false;
+    if (a === null || b === null) return a === b;
+    if (Array.isArray(a) || Array.isArray(b)) {
+      if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+      for (var i = 0; i < a.length; i++) if (!iguales(a[i], b[i])) return false;
+      return true;
+    }
+    if (typeof a === 'object') {
+      var clavesA = Object.keys(a), clavesB = Object.keys(b);
+      if (clavesA.length !== clavesB.length) return false;
+      for (var j = 0; j < clavesA.length; j++) {
+        var k = clavesA[j];
+        if (!Object.prototype.hasOwnProperty.call(b, k) || !iguales(a[k], b[k])) return false;
+      }
+      return true;
+    }
+    return false;
+  }
+
+  function assertEquals(actual, esperado, mensaje) {
+    var ok = iguales(actual, esperado);
+    total++;
+    if (!ok) fallidos++;
+    linea(mensaje + (ok ? '' : (' — esperado ' + JSON.stringify(esperado) + ', obtuvo ' + JSON.stringify(actual))), ok);
+  }
+
+  // ---- Fake Blockly-less block/workspace stubs (minimal API used by program-tree.js) ----
+
+  function bloqueAccion(type, id, valor) {
+    return {
+      type: type,
+      id: id,
+      _next: null,
+      getInputTargetBlock: function (name) {
+        if (name === 'MS') return { getFieldValue: function () { return valor; } };
+        return null;
+      },
+      getFieldValue: function (name) {
+        if (name === 'ESTADO') return String(valor);
+        return null;
+      },
+      getNextBlock: function () { return this._next; }
+    };
+  }
+
+  function encadenar() {
+    var bloques = Array.prototype.slice.call(arguments);
+    for (var i = 0; i < bloques.length - 1; i++) bloques[i]._next = bloques[i + 1];
+    return bloques[0];
+  }
+
+  function bloqueRepetir(id, veces, cuerpoInicial) {
+    return {
+      type: 'rs_repetir', id: id, _next: null,
+      getFieldValue: function (name) { return name === 'VECES' ? veces : null; },
+      getInputTargetBlock: function (name) { return name === 'DO' ? cuerpoInicial : null; },
+      getNextBlock: function () { return this._next; }
+    };
+  }
+
+  function bloqueSi(id, cuerpoInicial) {
+    return {
+      type: 'rs_si_obstaculo', id: id, _next: null,
+      getInputTargetBlock: function (name) { return name === 'DO' ? cuerpoInicial : null; },
+      getNextBlock: function () { return this._next; }
+    };
+  }
+
+  function workspaceFalso(topBlocks) {
+    return { getTopBlocks: function () { return topBlocks; } };
+  }
+
+  // ================= Ray-AABB / sensors determinism =================
+  grupo('Sensores: ray-AABB y determinismo');
+  (function () {
+    RS.robot.reset();
+    var d1 = RS.sensors.medirDistancia(RS.world, RS.robot.estado);
+    var d2 = RS.sensors.medirDistancia(RS.world, RS.robot.estado);
+    assertEquals(d1, d2, 'medirDistancia() es repetible para la misma pose');
+    assert(d1 >= 0 && d1 <= RS.config.RANGO_MAX, 'medirDistancia() está en rango [0, RANGO_MAX]');
+
+    // Place the robot directly against a known obstacle to check hayObstaculo().
+    var obstaculo = RS.world.obstaculos[0]; // {x:300,y:220,w:60,h:140}
+    var xCerca = obstaculo.x - 15; // 15px = ~3.75cm de distancia frontal
+    RS.robot.commitPosicion(xCerca, obstaculo.y + obstaculo.h / 2);
+    var cerca = RS.sensors.medirDistancia(RS.world, RS.robot.estado);
+    assert(cerca <= RS.config.UMBRAL_OBSTACULO, 'cerca de un obstáculo, medirDistancia() <= UMBRAL_OBSTACULO');
+    assert(RS.sensors.hayObstaculo(RS.world, RS.robot.estado) === true, 'hayObstaculo() true cuando medirDistancia() <= 20');
+    RS.robot.reset();
+
+    var lejos = RS.sensors.medirDistancia(RS.world, { x: 10, y: 10, angulo: 180 }); // apuntando fuera, hacia la pared cercana
+    assert(typeof lejos === 'number', 'medirDistancia() siempre retorna un número');
+  })();
+
+  // ================= Robot kinematics =================
+  grupo('Robot: cinemática');
+  (function () {
+    RS.robot.reset();
+    var pose0 = { x: RS.robot.estado.x, y: RS.robot.estado.y };
+    var candidato = RS.robot.proponerAvance(1000); // 1000ms * VEL(0.12) = 120px hacia heading 0 (este)
+    assert(Math.abs(candidato.x - (pose0.x + 120)) < 0.001, 'avanzar(1000) mueve VEL*ms px sobre el heading (x)');
+    assert(Math.abs(candidato.y - pose0.y) < 0.001, 'avanzar(1000) con heading 0 no cambia y');
+
+    RS.robot.girar(500, 1); // derecha: +GIRO*ms = 0.18*500 = 90 grados
+    assertEquals(RS.robot.estado.angulo, 90, 'girar derecha(500) rota GIRO*ms grados sin dividir por 4');
+    RS.robot.reset();
+  })();
+
+  // ================= Tree generation =================
+  grupo('Generador: árbol de programa (no aplanado)');
+  (function () {
+    var seq = encadenar(bloqueAccion('rs_avanzar', 'a1', 500), bloqueAccion('rs_led', 'l1', 1));
+    var arbol = RS.generator.buildProgramTree(workspaceFalso([seq]));
+    assertEquals(arbol, [
+      { tipo: 'accion', accion: 'avanzar', blockId: 'a1', valor: 500 },
+      { tipo: 'accion', accion: 'led', blockId: 'l1', valor: 1 }
+    ], 'secuencia simple: avanzar(500) + led(1)');
+
+    var cuerpoRepetir = bloqueAccion('rs_avanzar', 'a2', 200);
+    var rep = bloqueRepetir('r1', 4, cuerpoRepetir);
+    var arbolRep = RS.generator.buildProgramTree(workspaceFalso([rep]));
+    assertEquals(arbolRep, [
+      { tipo: 'repetir', veces: 4, blockId: 'r1', cuerpo: [
+        { tipo: 'accion', accion: 'avanzar', blockId: 'a2', valor: 200 }
+      ] }
+    ], 'repetir(4) NO se pre-expande a 4 hojas: un solo nodo repetir con cuerpo de 1');
+
+    var cuerpoSi = bloqueAccion('rs_detener', 's1', undefined);
+    var si = bloqueSi('sif1', cuerpoSi);
+    var arbolSi = RS.generator.buildProgramTree(workspaceFalso([si]));
+    assertEquals(arbolSi, [
+      { tipo: 'si', sensor: 'hayObstaculo', blockId: 'sif1', cuerpo: [
+        { tipo: 'accion', accion: 'detener', blockId: 's1' }
+      ] }
+    ], 'si-hayObstaculo genera nodo "si" con cuerpo, condición no evaluada en generación');
+
+    var payload = RS.protocol.toMqttPayload({ tipo: 'accion', accion: 'derecha', valor: 300, blockId: 'x' });
+    assertEquals(payload, { accion: 'derecha', valor: 300 }, 'toMqttPayload despoja blockId/metadata, deja {accion,valor}');
+    assertEquals(payload.valor, 300, 'turn value pasa sin dividir por 4 (300, no 75)');
+
+    var vocabulario = RS.config.ACCIONES;
+    assert(vocabulario.indexOf('bailar') === -1, 'bailar() ausente del vocabulario del generador');
+    assertEquals(vocabulario, ['avanzar', 'retroceder', 'izquierda', 'derecha', 'detener', 'led'], 'vocabulario es exactamente el subconjunto de 6 acciones');
+  })();
+
+  // ================= cppView: Arduino sketch generator =================
+  grupo('cppView: sketch Arduino UNO compilable');
+  (function () {
+    var arbol = [
+      { tipo: 'accion', accion: 'avanzar', valor: 1000, blockId: 'a1' },
+      { tipo: 'si', sensor: 'hayObstaculo', blockId: 's1', cuerpo: [
+        { tipo: 'accion', accion: 'detener', blockId: 'd1' }
+      ] },
+      { tipo: 'repetir', veces: 4, blockId: 'r1', cuerpo: [
+        { tipo: 'accion', accion: 'izquierda', valor: 500, blockId: 'i1' }
+      ] }
+    ];
+    var resultado = RS.cppView.render(arbol);
+    var texto = RS.cppView.renderTexto(arbol);
+
+    // --- Structure ---
+    var numSetup = (texto.match(/void setup\(\)/g) || []).length;
+    var numLoop = (texto.match(/void loop\(\)/g) || []).length;
+    assertEquals(numSetup, 1, 'exactamente un void setup()');
+    assertEquals(numLoop, 1, 'exactamente un void loop()');
+
+    // --- No networking identifiers ---
+    assert(texto.indexOf('WiFi') === -1, 'el sketch no referencia WiFi');
+    assert(texto.indexOf('MQTT') === -1, 'el sketch no referencia MQTT');
+    assert(texto.indexOf('PubSubClient') === -1, 'el sketch no referencia PubSubClient');
+
+    // --- Pin config before use ---
+    var idxPinMode = texto.indexOf('pinMode(ENA, OUTPUT)');
+    var idxAvanzarDef = texto.indexOf('void avanzar');
+    var idxSetup = texto.indexOf('void setup()');
+    assert(idxPinMode !== -1, 'pinMode(ENA, OUTPUT) esta presente');
+    assert(idxPinMode > idxSetup, 'pinMode ocurre dentro de setup()');
+    assert(idxAvanzarDef !== -1 && idxAvanzarDef < idxSetup, 'avanzar() se define antes de setup() (donde se llama)');
+
+    // --- Direction table: girarIzquierda = motor1 atras (L,H), motor2 adelante (H,L) ---
+    var idxIzq = texto.indexOf('void girarIzquierda');
+    var idxIzqFin = texto.indexOf('}', idxIzq);
+    var cuerpoIzq = texto.substring(idxIzq, idxIzqFin);
+    assert(/digitalWrite\(IN1, LOW\)/.test(cuerpoIzq), 'girarIzquierda: IN1 LOW');
+    assert(/digitalWrite\(IN2, HIGH\)/.test(cuerpoIzq), 'girarIzquierda: IN2 HIGH');
+    assert(/digitalWrite\(IN3, HIGH\)/.test(cuerpoIzq), 'girarIzquierda: IN3 HIGH');
+    assert(/digitalWrite\(IN4, LOW\)/.test(cuerpoIzq), 'girarIzquierda: IN4 LOW');
+
+    // --- si node: comment present, no fabricated hayObstaculo() call in the guion ---
+    var lineaSi = resultado.lineas.filter(function (l) { return l.blockId === 's1'; })[0];
+    assert(lineaSi !== undefined, 'el nodo si mapea su blockId a una linea');
+    assert(lineaSi.texto.indexOf('ATENCION') !== -1, 'el nodo si genera un comentario ATENCION');
+    var lineasGuion = resultado.lineas.filter(function (l) { return l.seccion === 'guion'; });
+    var llamadaFabricada = lineasGuion.some(function (l) { return l.texto.indexOf('hayObstaculo()') !== -1 && l.texto.indexOf('//') !== 0; });
+    assert(!llamadaFabricada, 'ninguna linea de guion contiene una llamada real a hayObstaculo()');
+    assert(resultado.lineas.filter(function (l) { return l.blockId === 'd1'; }).length === 0, 'el cuerpo del si (detener) NO se traduce a codigo ejecutable');
+
+    // --- repetir: real for loop (compilable), header maps blockId, close brace does not ---
+    var lineaRepetir = resultado.lineas.filter(function (l) { return l.blockId === 'r1'; })[0];
+    assert(/^for \(int i = 0; i < 4; i\+\+\) \{$/.test(lineaRepetir.texto), 'repetir(4) se desenrolla como for real compilable');
+    assertEquals(resultado.lineasPorBloque.r1.length, 1, 'nodo repetir mapea solo su linea de cabecera');
+
+    // --- loop() has no movement calls ---
+    var idxLoop = texto.indexOf('void loop()');
+    var cuerpoLoop = texto.substring(idxLoop);
+    assert(!/\bavanzar\(|\bretroceder\(|\bgirarIzquierda\(|\bgirarDerecha\(/.test(cuerpoLoop), 'loop() no llama a ninguna funcion de movimiento');
+
+    // --- sensor stub only emitted when tree uses a sensor node ---
+    var textoSinSensor = RS.cppView.renderTexto([{ tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'x1' }]);
+    assert(textoSinSensor.indexOf('hayObstaculo') === -1, 'sin nodo si en el arbol, no se emite el stub de sensor');
+    assert(texto.indexOf('bool hayObstaculo') !== -1, 'con nodo si en el arbol, se emite el stub hayObstaculo()');
+
+    // --- render()/renderTexto() share the same line records ---
+    assertEquals(RS.cppView.renderTexto(arbol).split('\n').length, resultado.lineas.length, 'renderTexto tiene una linea por cada registro de render()');
+
+    // --- only guion lines carry a blockId ---
+    var todasLasSeccionesConBlockId = {};
+    resultado.lineas.forEach(function (l) { if (l.blockId) todasLasSeccionesConBlockId[l.seccion] = true; });
+    assertEquals(Object.keys(todasLasSeccionesConBlockId), ['guion'], 'solo lineas de seccion "guion" llevan blockId');
+  })();
+
+  // ================= Integration: tree -> interpreter -> robot state =================
+  grupo('Integración: árbol -> intérprete -> estado final del robot (dt fijo)');
+  (function () {
+    RS.robot.reset();
+    var arbol = [
+      { tipo: 'repetir', veces: 3, blockId: 'r1', cuerpo: [
+        { tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'a1' }
+      ] }
+    ];
+    var walker = RS.runtime.interpreter.crear(arbol, RS.world, RS.robot.estado);
+    var pasos = 0;
+    var nodo = walker.siguienteNodo();
+    var vistos = [];
+    while (nodo !== null) {
+      vistos.push(nodo.blockId);
+      // Simulate the scheduler applying the full duration in one fixed-dt step.
+      var dist = RS.config.VEL * nodo.valor;
+      RS.robot.commitPosicion(RS.robot.estado.x + dist, RS.robot.estado.y);
+      pasos++;
+      nodo = walker.siguienteNodo();
+      if (pasos > 10) break; // safety
+    }
+    assertEquals(vistos, ['a1', 'a1', 'a1'], 'repetir(3) re-camina su cuerpo 3 veces en tiempo de ejecución (mismo blockId)');
+    assertEquals(pasos, 3, 'exactamente 3 pasos ejecutados, no expandidos de antemano');
+    var esperadoX = RS.world.poseInicial.x + 3 * RS.config.VEL * 100;
+    assert(Math.abs(RS.robot.estado.x - esperadoX) < 0.001, 'posición final x coincide con 3 avances de 100ms');
+    RS.robot.reset();
+  })();
+
+  // ================= resaltar() single call site =================
+  grupo('UI: resaltar() marca exactamente un bloque y una línea');
+  (function () {
+    var llamadasHighlight = [];
+    var fakeWorkspace = {
+      highlightBlock: function (id) { llamadasHighlight.push(id); },
+      addChangeListener: function () {},
+      getTopBlocks: function () { return []; }
+    };
+    var contenedor = document.createElement('div');
+    document.body.appendChild(contenedor);
+
+    RS.ui.initHighlight(fakeWorkspace);
+    RS.ui.codePanel.init(fakeWorkspace, contenedor);
+    var arbol = [
+      { tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'a1' },
+      { tipo: 'accion', accion: 'led', valor: 1, blockId: 'l1' }
+    ];
+    RS.ui.codePanel.render(arbol);
+
+    RS.ui.resaltar('a1');
+    var activas1 = contenedor.querySelectorAll('.linea.activa');
+    assertEquals(activas1.length, 1, 'exactamente una línea .activa tras resaltar("a1")');
+    assertEquals(llamadasHighlight[llamadasHighlight.length - 1], 'a1', 'workspace.highlightBlock recibió el blockId');
+
+    RS.ui.resaltar('l1');
+    var activas2 = contenedor.querySelectorAll('.linea.activa');
+    assertEquals(activas2.length, 1, 'sigue habiendo exactamente una línea .activa tras cambiar de bloque');
+    assert(activas2[0].getAttribute('data-block-id') === 'l1', 'la línea activa corresponde al nuevo blockId');
+
+    RS.ui.resaltar(null);
+    var activas3 = contenedor.querySelectorAll('.linea.activa');
+    assertEquals(activas3.length, 0, 'resaltar(null) limpia todo highlight');
+
+    document.body.removeChild(contenedor);
+  })();
+
+  // ================= Scheduler: colisión con dt grande (anti-tunneling) =================
+  grupo('Scheduler: colisión no atraviesa obstáculos con dt de frame grande (anti-tunneling)');
+  (function () {
+    var feedbackDiv = document.createElement('div');
+    document.body.appendChild(feedbackDiv);
+    RS.ui.feedback.init(feedbackDiv);
+
+    var scheduler = RS.runtime.scheduler;
+    var obstaculo = RS.world.obstaculos[0]; // {x:300,y:220,w:60,h:140}; robot arranca en x:80,y:300,angulo:0
+
+    // Reproduce el bug reportado: avanzar(4000) contra un obstáculo delgado
+    // en el medio del camino. Antes del fix, un único frame real de
+    // requestAnimationFrame con dt grande (pestaña en 2do plano, hiccup del
+    // dispositivo, etc.) podía mover al robot de un lado al otro del
+    // obstáculo en un solo salto, sin que ninguna posición intermedia
+    // overlapeara y sin disparar colisión nunca. Se simula ese frame grande
+    // llamando _procesarFrame(4000) una única vez, como si rAF hubiera
+    // entregado un dt de 4 segundos completo.
+    var arbol = [{ tipo: 'accion', accion: 'avanzar', valor: 4000, blockId: 'a-largo' }];
+    scheduler.iniciarConArbol(arbol);
+    assertEquals(scheduler.obtenerEstado(), 'running', 'arranca en estado running');
+
+    scheduler._procesarFrame(4000); // un único frame gigante cubre todo el movimiento
+
+    assertEquals(scheduler.obtenerEstado(), 'error', 'un frame de dt grande SIEMPRE detecta la colisión (no atraviesa el obstáculo)');
+    var xFinal = RS.robot.estado.x;
+    assert(xFinal < obstaculo.x + obstaculo.w, 'el robot no terminó del otro lado del obstáculo (no hubo tunneling)');
+    assert(xFinal + RS.config.ROBOT_SIZE / 2 >= obstaculo.x - 0.5, 'el robot avanzó hasta justo tocar el obstáculo, no se detuvo antes de tiempo');
+
+    scheduler.reiniciar();
+    assertEquals(scheduler.obtenerEstado(), 'idle', 'reiniciar() vuelve a idle tras una colisión');
+    document.body.removeChild(feedbackDiv);
+  })();
+
+  // ================= Feedback visible tras colisión =================
+  grupo('Feedback: mensaje visible de colisión se puebla y se limpia en Reiniciar');
+  (function () {
+    var feedbackDiv = document.createElement('div');
+    document.body.appendChild(feedbackDiv);
+    RS.ui.feedback.init(feedbackDiv);
+
+    var scheduler = RS.runtime.scheduler;
+    var arbol = [{ tipo: 'accion', accion: 'avanzar', valor: 3000, blockId: 'a-choque' }];
+    scheduler.iniciarConArbol(arbol);
+    assertEquals(feedbackDiv.textContent, '', 'el feedback arranca vacío al iniciar la ejecución');
+
+    // Frames normales (~16ms, como un rAF sin hiccups) hasta que ocurra la colisión.
+    for (var i = 0; i < 300 && scheduler.obtenerEstado() === 'running'; i++) {
+      scheduler._procesarFrame(16);
+    }
+
+    assertEquals(scheduler.obtenerEstado(), 'error', 'la ejecución terminó en estado error (colisión detectada) en frames normales');
+    assert(feedbackDiv.textContent.length > 0, 'el mensaje de feedback de colisión está poblado y visible tras la colisión');
+    assert(feedbackDiv.textContent.indexOf('avanzar') !== -1, 'el mensaje nombra la acción que causó la colisión');
+    assert(feedbackDiv.classList.contains('feedback-error'), 'el feedback tiene la clase de error aplicada');
+
+    scheduler.reiniciar();
+    assertEquals(feedbackDiv.textContent, '', 'reiniciar() limpia el mensaje de feedback');
+    assert(!feedbackDiv.classList.contains('feedback-error'), 'reiniciar() quita la clase de error del feedback');
+
+    document.body.removeChild(feedbackDiv);
+  })();
+
+  // ================= Summary =================
+  var resumen = document.getElementById('resumen');
+  resumen.className = fallidos === 0 ? 'ok' : 'fail';
+  resumen.textContent = (fallidos === 0 ? 'TODOS LOS TESTS PASARON ' : (fallidos + ' TEST(S) FALLARON ')) +
+    '(' + (total - fallidos) + '/' + total + ')';
+})();
+</script>
+</body>
+</html>

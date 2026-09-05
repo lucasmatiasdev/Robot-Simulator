@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IoT Server LRFIA - UAI</title>
+  <link rel="icon" type="image/x-icon" href="../images/iconoIoT.ico">
+  <link rel="stylesheet" href="../styles/utils.css">
+  <link rel="stylesheet" href="../styles/iotDashboard.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <script src="/socket.io/socket.io.js"></script>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,300;1,400;1,500;1,600;1,700;1,800&display=swap"
+    rel="stylesheet">
+</head>
+
+<body>
+  <main class="dashboard__main">
+    <section class="cabecera">
+      <h2>IoT Dashboard - LRFIA - UAI (<label id="userName"></label>)</h2>
+
+      <div class="dashboard__dataContainer">
+        <div class="dashboard__dataRow">
+          <div class="dashboard__data">
+            <p>Host</p>
+            <input type=text id="hostMqtt" max_length=50 value="mqtt://168.226.218.101">
+          </div>
+          <div class="dashboard__data">
+            <p>Puerto</p>
+            <input type=text id="portMqtt" minlength="4" maxlength="4" size="4" value="8741"
+              onkeypress='validate(event)'>
+          </div>
+        </div>
+        <div class="dashboard__dataRow">
+          <div class="dashboard__data">
+            <p>Usuario</p>
+            <input type=text id="userMqtt" max_length=50 value="alumnos">
+          </div>
+          <div class="dashboard__data">
+            <p>Contraseña</p>
+            <input type="password" id="passMqtt" max_length=50 value="AccesoUAI">
+          </div>
+        </div>
+        <div class="dashboard__dataRow">
+          <div class="dashboard__data">
+            <p>Topic de subscripción</p>
+            <input type=text id="topic_sub" max_length=50 value="">
+          </div>
+          <div class="dashboard__data">
+            <p>Topic de publicación</p>
+            <input type=text id="topic_pub" max_length=50 value="">
+          </div>
+        </div>
+        <div class="dashboard__dataRow">
+          <button type="button" id="btnConectar" name="btnConectar" class="btnConectar">Conectar</button>
+        </div>
+        <div class="dashboard__dataRow">
+          <label id="status_mqtt"></label>
+        </div>
+
+
+      </div>
+    </section>
+    <section class="dashboard__components">
+      <table class="tablas">
+        <thead>
+          <tr>
+            <th>
+              <h2>Subscribir</h2>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th>
+              <div class="subscribir">
+                <table style="padding: 20px;">
+                  <tr>
+                    <td><label><b>Tipo: Mensaje</b></label></td>
+                    <td><textarea disabled type="text" id="sub_mensaje" rows="4" cols="20"></textarea></td>
+                  </tr>
+                  <tr>
+                    <td><label><b>Tipo: Temperatura</b></label><img src="../images/dht22.png" alt="dht22" height="100">
+                    </td>
+                    <td><label class="data_subscribe" id="sub_temperatura"></label></td>
+                  </tr>
+                  <tr>
+                    <td><label><b>Tipo: Humedad</b></label><img src="../images/dht22.png" alt="dht22" height="100"></td>
+                    <td><label class="data_subscribe" id="sub_humedad"></label></td>
+                  </tr>
+                  <tr>
+                    <td><label><b>Tipo: Iluminación</b></label><img src="../images/sensor_luz.png" alt="ldr"
+                        height="100">
+                    </td>
+                    <td><label class="data_subscribe" id="sub_iluminacion"></label></td>
+                  </tr>
+                  <tr>
+                    <td><label><b>Tipo: Distancia</b></label><img src="../images/hc-sr04.png" alt="hc-sr04"
+                        height="100">
+                    </td>
+                    <td><label class="data_subscribe" id="sub_distancia"></label></td>
+                  </tr>
+                  <tr>
+                    <td><label><b>Tipo: Control</b></label><img src="../images/receptor_ir.png" alt="sensor ir"
+                        height="100">
+                    </td>
+                    <td><label class="data_subscribe" id="sub_control"></label></td>
+                  </tr>
+                </table>
+
+              </div>
+            </th>
+          </tr>
+        </tbody>
+      </table>
+      <table class="tablas">
+        <thead>
+          <tr>
+            <th>
+              <h2>Publicar</h2>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th>
+              <div class="publicar">
+                <table>
+                  <tr>
+                    <td><label><b>Tipo: Mensaje</b></label></td>
+                    <td><textarea type="text" id="text_mensaje" rows="4" cols="20"></textarea></td>
+                    <td><button type="button" class="publicar_btn" onclick="publicar('Mensaje');">Publicar</button></td>
+                  <tr>
+                    <td><label><b>Tipo: Led</b><img src="../images/led.png" alt="led" height="100"></label>
+                    </td>
+                    <td><input type="text" id="text_led"></td>
+                    <td><button type="button" class="publicar_btn" onclick="publicar('Led');">Publicar</button></td>
+                  </tr>
+                  <tr>
+                    <td><label><b>Tipo: Servo_motor</b><img src="../images/servo.png" alt="motor" height="100"></label>
+                    </td>
+                    <td><input type="text" id="text_servo"></td>
+                    <td><button type="button" class="publicar_btn" onclick="publicar('Servo_motor');">Publicar</button>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><label><b>Tipo: Buzzer</b></label><img src="../images/buzzer.png" alt="Buzzer" height="100">
+                    </td>
+                    <td><input type="text" id="text_buzzer"></td>
+                    <td><button type="button" class="publicar_btn" onclick="publicar('Buzzer');">Publicar</button></td>
+                  </tr>
+                  <tr>
+                    <td><label><b>Tipo: Motor_paso_a_paso</b></label><img src="../images/motor_pap_bipolar.png"
+                        alt="receptor_ir" height="100"></td>
+                    <td><input type="text" id="text_pap_bipolar"></td>
+                    <td><button type="button" class="publicar_btn"
+                        onclick="publicar('Motor paso a paso');">Publicar</button></td>
+                  </tr>
+                  <tr>
+                    <td><label><b>Tipo: Display_I2C</b></label><img src="../images/lcd_i2c.png" alt="Display I2C"
+                        height="100"></td>
+                    <td><input type="text" id="text_display_i2c"></td>
+                    </td>
+                    <td><button type="button" class="publicar_btn" onclick="publicar('Display_I2C');">Publicar</button>
+                    </td>
+                  </tr>
+                </table>
+              </div>
+            </th>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <div class="grid-container">
+        <div class="grid-item">Dispositivo 1</div>
+        <div class="grid-item">Dispositivo 2</div>
+        <div class="grid-item">Dispositivo 3</div>
+        <div class="grid-item">Dispositivo 4</div>
+        <div class="grid-item">Tipo: Sensor_1<label class="data_subscribe" id="sensor_1"></label></div>
+        <div class="grid-item">Tipo: Sensor_2<label class="data_subscribe" id="sensor_2"></label></div>
+        <div class="grid-item">Tipo: Sensor_3<label class="data_subscribe" id="sensor_3"></label></div>
+        <div class="grid-item">Tipo: Sensor_4<label class="data_subscribe" id="sensor_4"></label></div>
+        <div class="grid-item">Tipo: Actuador 1<input type="text" id="text_actuador_1"><button type="button"
+            class="publicar_btn" onclick="publicar('Actuador_1');">Publicar</button></div>
+        <div class="grid-item">Tipo: Actuador_2<input type="text" id="text_actuador_2"><button type="button"
+            class="publicar_btn" onclick="publicar('Actuador_2');">Publicar</button></div>
+        <div class="grid-item">Tipo: Actuador_3<input type="text" id="text_actuador_3"><button type="button"
+            class="publicar_btn" onclick="publicar('Actuador_3');">Publicar</button></div>
+        <div class="grid-item">Tipo: Actuador_4<input type="text" id="text_actuador_4"><button type="button"
+            class="publicar_btn" onclick="publicar('Actuador_4');">Publicar</button></div>
+        <div class="grid-item">Historial<textarea type="text" id="historial_1" rows="10" cols="30"
+            style="font-size: 15px;"></textarea><button type="button" class="publicar_btn"
+            onclick="limpiar('historial_1');">Limpiar</button></div>
+        <div class="grid-item">Historial<textarea type="text" id="historial_2" rows="10" cols="30"
+            style="font-size: 15px;"></textarea><button type="button" class="publicar_btn"
+            onclick="limpiar('historial_2');">Limpiar</button></div>
+        <div class="grid-item">Historial<textarea type="text" id="historial_3" rows="10" cols="30"
+            style="font-size: 15px;"></textarea><button type="button" class="publicar_btn"
+            onclick="limpiar('historial_3');">Limpiar</button></div>
+        <div class="grid-item">Historial<textarea type="text" id="historial_4" rows="10" cols="30"
+            style="font-size: 15px;"></textarea><button type="button" class="publicar_btn"
+            onclick="limpiar('historial_4');">Limpiar</button></div>
+      </div>
+    </section>
+  </main>
+  <footer>
+    <p>
+      <a href="/tools" target="_blank">
+        <h3>Herramientas gratuitas online</h3>
+      </a>.
+    </p>
+  </footer>
+  <script src='../js/dashboard.js'></script>
+</body>
+
+</html>

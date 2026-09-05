@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IoT Server LRFIA - UAI</title>
+    <link rel="icon" type="image/x-icon" href="../images/iconoIoT.ico">
+    <link rel="stylesheet" href="../styles/utils.css">
+    <link rel="stylesheet" href="../styles/iotDashboard.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <script src="/socket.io/socket.io.js"></script>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,300;1,400;1,500;1,600;1,700;1,800&display=swap"
+        rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@latest/dist/Chart.min.js"></script>
+</head>
+
+<body>
+    <main class="dashboard__main">
+        <section class="cabecera">
+            <h2>IoT Dashboard - LRFIA - UAI </h2>
+            <h3>(<label id="userName"></label>)</h3>
+            <div class="dashboard__dataContainerNoMax borderBlack">
+                <div class="dashboard__dataRow">
+                    <div class="dashboard__data">
+                        <p>Host</p>
+                        <input type=text id="hostMqtt" max_length=50 size=50 value="mqtt://168.226.218.194"
+                            style="width:145px;">
+                    </div>
+                    <div class="dashboard__data">
+                        <p>Puerto</p>
+                        <input type=text id="portMqtt" minlength="4" maxlength="4" size="4" value="8741"
+                            onkeypress='validate(event)' style="width:145px;">
+                    </div>
+                </div>
+                <div class="dashboard__dataRow">
+                    <div class="dashboard__data">
+                        <p>Usuario</p>
+                        <input type=text id="userMqtt" max_length=50 size=50 value="alumnos" style="width:145px;">
+                    </div>
+                    <div class="dashboard__data">
+                        <p>Contraseña</p>
+                        <input type="password" id="passMqtt" max_length=50 size=50 value="AccesoUAI"
+                            style="width:145px;">
+                    </div>
+                </div>
+                <div class="dashboard__dataRow">
+                    <div class="dashboard__data">
+                        <p>Topic de suscripción</p>
+                        <input type=text id="topic_sub" max_length=50 value="" style="width:145px;">
+                    </div>
+                    <div class="dashboard__data">
+                        <p>Topic de publicación</p>
+                        <input type=text id="topic_pub" max_length=50 value="" style="width:145px;">
+                    </div>
+                </div>
+                <div class="dashboard__dataRow">
+                    <div class="dashboard__dataText">
+                        <p><span class="bold">Espera:</span> {"tipo":"temperatura","valor":"10"}</p>
+                        <p><span class="bold">Envia: </span>{"tipo":"Led","valor":"on"}</p>
+                    </div>
+                </div>
+                <div class="dashboard__dataRow">
+                    <button type="button" id="btnConectar" name="btnConectar" class="btnConectar">Conectar</button>
+                </div>
+                <div class="dashboard__dataRow">
+                    <label id="status_mqtt"></label>
+                </div>
+            </div>
+        </section>
+
+        <div class="dashboard__dataContainer borderGreen">
+            <section class="dashboard__components">
+                <h2>Suscribir</h2>
+            </section>
+            <section class="dashboard__components">
+                <div class="grid-container-1" style="height:220px;">
+                    <div class="grid-item" style="height:210px;">
+                        <p>Tipo: mensaje</p><br>
+                        <textarea disabled type="text" id="sub_mensaje" rows="7" cols="20"
+                            style="background-color: white;"></textarea>
+                    </div>
+                </div>
+                <div class="grid-container-1" style="height:220px;">
+                    <div class="grid-item" style="height:210px;">
+                        <p>Tipo: temperatura</p><br>
+                        <img src="../images/dht22.png" alt="dht22" height="60"><br><br>
+                        <p class="data_subscribe" id="sub_temperatura"></p>
+                    </div>
+                </div>
+                <div class="grid-container-1" style="height:220px;">
+                    <div class="grid-item" style="height:210px;">
+                        <p>Tipo: humedad</p><br>
+                        <img src="../images/dht22.png" alt="dht22" height="60"><br><br>
+                        <p class="data_subscribe" id="sub_humedad"></p><br>
+                    </div>
+                </div>
+                <div class="grid-container-1" style="height:220px;">
+                    <div class="grid-item" style="height:210px;">
+                        <p>Tipo: iluminacion</p><br>
+                        <img src="../images/sensor_luz.png" alt="ldr" height="60"><br><br>
+                        <p class="data_subscribe" id="sub_iluminacion"></p><br>
+                    </div>
+                </div>
+                <div class="grid-container-1" style="height:220px;">
+                    <div class="grid-item" style="height:210px;">
+                        <p>Tipo: distancia</p><br>
+                        <img src="../images/hc-sr04.png" alt="hc-sr04" height="80"><br>
+                        <p class="data_subscribe" id="sub_distancia"></p><br>
+                    </div>
+                </div>
+                <div class="grid-container-1" style="height:220px;">
+                    <div class="grid-item" style="height:210px;">
+                        <p>Tipo: control</p><br>
+                        <img src="../images/receptor_ir.png" alt="sensor ir" height="80"><br>
+                        <label class="data_subscribe" id="sub_control"></label><br>
+                    </div>
+                </div>
+        </div>
+        </section>
+        </div>
+        <div class="dashboard__dataContainer borderRed">
+            <section class="dashboard__components">
+                <h2>Publicar</h2>
+
+            </section>
+
+            <section class="dashboard__components">
+                <div class="grid-container-2" style="height:280px;">
+                    <div class="grid-item" style="height:270px;">
+                        <p>Tipo: mensaje</p><br>
+                        <textarea type=" text" id="text_mensaje" rows="7" cols="20"></textarea><br>
+                        <button type="button" class="publicar_btn" onclick="publicar('mensaje');">Publicar</button><br>
+                    </div>
+                </div>
+                <div class="grid-container-2" style="height:280px;">
+                    <div class="grid-item" style="height:270px;">
+                        <p>Tipo: led</p><br>
+                        <img src="../images/led.png" alt="led" height="60"><br><br>
+                        <input type="text" id="text_led"><br>
+                        <button type="button" class="publicar_btn" onclick="publicar('led');">Publicar</button><br>
+                    </div>
+                </div>
+                <div class="grid-container-2" style="height:280px;">
+                    <div class="grid-item" style="height:270px;">
+                        <p>Tipo: servo_motor</p>
+                        <img src="../images/servo.png" alt="motor" height="80"><br><br>
+                        <input type="text" id="text_servo"><br>
+                        <button type="button" class="publicar_btn" onclick="publicar('servo_motor');">Publicar</button>
+                    </div>
+                </div>
+
+                <div class="grid-container-2" style="height:280px;">
+                    <div class="grid-item" style="height:270px;">
+                        <p>Tipo: buzzer</p><br>
+                        <img src="../images/buzzer.png" alt="Buzzer" height="80"><br>
+                        <input type="text" id="text_buzzer"><br>
+                        <button type="button" class="publicar_btn" onclick="publicar('buzzer');">Publicar</button><br>
+                    </div>
+                </div>
+                <div class="grid-container-2" style="height:280px;">
+                    <div class="grid-item" style="height:270px;">
+                        <p>Tipo: motor_pap</p><br>
+                        <img src="../images/motor_pap_bipolar.png" alt="Motor paso a paso bipolar" height="80">
+                        <input type="text" id="text_motor_pap"><br>
+                        <button type="button" class="publicar_btn"
+                            onclick="publicar('motor_pap');">Publicar</button><br>
+                    </div>
+                </div>
+                <div class="grid-container-2" style="height:280px;">
+                    <div class="grid-item" style="height:270px;">
+                        <p>Tipo: display_i2c</p><br>
+                        <img src="../images/lcd_i2c.png" alt="Display I2C" height="80"><br>
+                        <input type="text" id="text_display_i2c"><br>
+                        <button type="button" class="publicar_btn" onclick="publicar('display_i2c');">Publicar</button>
+                    </div>
+                </div>
+            </section>
+        </div>
+        <div class="dashboard__dataContainer borderBlue">
+            <section class="dashboard__components">
+                <h2>Dispositivos múltiples</h2>
+            </section>
+            <section class="dashboard__components">
+                <div class="grid-container">
+                    <div class="grid-item">
+                        <h2>Dispositivo 1</h2><br>
+                        <p>Tipo: sensor_1</p>
+                        <input type="text" id="sensor_1">
+                        <p>Tipo: actuador_1</p>
+                        <input type="text" id="actuador_1"><br>
+                        <button type="button" class="publicar_btn" onclick="publicar('actuador_1');">Publicar</button>
+                        <p>Historial</p>
+                        <br>
+                        <textarea type="text" id="historial_1" rows="10" cols="20"
+                            style="font-size: 15px;"></textarea><br>
+                        <button type="button" class="publicar_btn" onclick="limpiar('historial_1');">Limpiar</button>
+                    </div>
+                </div>
+                <div class="grid-container">
+                    <div class="grid-item">
+                        <h2>Dispositivo 2</h2><br>
+                        <p>Tipo: sensor_2</p>
+                        <input type="text" id="sensor_2">
+                        <p>Tipo: actuador_2</p>
+                        <input type="text" id="actuador_2"><br>
+                        <button type="button" class="publicar_btn" onclick="publicar('actuador_2');">Publicar</button>
+                        <p>Historial</p>
+                        <br>
+                        <textarea type="text" id="historial_2" rows="10" cols="20"
+                            style="font-size: 15px;"></textarea><br>
+                        <button type="button" class="publicar_btn" onclick="limpiar('historial_2');">Limpiar</button>
+                    </div>
+                </div>
+                <div class="grid-container">
+                    <div class="grid-item">
+                        <h2>Dispositivo 3</h2><br>
+                        <p>Tipo: sensor_3</p>
+                        <input type="text" id="sensor_3">
+                        <p>Tipo: actuador_3</p>
+                        <input type="text" id="actuador_3"><br>
+                        <button type="button" class="publicar_btn" onclick="publicar('actuador_3');">Publicar</button>
+                        <p>Historial</p>
+                        <br>
+                        <textarea type="text" id="historial_3" rows="10" cols="20"
+                            style="font-size: 15px;"></textarea><br>
+                        <button type="button" class="publicar_btn" onclick="limpiar('historial_3');">Limpiar</button>
+                    </div>
+                </div>
+                <div class="grid-container">
+                    <div class="grid-item">
+                        <h2>Dispositivo 4</h2><br>
+                        <p>Tipo: sensor_4</p>
+                        <input type="text" id="sensor_4">
+                        <p>Tipo: actuador_4</p>
+                        <input type="text" id="actuador_4"><br>
+                        <button type="button" class="publicar_btn" onclick="publicar('actuador_4');">Publicar</button>
+                        <p>Historial</p><br>
+                        <textarea type="text" id="historial_4" rows="10" cols="20"
+                            style="font-size: 15px;"></textarea><br>
+                        <button type="button" class="publicar_btn" onclick="limpiar('historial_4');">Limpiar</button>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+
+        <div class="dashboard__dataContainer borderRed">
+            <section class="dashboard__components">
+                <h2>Gráficos</h2>
+            </section>
+
+            <section class="dashboard__components">
+                <div class="grid-container" style="height:330px;width:360px;">
+                    <div class="grid-item" style="background-color: #ffffff;height:320px;width:350px;">
+                        <h2>Gráfico 1</h2><br>
+                        <p>Tipo: grafico_1</p>
+                        <p>Espera: {"tipo":"grafico_1","valor":[10, 20, 100, 50]}</p>
+                        <canvas id="grafico_1" style="height:200px;width:250px;"></canvas>
+                    </div>
+                </div>
+                <div class="grid-container" style="height:330px;width:360px;">
+                    <div class="grid-item" style="background-color: #ffffff;height:320px;width:350px;">
+                        <h2>Gráfico 2</h2><br>
+                        <p>Tipo: grafico_2</p>
+                        <p>Espera: {"tipo":"grafico_2","valor":[30,220,100,50]}</p>
+                        <canvas id="grafico_2" style="height:200px;width:250px;"></canvas>
+                    </div>
+                </div>
+            </section>
+        </div>
+        <div class="dashboard__dataContainer borderRed">
+            <section class="dashboard__components">
+                <h2>Control robot IoT</h2>
+            </section>
+
+            <section class="dashboard__components">
+                <div class="grid-container" style="width:500px;">
+
+                    <div class="grid-item">
+                        {"tipo":"accion","valor":"avanzar"}
+                        <p>
+                            <input type="text" id="text_accion_1" value="avanzar">
+                            <button type="button" class="publicar_btn" onclick="publicar('accion_1');">Publicar</button>
+                        </p>
+
+                        <p>
+
+
+                            <input type="text" id="text_accion_3" value="derecha">
+                            <button type="button" class="publicar_btn" onclick="publicar('accion_3');">Publicar</button>
+                            <input type="text" id="text_accion_4" value="izquierda">
+                            <button type="button" class="publicar_btn" onclick="publicar('accion_4');">Publicar</button>
+
+                        </p>
+                        <p>
+                            <input type="text" id="text_accion_2" value="retroceder">
+                            <button type="button" class="publicar_btn" onclick="publicar('accion_2');">Publicar</button>
+                        </p>
+                    </div>
+                </div>
+            </section>
+        </div>
+        <div class="dashboard__dataContainer borderRed">
+            <section class="dashboard__components">
+                <h2>Cabeza robot</h2>
+            </section>
+            <section class="dashboard__components">
+
+                <div class="grid-container-vertical" >
+                    <div class="grid-item" style="height:150px;">
+                        <h2>Ojo Izquierdo</h2>
+                        {"tipo":"ojo_izquierdo","x":20,"y":20,"p":20}
+                        <p>
+                            <input type="text" id="text_ojo_izquierdo_x" value="20" style="width:70px;">
+                            <input type="text" id="text_ojo_izquierdo_y" value="20" style="width:70px;">
+                            <input type="text" id="text_ojo_izquierdo_p" value="20" style="width:70px;">
+                            <button type="button" class="publicar_btn"
+                                onclick="publicar('ojo_izquierdo');">Publicar</button>
+                        </p>
+                    </div>
+                    <div class="grid-item" style="height:150px;">
+                        <h2>Ojo Derecho</h2>
+                        {"tipo":"ojo_derecho","x":20,"y":20,"p":20}
+                        <p>
+                            <input type="text" id="text_ojo_derecho_x" value="20" style="width:70px;">
+                            <input type="text" id="text_ojo_derecho_y" value="20" style="width:70px;">
+                            <input type="text" id="text_ojo_derecho_p" value="20" style="width:70px;">
+                            <button type="button" class="publicar_btn"
+                                onclick="publicar('ojo_derecho');">Publicar</button>
+                        </p>
+                    </div>
+
+                    <div class="grid-item" style="height:150px;">
+                        <h2>Cuello</h2>
+                        {"tipo":"cuello","valor":"90""}
+                        <p>
+                            <input type="text" id="text_cuello" value="90">
+                            <button type="button" class="publicar_btn" onclick="publicar('cuello');">Publicar</button>
+                        </p>
+                    </div>
+
+                    <div class="grid-item" style="height:150px;">
+                        <h2>Hablar</h2>
+                        {"tipo":"hablar","valor":"Hola ¿Cómo estas?""}
+                        <input type="text" id="text_hablar" value="Hola ¿Cómo estas?">
+                        <button type="button" class="publicar_btn" onclick="publicar('hablar');">Publicar</button>
+                        </p>
+                    </div>
+                    <br>
+                    <div class="grid-item" style="height:150px;">
+                        <h2>Emoción</h2>
+                        {"tipo":"emocion","valor":"positive""}
+                        <p>
+                            <input type="text" id="text_emocion" value="positive">
+                            <button type="button" class="publicar_btn" onclick="publicar('emocion');">Publicar</button>
+                        </p>
+                    </div>
+
+                </div>
+
+            </section>
+        </div>
+    </main>
+    <br>
+    <section class="dashboard__components" style="height:50px;width:100%;">
+        <p>
+            <a href="/tools" target="_blank">
+                <h3>Herramientas gratuitas online</h3>
+            </a>
+
+        </p>
+        <section class="dashboard__components" style="height:50px;width:100%;">
+            <h5>Versión 1.2 - 04-11-2023 by Balichs</h5>
+        </section>
+    </section>
+    <script src='../js/dashboard.js'></script>
+
+</body>
+
+</html>

@@ -1,0 +1,23 @@
+id|login|name|password|type|level|status|mail|description|dasboard|timestamp
+1|admin|admin|uai123456|admin|1|activo|lrfuai@gmail.com|administrador del sistema|dasboard admin|2023-05-07 11:46:00
+2|lrfuai|Néstor Balich|uai123456|profesor|2|activo|lrfuai@gmail.com|profesores|dasboard profesor|2023-05-07 11:46:00
+3|grupo1|Nombre alumno|g1|alumno|2|activo|@|grupo de alumnos|Dashboard grupo 1|2023-05-07 11:46:00
+4|grupo2|Nombre alumno|g2|alumno|2|activo|@|grupo de alumnos|Dashboard grupo 2|2023-05-07 11:46:00
+5|grupo3|Nombre alumno|g3|alumno|2|activo|@|grupo de alumnos|Dashboard grupo 3|2023-05-07 11:46:00
+6|grupo4|Nombre alumno|g4|alumno|2|activo|@|grupo de alumnos|Dashboard grupo 4|2023-05-07 11:46:00
+7|grupo5|Nombre alumno|g5|alumno|2|activo|@|grupo de alumnos|Dashboard grupo 5|2023-05-07 11:46:00
+8|grupo6|Nombre alumno|g6|alumno|2|activo|@|grupo de alumnos|Dashboard grupo 6|2023-05-07 11:46:00
+9|grupo7|Nombre alumno|g7|alumno|2|activo|@|grupo de alumnos|Dashboard grupo 7|2023-05-07 11:46:00
+10|grupo8|Nombre alumno|g8|alumno|2|activo|@|grupo de alumnos|Dashboard grupo 8|2023-05-07 11:46:00
+11|grupo9|Nombre alumno|g9|alumno|2|activo|@|grupo de alumnos|Dashboard grupo 9|2023-05-07 11:46:00
+12|grupo10|Nombre alumno|g10|alumno|2|activo|@|grupo de alumnos|Dashboard grupo 10|2023-05-07 11:46:00
+13|grupo11|Nombre alumno|g11|alumno|2|activo|@|grupo de alumnos|Dashboard grupo 11|2023-05-07 11:46:00
+14|grupo12|Nombre alumno|g12|alumno|2|activo|@|grupo de alumnos|Dashboard grupo 12|2023-05-07 11:46:00
+15|grupo13|Nombre alumno|g13|alumno|2|activo|@|grupo de alumnos|Dashboard grupo 13|2023-05-07 11:46:00
+16|grupo14|Nombre alumno|g14|alumno|2|activo|@|grupo de alumnos|Dashboard grupo 14|2023-05-07 11:46:00
+17|grupo15|Nombre alumno|g15|alumno|2|activo|@|grupo de alumnos|Dashboard grupo 15|2023-05-07 11:46:00
+18|grupo16|Nombre alumno|g16|alumno|2|activo|@|grupo de alumnos|Dashboard grupo 16|2023-05-07 11:46:
+19|grupo17|Nombre alumno|g17|alumno|2|activo|@|grupo de alumnos|Dashboard grupo 17|2023-05-07 11:46:00
+20|grupo18|Nombre alumno|g18|alumno|2|activo|@|grupo de alumnos|Dashboard grupo 18|2023-05-07 11:46:00
+19|grupo19|Nombre alumno|g19|alumno|2|activo|@|grupo de alumnos|Dashboard grupo 19|2023-05-07 11:46:00
+20|grupo20|Nombre alumno|g20|alumno|2|activo|@|grupo de alumnos|Dashboard grupo 20|2023-05-07 11:46:00

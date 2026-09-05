@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Simulador de Robot — Editor Blockly</title>
+<link rel="stylesheet" href="styles/main.css" />
+</head>
+<body>
+<div id="app">
+  <div id="barra">
+    <button id="btn-ejecutar" type="button">Ejecutar</button>
+    <button id="btn-detener" type="button" disabled>Detener</button>
+    <button id="btn-reiniciar" type="button">Reiniciar</button>
+    <span id="feedback-linea" role="status" aria-live="polite"></span>
+  </div>
+  <div id="editor" class="panel">
+    <header class="panel-cab">Editor de bloques</header>
+    <div class="panel-body" id="editor-body">
+      <div id="editor-blockly"></div>
+    </div>
+  </div>
+  <div id="sim" class="panel">
+    <header class="panel-cab">Simulador</header>
+    <div class="panel-body" id="sim-body">
+      <canvas id="sim-canvas"></canvas>
+    </div>
+  </div>
+  <div id="codigo" class="panel">
+    <header class="panel-cab">Sketch Arduino UNO</header>
+    <div class="panel-body" id="codigo-body">
+      <div id="codigo-panel"></div>
+    </div>
+  </div>
+</div>
+
+<!--
+  Blockly loaded from CDN with SRI (Subresource Integrity). If the CDN is
+  unreachable or the integrity check fails (offline classroom, network
+  issue, tampered response), onerror falls back to the local vendored copy
+  at vendor/blockly/blockly.min.js — same version, downloaded once via
+  `curl -L https://unpkg.com/blockly@11.2.2/blockly.min.js -o vendor/blockly/blockly.min.js`.
+-->
+<script
+  src="https://unpkg.com/blockly@11.2.2/blockly.min.js"
+  integrity="sha384-yfXdnKEtrB0xdlNxau6Dh+gzKXBCCWJCxSVS3usYOHgu9BXHMOotNuWSUu4A/QPO"
+  crossorigin="anonymous"
+  onerror="this.onerror=null;document.write('&lt;script src=&quot;vendor/blockly/blockly.min.js&quot;&gt;&lt;\/script&gt;')"
+></script>
+
+<!-- No bundler, no ES modules: every file below attaches to the global RS object, loaded in a fixed order via plain <script> tags. -->
+<script src="src/config.js"></script>
+<script src="src/blocks/definitions.js"></script>
+<script src="src/blocks/toolbox.js"></script>
+<script src="src/generator/program-tree.js"></script>
+<script src="src/generator/cpp-view.js"></script>
+<script src="src/sim/world.js"></script>
+<script src="src/sim/robot.js"></script>
+<script src="src/sim/sensors.js"></script>
+<script src="src/sim/renderer.js"></script>
+<script src="src/runtime/interpreter.js"></script>
+<script src="src/runtime/scheduler.js"></script>
+<script src="src/ui/code-panel.js"></script>
+<script src="src/ui/highlight.js"></script>
+<script src="src/ui/controls.js"></script>
+<script src="src/ui/feedback.js"></script>
+<script src="src/main.js"></script>
+</body>
+</html>

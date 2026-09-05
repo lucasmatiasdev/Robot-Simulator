@@ -1,0 +1,291 @@
+form {
+    border: 3px solid #f1f1f1;
+}
+
+body {
+    margin-top: 20px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    background-color: var(--grisClaro);
+}
+
+.dashboard__main {
+    width: 90%;
+}
+
+.dashboard__dataContainer,.dashboard__dataContainerNoMax {
+    padding: 15px;
+    width: 100%;
+    max-width: 1500px;
+    margin: auto;
+    background-color: var(--blanco);
+    margin-bottom: 25px;
+}
+
+.dashboard__dataContainerNoMax {
+    width: 70%;
+}
+
+.dashboard__dataRow {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+}
+
+.dashboard__data,
+.dashboard__dataText {
+    display: flex;
+    gap: 10px;
+
+    justify-content: center;
+    align-items: center;
+}
+
+.dashboard__dataText {
+    flex-wrap: wrap;
+}
+
+.dashboard__data>p {
+    min-width: 130px;
+    text-align: end;
+}
+
+.dashboard__components{
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+.dashboard__main h2, .grid-item p:first-child{
+    padding-bottom: 5px;
+}
+.cabecera > h3{
+    padding-bottom: 10px;
+    font-size: 1.5rem;
+}
+input[type=text],
+input[type=password] {
+    width: 100px;
+    height: 35px;
+    padding: 5px 5px;
+    margin: 2px 0;
+    display: inline-block;
+    border: 1px solid #cccccc;
+    box-sizing: border-box;
+    font-size: 12px;
+}
+
+textarea {
+    font-size: 12px;
+}
+
+.data_subscribe {
+    width: 100px;
+    height: 35px;
+    padding: 12px 10px;
+    margin: 8px 0;
+    background-color: #fdfafa;
+    display: inline-block;
+    border: 1px solid #ccc;
+    box-sizing: border-box;
+}
+
+.label_usuario {
+    width: 100px;
+    padding: 12px 20px;
+    margin: 8px 0;
+    display: inline-block;
+    border: 1px solid #ccc;
+    box-sizing: border-box;
+}
+
+
+
+/*set a style for the buttons*/
+
+button {
+    color: white;
+    border: none;
+    cursor: pointer;
+    width: 100px;
+    padding: 10px 18px;
+    margin-top: 10px;
+}
+
+.btnConectar {
+    background-color: var(--rojo);
+    border-radius: 5px;
+    width: 120px;
+}
+
+/* set a hover effect for the button*/
+
+button:hover {
+    opacity: 0.8;
+}
+
+/*set extra style for the cancel button*/
+
+.publicar_btn {
+    width: auto;
+    background-color: var(--naranja);
+    border-radius: 5px;
+}
+
+/*centre the display image inside the container*/
+
+.imgcontainer {
+    text-align: center;
+    margin: 24px 0 12px 0;
+}
+
+/*set image properties*/
+
+img.avatar {
+    width: 40%;
+    border-radius: 50%;
+}
+
+/*set padding to the container*/
+
+.container {
+    padding: 16px;
+}
+
+/*set the forgot password text*/
+
+span.psw {
+    float: right;
+    padding-top: 16px;
+}
+
+/*set styles for span and cancel button on small screens*/
+
+@media screen and (max-width: 300px) {
+    span.psw {
+        display: block;
+        float: none;
+    }
+}
+
+.tablas {
+    width: 100%;
+    display: flex;
+    justify-content: left;
+    align-items: center;
+    flex-direction: column;
+}
+
+.publicar {
+    padding: 12px;
+    border: 3px solid;
+    border-radius: 15px;
+    font-size: 11px;
+    align-items: center;
+    text-align: center;
+}
+
+.subscribir {
+    padding: 12px;
+    border: 3px solid var(--verde);
+    border-radius: 15px;
+    font-size: 11px;
+    align-items: center;
+    text-align: center;
+}
+
+.cabecera {
+    width: 100%;
+    margin: auto;
+    text-align: center;
+}
+.cabecera>h2{
+    font-size: 2rem;
+    margin-bottom: 15px;
+}
+.grid-container {
+    display: flex;
+    grid-template-columns: auto;
+    background-color: #2196F3;
+    padding: 5px;
+    text-align: center;
+    align-items: center;
+    justify-content: center;
+    width: calc(100% /4.5);
+    min-width: 250px;
+    border-radius: 15px;
+}
+.grid-container-vertical{
+    display: flex;
+    flex-direction: column;
+    grid-template-columns: auto;
+    background-color: #2196F3;
+    padding: 5px;
+    text-align: center;
+    align-items: center;
+    justify-content: center;
+    min-width: 250px;
+    border-radius: 15px;
+    gap: 5px;
+}
+.grid-container-1 {
+    display: flex;
+    background-color: #15be21;
+    padding: 5px;
+    text-align: center;
+    align-items: center;
+    justify-content: center;
+    width: calc(100% /7);
+    min-width: 190px;
+    border-radius: 15px;
+}
+
+.grid-container-2 {
+    display: flex;
+    background-color: #700909;
+    padding: 5px;
+    width: 210px;
+    text-align: center;
+    align-items: center;
+    justify-content: center;
+    width: calc(100% /7);
+    min-width: 190px;
+    border-radius: 15px;
+}
+
+.grid-item {
+    background-color: rgba(255, 255, 255, 0.8);
+    border: 2px solid rgba(0, 0, 0, 0.8);
+    padding: 5px 25px;
+    font-size: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    border-radius: 15px;
+    width: 100%;
+}
+
+.grid-item>input {
+    width: 100%;
+    border-radius: 5px;
+}
+
+.grid-item>textarea {
+    width: 100%;
+    border-radius: 5px;
+    resize: none;
+    min-height: 130px;
+}
+
+@media screen and (max-width: 800px) {
+    .dashboard__dataContainerNoMax {
+        width: 100%;
+    }
+}

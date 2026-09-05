@@ -1,0 +1,86 @@
+/**
+ * RS.config — global constants and display configuration.
+ * No ES modules: this file attaches to the global `RS` object.
+ */
+(function (global) {
+  'use strict';
+
+  var RS = global.RS = global.RS || {};
+
+  RS.config = {
+    // --- World / canvas ---
+    WORLD_WIDTH: 800,
+    WORLD_HEIGHT: 600,
+
+    // --- Sensors ---
+    ESCALA: 4, // px per simulated cm
+    RANGO_MAX: 100, // max simulated distance (cm)
+    UMBRAL_OBSTACULO: 20, // hayObstaculo() = medirDistancia() <= 20 (cm)
+
+    // --- Kinematics ---
+    GIRO: 0.18, // degrees per ms (izquierda/derecha), value NOT divided by 4
+    VEL: 0.12, // px per ms (avanzar/retroceder)
+
+    // Max simulated ms advanced per collision-checked sub-step within a single
+    // requestAnimationFrame callback. A real rAF frame's dt can spike well
+    // beyond a normal ~16ms frame (backgrounded tab, GC pause, slow device),
+    // and at VEL px/ms a single uncapped step can jump clean over a thin
+    // obstacle without ever landing on an overlapping position (tunneling).
+    // Capping the distance advanced per checked step to a few px keeps AABB
+    // collision detection correct regardless of real-world frame timing,
+    // without switching to a swept/continuous collision test.
+    MAX_SUBSTEP_MS: 16,
+
+    // --- Robot geometry ---
+    ROBOT_SIZE: 40, // px (10cm at ESCALA=4)
+
+    // --- Action vocabulary: strict subset of example/control_PaperOne/mqtt_handler.h ---
+    // bailar() intentionally excluded — no block, no action, no reference.
+    ACCIONES: ['avanzar', 'retroceder', 'izquierda', 'derecha', 'detener', 'led'],
+
+    // --- Arduino sketch generator: real C++ function names (must be valid
+    // identifiers — they now name emitted `void` definitions, not just call
+    // sites, so cpp-view.js reads this same map for both). ---
+    nombreCpp: {
+      avanzar: 'avanzar',
+      retroceder: 'retroceder',
+      izquierda: 'girarIzquierda',
+      derecha: 'girarDerecha',
+      detener: 'detener',
+      led: 'led'
+    },
+
+    // Deprecated/unused by cpp-view.js since rev 3: the sketch generator now
+    // always emits a real `for` loop for `repetir` nodes (compilability is
+    // mandatory — `repetir(4){}` is not valid C++). Kept only so older
+    // callers referencing this key do not throw; no behavior reads it.
+    estiloRepetir: 'for',
+
+    // --- Arduino UNO pin map (generic L298N H-bridge), per design rev 3.
+    // ENA/ENB are the two PWM speed pins; IN1-IN4 are direction pins.
+    // Pins 2/3 (external interrupts) and 9/10/11 (Servo/extra PWM) are left
+    // free on purpose for a future HC-SR04 sensor. Pins 0/1 (Serial) untouched. ---
+    arduino: {
+      ENA: 5,   // PWM — velocidad motor 1 (izquierdo)
+      IN1: 7,   // Direccion motor 1 (izquierdo), terminal A
+      IN2: 8,   // Direccion motor 1 (izquierdo), terminal B
+      ENB: 6,   // PWM — velocidad motor 2 (derecho)
+      IN3: 4,   // Direccion motor 2 (derecho), terminal A
+      IN4: 12,  // Direccion motor 2 (derecho), terminal B
+      LED_PIN: 13, // LED integrado del Arduino UNO
+      VELOCIDAD: 200 // 0-255, mirrors firmware pwm_potencia default
+    },
+
+    // --- Canvas robot palette (shared with styles/main.css tokens by value,
+    // since canvas fillStyle cannot read CSS custom properties directly). ---
+    paleta: {
+      chasis: '#3477eb',
+      chasisError: '#c0392b',
+      rueda: '#141c24',
+      ruedaHub: '#2b3948',
+      nariz: '#0f1720',
+      ledOn: '#ffd54a',
+      ledOff: '#4a5766'
+    }
+  };
+})(typeof window !== 'undefined' ? window : this);

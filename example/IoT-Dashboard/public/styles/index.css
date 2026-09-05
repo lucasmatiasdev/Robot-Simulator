@@ -1,0 +1,106 @@
+ body {
+     display: flex;
+     justify-content: center;
+     align-items: center;
+     min-height: 100vh;
+     background-color: var(--grisClaro);
+ }
+
+ .login__main {
+     display: flex;
+     justify-content: center;
+     align-items: center;
+     flex-direction: column;
+     width: 70%;
+     max-width: 800px;
+     gap: 25px;
+ }
+
+ .login__titleContainer {
+     display: flex;
+     text-align: center;
+     justify-content: center;
+     align-items: center;
+     flex-direction: column;
+ }
+
+ .login__formContainer {
+     display: flex;
+     justify-content: center;
+     align-items: center;
+     width: 80%;
+ }
+
+ .login__msgBoxContainer {
+     display: flex;
+     justify-content: center;
+     align-items: center;
+     flex-direction: column;
+ }
+
+ .login__title {
+     font-size: 2.5rem;
+ }
+ .login__titleContainer>p {
+    font-size: 1rem;
+    font-style: italic;
+}
+ .login__form {
+     background-color: var(--blanco);
+ }
+
+ .inputText {
+     width: 100%;
+     padding: 12px 20px;
+     margin: 8px 0;
+     display: inline-block;
+     border: 1px solid #ccc;
+     box-sizing: border-box;
+     border-radius: 5px;
+ }
+
+ button {
+     background-color: #4CAF50;
+     color: white;
+     padding: 14px 20px;
+     margin: 8px 0;
+     border: none;
+     cursor: pointer;
+     width: 100%;
+     border-radius: 5px;
+ }
+
+ button:hover {
+     opacity: 0.8;
+ }
+
+ .login__psw {
+     margin-left: auto;
+ }
+
+ .container {
+     padding: 16px;
+ }
+
+ .login__checkbox {
+     display: flex;
+     gap: 10px;
+ }
+
+ @media screen and (max-width: 600px) {
+     .cancelBtn {
+         width: 100%;
+     }
+     .login__main{
+        width: 95%;
+     }
+     .login__title{
+        font-size: 2rem;
+     }
+     .login__formContainer{
+        width: 95%;
+     }
+     .container > label{
+        font-size: 1rem;
+     }
+ }
