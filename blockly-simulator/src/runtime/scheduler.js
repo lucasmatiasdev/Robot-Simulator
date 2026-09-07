@@ -104,6 +104,9 @@
           RS.robot.girar(dtAplicado, girarSentido(accion));
         }
         elapsedNode += dtAplicado;
+      } else if (accion === 'esperar') {
+        // Accrues elapsed time without moving the robot or testing collision.
+        elapsedNode += dtAplicado;
       } else {
         // Unknown action: skip defensively.
         avanzarSiguienteNodo();

@@ -209,6 +209,16 @@
     // executable code — see the Unsupported Sensor Blocks contract.
     // ---------------------------------------------------------------
     function accionTokens(node) {
+      if (node.accion === 'esperar') {
+        // 'esperar' is simulator/sketch-only (not part of RS.config.ACCIONES);
+        // it maps directly to Arduino's built-in delay(ms), no custom
+        // function scaffold needed.
+        return [
+          tok('delay', 'call'), tok('(', 'punct'), tok(String(node.valor), 'num'),
+          tok(')', 'punct'), tok(';', 'punct')
+        ];
+      }
+
       var nombre = nombreCpp[node.accion] || node.accion;
 
       if (node.accion === 'detener') {

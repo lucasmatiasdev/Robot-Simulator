@@ -151,5 +151,13 @@ if (fs.existsSync(mqttHandlerPath)) {
   assertEquals(antes, despues, 'example/control_PaperOne/mqtt_handler.h no fue modificado por la generacion');
 }
 
+// ---- esperar (wait) action maps to Arduino's built-in delay(ms) ----
+var arbolEspera = [
+  { tipo: 'accion', accion: 'esperar', valor: 750, blockId: 'e1' }
+];
+var textoEspera = RS.cppView.renderTexto(arbolEspera);
+assert(textoEspera.indexOf('delay(750);') !== -1, 'esperar(750) genera delay(750); en el sketch');
+assert(textoEspera.indexOf('void esperar') === -1, 'esperar() no genera una funcion custom (usa el delay() nativo)');
+
 console.log('\n' + (fallidos === 0 ? 'TODOS LOS TESTS PASARON' : (fallidos + ' TEST(S) FALLARON')) + ' (' + (total - fallidos) + '/' + total + ')');
 process.exit(fallidos === 0 ? 0 : 1);

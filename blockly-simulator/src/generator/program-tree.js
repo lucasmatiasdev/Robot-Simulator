@@ -21,8 +21,28 @@
     rs_izquierda: 'izquierda',
     rs_derecha: 'derecha',
     rs_detener: 'detener',
-    rs_led: 'led'
+    rs_led: 'led',
+    // 'esperar' is simulator/sketch-only: it is NOT part of RS.config.ACCIONES
+    // (the firmware's mqtt_handler.h vocabulary subset).
+    rs_espera: 'esperar'
   };
+
+  /** Reads a comparator operand block into the {k, [v]} node shape. */
+  function leerOperando(block) {
+    if (!block) return null;
+    if (block.type === 'rs_medir_distancia') return { k: 'medirDistancia' };
+    if (block.type === 'rs_hay_obstaculo') return { k: 'hayObstaculo' };
+    if (block.type === 'rs_numero') return { k: 'numero', v: Number(block.getFieldValue('NUM')) || 0 };
+    return null;
+  }
+
+  function leerComparador(block) {
+    return {
+      op: block.getFieldValue('OP'),
+      izq: leerOperando(block.getInputTargetBlock('IZQ')),
+      der: leerOperando(block.getInputTargetBlock('DER'))
+    };
+  }
 
   function readMs(block) {
     var target = block.getInputTargetBlock('MS');
@@ -74,12 +94,17 @@
 
     if (type === 'rs_si_obstaculo') {
       var siCuerpoBlock = block.getInputTargetBlock('DO');
-      return {
-        tipo: 'si',
-        sensor: 'hayObstaculo',
-        cuerpo: walkChain(siCuerpoBlock),
-        blockId: block.id
-      };
+      var nodoSi = { tipo: 'si', cuerpo: walkChain(siCuerpoBlock), blockId: block.id };
+      var condTarget = block.getInputTargetBlock('COND');
+      if (condTarget && condTarget.type === 'rs_comparar') {
+        nodoSi.condicion = leerComparador(condTarget);
+      } else {
+        // Default shadow (rs_hay_obstaculo) or no COND target at all: keep
+        // the exact pre-existing node shape, so the unmodified default case
+        // stays byte-identical to today's generator output.
+        nodoSi.sensor = 'hayObstaculo';
+      }
+      return nodoSi;
     }
 
     // rs_hay_obstaculo / rs_medir_distancia are value (reporter) blocks —

@@ -1,7 +1,9 @@
 /**
  * RS block definitions: the 6 action blocks (avanzar, retroceder, izquierda,
  * derecha, detener, led) plus hayObstaculo()/medirDistancia() sensor blocks,
- * the repeat-N-times block, and the if-hayObstaculo decision block.
+ * the repeat-N-times block, and the "si" decision block. Also: rs_inicio
+ * (hat, no code), rs_espera (simulator/sketch-only wait), and rs_comparar
+ * (usable inside the "si" block's COND value input).
  *
  * bailar() MUST NOT appear here — no block, field, or dropdown entry.
  */
@@ -15,6 +17,7 @@
   var COLOR_ACTUADORES = 40;
   var COLOR_SENSORES = 290;
   var COLOR_REPETICION = 20;
+  var COLOR_INICIO = 0;
 
   function movementBlock(type, label) {
     Blockly.Blocks[type] = {
@@ -84,15 +87,73 @@
     }
   };
 
+  // COND is a value input (Boolean) with rs_hay_obstaculo as its default
+  // shadow (set in toolbox.js). The unmodified default case — an untouched
+  // shadow — reproduces today's fixed "si hayObstaculo()" condition exactly,
+  // preserving byte-identical rendering/generator output for that case.
+  // Replacing the shadow with an rs_comparar block instead lets the
+  // condition compare any two operands (see program-tree.js/interpreter.js).
   Blockly.Blocks['rs_si_obstaculo'] = {
     init: function () {
-      this.appendDummyInput().appendField('si hayObstaculo()');
+      this.appendValueInput('COND').setCheck('Boolean').appendField('si');
       this.appendStatementInput('DO').setCheck(null);
       this.setPreviousStatement(true, null);
       this.setNextStatement(true, null);
       this.setColour(COLOR_SENSORES);
-      this.setTooltip('Ejecuta el cuerpo solo si hayObstaculo() es verdadero (evaluado en tiempo de ejecución).');
-      this.setInputsInline(false);
+      this.setTooltip('Ejecuta el cuerpo solo si la condición es verdadera (evaluada en tiempo de ejecución).');
+      this.setInputsInline(true);
+    }
+  };
+
+  // --- Comparador (usable inside COND slots, e.g. rs_si_obstaculo) ---
+  Blockly.Blocks['rs_comparar'] = {
+    init: function () {
+      this.appendValueInput('IZQ').setCheck('Number');
+      this.appendDummyInput().appendField(new Blockly.FieldDropdown([
+        ['>', '>'],
+        ['<', '<'],
+        ['>=', '>='],
+        ['<=', '<='],
+        ['==', '==']
+      ]), 'OP');
+      this.appendValueInput('DER').setCheck('Number');
+      this.setInputsInline(true);
+      this.setOutput(true, 'Boolean');
+      this.setColour(COLOR_SENSORES);
+      this.setTooltip('Compara dos valores numéricos (por ejemplo medirDistancia()) y produce verdadero/falso.');
+    }
+  };
+
+  // --- Inicio/evento ---
+  // Hat block: setPreviousStatement(false) means nothing can connect above
+  // it, so it can only ever be a chain root. It emits no program-tree node
+  // (blockToNode has no entry for 'rs_inicio' and falls through to `null`);
+  // walkChain still follows getNextBlock(), so a program anchored to this
+  // block executes identically to the same program left unanchored.
+  Blockly.Blocks['rs_inicio'] = {
+    init: function () {
+      this.appendDummyInput().appendField('Inicio/evento');
+      this.setPreviousStatement(false);
+      this.setNextStatement(true, null);
+      this.setColour(COLOR_INICIO);
+      this.setTooltip('Inicio/evento: marca el punto de partida del programa. No genera código propio.');
+    }
+  };
+
+  // --- Espera ---
+  // Maps to the 'esperar' action (simulator/sketch-only — deliberately NOT
+  // part of RS.config.ACCIONES, the firmware's mqtt_handler.h vocabulary).
+  Blockly.Blocks['rs_espera'] = {
+    init: function () {
+      this.appendValueInput('MS')
+        .setCheck('Number')
+        .appendField('esperar(');
+      this.appendDummyInput().appendField(') ms', 'SUFFIX');
+      this.setInputsInline(true);
+      this.setPreviousStatement(true, null);
+      this.setNextStatement(true, null);
+      this.setColour(COLOR_MOVIMIENTO);
+      this.setTooltip('esperar(ms): pausa la ejecución durante ms milisegundos sin mover el robot.');
     }
   };
 
@@ -123,9 +184,10 @@
   };
 
   RS.blocks = {
-    MOVIMIENTO_TYPES: ['rs_avanzar', 'rs_retroceder', 'rs_izquierda', 'rs_derecha', 'rs_detener'],
+    INICIO_TYPES: ['rs_inicio'],
+    MOVIMIENTO_TYPES: ['rs_avanzar', 'rs_retroceder', 'rs_izquierda', 'rs_derecha', 'rs_detener', 'rs_espera'],
     ACTUADOR_TYPES: ['rs_led'],
-    SENSOR_TYPES: ['rs_hay_obstaculo', 'rs_medir_distancia', 'rs_si_obstaculo'],
+    SENSOR_TYPES: ['rs_hay_obstaculo', 'rs_medir_distancia', 'rs_si_obstaculo', 'rs_comparar'],
     REPETICION_TYPES: ['rs_repetir']
   };
 })(typeof window !== 'undefined' ? window : this);

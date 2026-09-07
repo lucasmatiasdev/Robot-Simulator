@@ -20,6 +20,8 @@
      the Blockly global and are exercised only through fake block/workspace
      stubs below, matching the minimal API program-tree.js actually calls. -->
 <script src="../src/config.js"></script>
+<script src="../src/lessons/content.js"></script>
+<script src="../src/lessons/check.js"></script>
 <script src="../src/generator/program-tree.js"></script>
 <script src="../src/generator/cpp-view.js"></script>
 <script src="../src/sim/world.js"></script>
@@ -129,6 +131,38 @@
     };
   }
 
+  function bloqueSiCond(id, condBlock, cuerpoInicial) {
+    return {
+      type: 'rs_si_obstaculo', id: id, _next: null,
+      getInputTargetBlock: function (name) {
+        if (name === 'DO') return cuerpoInicial;
+        if (name === 'COND') return condBlock;
+        return null;
+      },
+      getNextBlock: function () { return this._next; }
+    };
+  }
+
+  function bloqueMedirDistancia() {
+    return { type: 'rs_medir_distancia' };
+  }
+
+  function bloqueNumero(valor) {
+    return { type: 'rs_numero', getFieldValue: function (name) { return name === 'NUM' ? valor : null; } };
+  }
+
+  function bloqueComparar(op, izq, der) {
+    return {
+      type: 'rs_comparar',
+      getFieldValue: function (name) { return name === 'OP' ? op : null; },
+      getInputTargetBlock: function (name) {
+        if (name === 'IZQ') return izq;
+        if (name === 'DER') return der;
+        return null;
+      }
+    };
+  }
+
   function workspaceFalso(topBlocks) {
     return { getTopBlocks: function () { return topBlocks; } };
   }
@@ -204,6 +238,30 @@
     var vocabulario = RS.config.ACCIONES;
     assert(vocabulario.indexOf('bailar') === -1, 'bailar() ausente del vocabulario del generador');
     assertEquals(vocabulario, ['avanzar', 'retroceder', 'izquierda', 'derecha', 'detener', 'led'], 'vocabulario es exactamente el subconjunto de 6 acciones');
+    assert(vocabulario.indexOf('esperar') === -1, 'esperar() NO forma parte de RS.config.ACCIONES (es solo simulador/sketch)');
+
+    // rs_espera emite un nodo de acción 'esperar' con su valor MS.
+    var arbolEspera = RS.generator.buildProgramTree(workspaceFalso([bloqueAccion('rs_espera', 'e1', 750)]));
+    assertEquals(arbolEspera, [
+      { tipo: 'accion', accion: 'esperar', blockId: 'e1', valor: 750 }
+    ], 'rs_espera genera {tipo:"accion", accion:"esperar", valor}');
+
+    // Caso por defecto (shadow rs_hay_obstaculo, o sin COND): nodo "si" byte-idéntico al de antes.
+    var arbolSiDefault = RS.generator.buildProgramTree(workspaceFalso([bloqueSi('sifd', bloqueAccion('rs_detener', 'sd0', undefined))]));
+    assertEquals(arbolSiDefault, [
+      { tipo: 'si', sensor: 'hayObstaculo', blockId: 'sifd', cuerpo: [
+        { tipo: 'accion', accion: 'detener', blockId: 'sd0' }
+      ] }
+    ], 'si-obstaculo sin comparador (shadow por defecto): nodo idéntico al comportamiento pre-existente');
+
+    // Comparador como COND: nodo "si" con condicion {op, izq, der}.
+    var comparador = bloqueComparar('>=', bloqueMedirDistancia(), bloqueNumero(260));
+    var arbolSiComparador = RS.generator.buildProgramTree(workspaceFalso([bloqueSiCond('sifc', comparador, bloqueAccion('rs_detener', 'sd1', undefined))]));
+    assertEquals(arbolSiComparador, [
+      { tipo: 'si', blockId: 'sifc', condicion: { op: '>=', izq: { k: 'medirDistancia' }, der: { k: 'numero', v: 260 } }, cuerpo: [
+        { tipo: 'accion', accion: 'detener', blockId: 'sd1' }
+      ] }
+    ], 'si con rs_comparar en COND: nodo "si" con condicion {op, izq, der}');
   })();
 
   // ================= cppView: Arduino sketch generator =================
@@ -311,7 +369,63 @@
     RS.robot.reset();
   })();
 
-  // ================= resaltar() single call site =================
+  // ================= Interprete: condicion de comparador branchea =================
+  grupo('Interprete: comparador (COND) branchea correctamente en ambos lados del umbral');
+  (function () {
+    var obstaculo = RS.world.obstaculos[0]; // {x:300,y:220,w:60,h:140}
+    // condicion: medirDistancia() < 15 (cm)
+    var condicion = { op: '<', izq: { k: 'medirDistancia' }, der: { k: 'numero', v: 15 } };
+    var arbolSi = [
+      { tipo: 'si', blockId: 's1', condicion: condicion, cuerpo: [
+        { tipo: 'accion', accion: 'detener', blockId: 'd1' }
+      ] },
+      { tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'a-despues' }
+    ];
+
+    // Lejos de cualquier obstáculo/pared (mirando al techo desde el centro del
+    // mapa, ~75cm de distancia): medirDistancia() >= 15 -> condicion falsa ->
+    // se salta el cuerpo del si.
+    var walkerLejos = RS.runtime.interpreter.crear(arbolSi, RS.world, { x: 400, y: 300, angulo: 270 });
+    var nodoLejos = walkerLejos.siguienteNodo();
+    assertEquals(nodoLejos && nodoLejos.blockId, 'a-despues', 'condicion falsa (lejos): el interprete salta el cuerpo del si');
+
+    // Cerca del obstáculo: medirDistancia() < 15 -> condicion verdadera -> entra al cuerpo del si.
+    var xCerca = obstaculo.x - 15;
+    var walkerCerca = RS.runtime.interpreter.crear(arbolSi, RS.world, { x: xCerca, y: obstaculo.y + obstaculo.h / 2, angulo: 0 });
+    var nodoCerca = walkerCerca.siguienteNodo();
+    assertEquals(nodoCerca && nodoCerca.blockId, 'd1', 'condicion verdadera (cerca): el interprete entra al cuerpo del si');
+  })();
+
+  // ================= Scheduler: esperar pausa sin mover el robot =================
+  grupo('Scheduler: esperar(ms) pausa la ejecucion sin mover el robot');
+  (function () {
+    var feedbackDiv = document.createElement('div');
+    document.body.appendChild(feedbackDiv);
+    RS.ui.feedback.init(feedbackDiv);
+
+    var scheduler = RS.runtime.scheduler;
+    var arbol = [
+      { tipo: 'accion', accion: 'esperar', valor: 500, blockId: 'e1' },
+      { tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'a1' }
+    ];
+    scheduler.iniciarConArbol(arbol);
+    var xInicial = RS.robot.estado.x;
+
+    scheduler._procesarFrame(300); // dentro del esperar(500): no debe moverse
+    assertEquals(RS.robot.estado.x, xInicial, 'durante esperar(), la posicion x del robot no cambia');
+    assertEquals(scheduler.obtenerEstado(), 'running', 'esperar() en curso: el estado sigue running');
+
+    scheduler._procesarFrame(300); // cierra el esperar (300+300>=500) y adelanta al avanzar(100)
+    scheduler._procesarFrame(100); // completa avanzar(100)
+
+    assert(RS.robot.estado.x > xInicial, 'tras esperar() y avanzar(), el robot se movio hacia adelante');
+    assertEquals(scheduler.obtenerEstado(), 'idle', 'el programa completo termina en idle');
+
+    scheduler.reiniciar();
+    document.body.removeChild(feedbackDiv);
+  })();
+
+  // ================= UI: resaltar() marca exactamente un bloque y una línea =================
   grupo('UI: resaltar() marca exactamente un bloque y una línea');
   (function () {
     var llamadasHighlight = [];
@@ -409,6 +523,59 @@
     assert(!feedbackDiv.classList.contains('feedback-error'), 'reiniciar() quita la clase de error del feedback');
 
     document.body.removeChild(feedbackDiv);
+  })();
+
+  // ================= Lesson content: record completeness =================
+  grupo('Lecciones: cada registro de CONTENIDO tiene las 13 secciones obligatorias');
+  (function () {
+    var SECCIONES = [
+      'nivel', 'objetivo', 'concepto', 'ejemplo', 'bloques', 'comoFunciona',
+      'prueba', 'modificacion', 'desafio', 'criterioTexto', 'pista',
+      'competencias', 'resultados'
+    ];
+    assert(Array.isArray(RS.lessons.CONTENIDO) && RS.lessons.CONTENIDO.length > 0, 'RS.lessons.CONTENIDO es un array no vacío');
+    RS.lessons.CONTENIDO.forEach(function (leccion) {
+      SECCIONES.forEach(function (clave) {
+        var valor = leccion[clave];
+        assert(typeof valor === 'string' && valor.trim().length > 0,
+          'Lección ' + leccion.id + ' (' + leccion.titulo + '): sección "' + clave + '" no vacía');
+      });
+    });
+  })();
+
+  // ================= Lessons: check.evaluar (Lesson 2 success criterion) =================
+  grupo('Lecciones: check.evaluar — criterio de Lección 2 (x >= 260)');
+  (function () {
+    var leccion2 = RS.lessons.CONTENIDO.filter(function (l) { return l.id === 2; })[0];
+    assert(!!leccion2 && !!leccion2.criterio, 'Lección 2 tiene un criterio.evaluar definido');
+
+    // Pasa exactamente en el umbral y por encima.
+    var pasaJusto = RS.lessons.check.evaluar(leccion2, { estado: { x: 260 }, resultadoRun: 'idle' });
+    assert(pasaJusto.ok === true, 'check.evaluar: x=260 (umbral exacto) pasa');
+
+    var pasaHolgado = RS.lessons.check.evaluar(leccion2, { estado: { x: 300 }, resultadoRun: 'idle' });
+    assert(pasaHolgado.ok === true, 'check.evaluar: x=300 pasa');
+
+    // Falla por debajo del umbral.
+    var falla = RS.lessons.check.evaluar(leccion2, { estado: { x: 150 }, resultadoRun: 'idle' });
+    assert(falla.ok === false, 'check.evaluar: x=150 (debajo del umbral) falla');
+    assert(falla.observado.indexOf('150') !== -1, 'el mensaje de falla describe la posicion observada');
+    assert(falla.observado.toLowerCase().indexOf('avanzar') === -1 && falla.observado.toLowerCase().indexOf('bloque') === -1,
+      'el mensaje de falla describe comportamiento, no nombra el bloque/arreglo a aplicar');
+
+    // Colisión: falla sin importar la posición, describe la colisión, no el fix.
+    var fallaColision = RS.lessons.check.evaluar(leccion2, { estado: { x: 295 }, resultadoRun: 'error' });
+    assert(fallaColision.ok === false, 'check.evaluar: resultadoRun="error" (colisión) siempre falla');
+    assert(fallaColision.observado.indexOf('choc') !== -1, 'el mensaje de colisión describe que el robot chocó');
+
+    // Detención manual: falla, describe la interrupción.
+    var fallaDetenido = RS.lessons.check.evaluar(leccion2, { estado: { x: 200 }, resultadoRun: 'stopped' });
+    assert(fallaDetenido.ok === false, 'check.evaluar: resultadoRun="stopped" (detenido manualmente) falla');
+
+    // Lección 1 (sin criterio): evaluar() devuelve ok:false y un mensaje explicando por qué.
+    var leccion1 = RS.lessons.CONTENIDO.filter(function (l) { return l.id === 1; })[0];
+    var sinCriterio = RS.lessons.check.evaluar(leccion1, { estado: { x: 999 }, resultadoRun: 'idle' });
+    assert(sinCriterio.ok === false, 'Lección 1 (criterio: null): check.evaluar no puede dar exito');
   })();
 
   // ================= Summary =================

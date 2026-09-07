@@ -32,6 +32,32 @@
       return resultado;
     }
 
+    /** Evaluates one comparator operand ({k, [v]}) into a number. */
+    function evaluarOperando(operando) {
+      if (!operando) return 0;
+      if (operando.k === 'medirDistancia') return RS.sensors.medirDistancia(world, robotEstado);
+      if (operando.k === 'hayObstaculo') return RS.sensors.hayObstaculo(world, robotEstado) ? 1 : 0;
+      if (operando.k === 'numero') return operando.v;
+      return 0;
+    }
+
+    /** Evaluates a {op, izq, der} condicion node (rs_comparar) into a boolean. */
+    function evaluarCondicion(condicion) {
+      var izq = evaluarOperando(condicion.izq);
+      var der = evaluarOperando(condicion.der);
+      var resultado;
+      switch (condicion.op) {
+        case '>': resultado = izq > der; break;
+        case '<': resultado = izq < der; break;
+        case '>=': resultado = izq >= der; break;
+        case '<=': resultado = izq <= der; break;
+        case '==': resultado = izq === der; break;
+        default: resultado = false;
+      }
+      if (typeof onSensorEval === 'function') onSensorEval('comparar', resultado);
+      return resultado;
+    }
+
     function siguienteNodo() {
       while (stack.length > 0) {
         var top = stack[stack.length - 1];
@@ -56,7 +82,7 @@
           }
 
           if (node.tipo === 'si') {
-            var cumple = evaluarSensor(node.sensor);
+            var cumple = node.condicion ? evaluarCondicion(node.condicion) : evaluarSensor(node.sensor);
             if (cumple) {
               stack.push({ tipo: 'si', cuerpo: node.cuerpo, index: 0, blockId: node.blockId });
             }
