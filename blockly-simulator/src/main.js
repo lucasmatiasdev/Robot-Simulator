@@ -43,6 +43,8 @@
       grid: { spacing: 20, length: 3, colour: '#2b3948', snap: true }
     });
 
+    RS.lessons.panel.init(document.getElementById('leccion-body'));
+
     RS.ui.initHighlight(workspace);
     RS.ui.feedback.init(feedbackDiv);
     RS.ui.codePanel.init(workspace, codigoDiv);

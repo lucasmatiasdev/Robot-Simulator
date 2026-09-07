@@ -33,12 +33,12 @@ html, body {
 
 #app {
   display: grid;
-  grid-template-columns: minmax(320px, 40fr) 60fr;
+  grid-template-columns: minmax(260px, 25fr) minmax(320px, 35fr) 40fr;
   grid-template-rows: 48px 1fr minmax(180px, 34%);
   grid-template-areas:
-    "barra  barra"
-    "editor sim"
-    "editor codigo";
+    "barra   barra  barra"
+    "leccion editor sim"
+    "leccion editor codigo";
   height: 100vh;
   padding: var(--sp-3);
   gap: var(--sp-3);
@@ -143,6 +143,81 @@ html, body {
   position: relative;
   overflow: hidden;
 }
+
+#leccion { grid-area: leccion; }
+#leccion .panel-body {
+  background: var(--n-700);
+  overflow-y: auto;
+  padding: var(--sp-3);
+}
+
+.leccion-nav {
+  display: flex;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-3);
+}
+
+.leccion-nav-btn {
+  height: 26px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--n-600);
+  background: transparent;
+  color: var(--n-200);
+  font-family: var(--ff-ui);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.leccion-nav-btn:hover { border-color: var(--n-400); }
+
+.leccion-nav-btn-activa {
+  background: var(--a-500);
+  border-color: var(--a-500);
+  color: var(--n-0);
+}
+
+.leccion-titulo {
+  margin: 0 0 var(--sp-3);
+  font-size: var(--fs-base);
+  font-weight: 700;
+  color: var(--n-0);
+}
+
+.leccion-seccion {
+  margin-bottom: var(--sp-4);
+}
+
+.leccion-seccion h3 {
+  margin: 0 0 var(--sp-1);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--n-200);
+}
+
+.leccion-seccion p {
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+  color: var(--n-100);
+  white-space: pre-line;
+}
+
+.leccion-resultado {
+  margin: var(--sp-3) 0 0;
+  padding: var(--sp-2);
+  border-radius: var(--r-sm);
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+}
+
+.leccion-resultado:empty { display: none; }
+
+.leccion-resultado-ok { color: #7ee787; background: rgba(126, 231, 135, .08); }
+.leccion-resultado-fail { color: #ff9a8b; background: rgba(255, 154, 139, .08); }
 
 #editor { grid-area: editor; }
 #editor .panel-body { background: var(--n-700); }
