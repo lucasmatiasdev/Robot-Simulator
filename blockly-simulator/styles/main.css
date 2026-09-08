@@ -44,6 +44,13 @@ html, body {
   gap: var(--sp-3);
   background: var(--n-900);
   overflow: hidden;
+  transition: grid-template-columns 160ms ease;
+}
+
+/* Lesson panel collapsed: reclaims its width for editor/sim/codigo, the
+   panels actually worked in — see leccion-toggle-btn in main.js. */
+#app.leccion-colapsada {
+  grid-template-columns: 40px minmax(380px, 45fr) 55fr;
 }
 
 #barra {
@@ -145,10 +152,43 @@ html, body {
 }
 
 #leccion { grid-area: leccion; }
+#leccion .panel-cab { justify-content: space-between; }
 #leccion .panel-body {
   background: var(--n-700);
   overflow-y: auto;
   padding: var(--sp-3);
+}
+
+.leccion-toggle-btn {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--n-200);
+  font-size: var(--fs-xs);
+  line-height: 1;
+  cursor: pointer;
+  flex: none;
+}
+
+.leccion-toggle-btn:hover { background: var(--n-600); color: var(--n-0); }
+
+.leccion-toggle-btn:focus-visible {
+  outline: 2px solid var(--a-500);
+  outline-offset: 1px;
+}
+
+#app.leccion-colapsada #leccion .panel-cab-titulo,
+#app.leccion-colapsada #leccion .panel-body {
+  display: none;
+}
+
+#app.leccion-colapsada .leccion-toggle-btn {
+  transform: rotate(180deg);
 }
 
 .leccion-nav {

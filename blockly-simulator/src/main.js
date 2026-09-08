@@ -34,6 +34,8 @@
     var canvas = document.getElementById('sim-canvas');
     var codigoDiv = document.getElementById('codigo-panel');
     var feedbackDiv = document.getElementById('feedback-linea');
+    var appEl = document.getElementById('app');
+    var btnLeccionToggle = document.getElementById('btn-leccion-toggle');
 
     var workspace = Blockly.inject(editorDiv, {
       toolbox: RS.toolbox,
@@ -59,6 +61,15 @@
 
     function resize() {
       Blockly.svgResize(workspace);
+    }
+
+    if (btnLeccionToggle && appEl) {
+      btnLeccionToggle.addEventListener('click', function () {
+        var colapsada = appEl.classList.toggle('leccion-colapsada');
+        btnLeccionToggle.setAttribute('aria-expanded', String(!colapsada));
+        btnLeccionToggle.title = colapsada ? 'Expandir panel de lección' : 'Colapsar panel de lección';
+        resize();
+      });
     }
 
     global.addEventListener('resize', resize);
