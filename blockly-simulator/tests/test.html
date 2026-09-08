@@ -975,7 +975,177 @@
     var leccion2 = RS.lessons.CONTENIDO.filter(function (l) { return l.id === 2; })[0];
     assert(leccion1.criterio === null, 'Lección 1 sigue sin criterio (sin cambios)');
     assert(typeof leccion2.criterio.evaluar === 'function', 'Lección 2 conserva su criterio.evaluar (sin cambios)');
-    assertEquals(RS.lessons.CONTENIDO.map(function (l) { return l.id; }), [1, 2, 3, 4, 5], 'RS.lessons.CONTENIDO expone Lecciones 1 a 5 en orden de id');
+    assertEquals(RS.lessons.CONTENIDO.map(function (l) { return l.id; }), [1, 2, 3, 4, 5, 6, 7], 'RS.lessons.CONTENIDO expone Lecciones 1 a 7 en orden de id (Slice C2 agrega 6 y 7)');
+  })();
+
+  // ================= Lesson 6: repetir_hasta + criterion (Slice C2) =================
+  grupo('Lección 6: contenido, exactamente un bloque nuevo, criterio distingue salida por condición vs. límite de seguridad');
+  (function () {
+    var leccion5c = RS.lessons.CONTENIDO.filter(function (l) { return l.id === 5; })[0];
+    var leccion6 = RS.lessons.CONTENIDO.filter(function (l) { return l.id === 6; })[0];
+    assert(!!leccion6 && !!leccion6.criterio, 'Lección 6 tiene un criterio.evaluar definido');
+    assert(leccion6.bloques.indexOf('repetir hasta') !== -1, 'Lección 6 introduce el bloque "repetir hasta"');
+    assert(leccion5c.bloques.indexOf('repetir hasta') === -1, 'Lección 5 no menciona "repetir hasta" (bloque introducido recién en Lección 6)');
+
+    // --- Passes on the reference pose/metrics ---
+    var pasaL6 = RS.lessons.check.evaluar(leccion6, {
+      estado: { x: 224, y: 300 }, resultadoRun: 'idle', metricas: { evalsSensor: 13, limiteSeguridad: null }
+    });
+    assert(pasaL6.ok === true, 'Lección 6: pose de referencia (x=224,y=300) con evalsSensor=13 y sin límite cumple el criterio');
+
+    // --- Fails when short of the zone ---
+    var fallaCortoL6 = RS.lessons.check.evaluar(leccion6, {
+      estado: { x: 210, y: 300 }, resultadoRun: 'idle', metricas: { evalsSensor: 4, limiteSeguridad: null }
+    });
+    assert(fallaCortoL6.ok === false, 'Lección 6: robot corto de la zona (x=210) falla');
+
+    // --- Fails when limiteSeguridad is non-null (cap-driven exit), EVEN IF position matches ---
+    var fallaLimiteL6 = RS.lessons.check.evaluar(leccion6, {
+      estado: { x: 224, y: 300 }, resultadoRun: 'idle',
+      metricas: { evalsSensor: RS.config.MAX_ITER_REPETIR_HASTA, limiteSeguridad: { blockId: 'rh1', iteraciones: RS.config.MAX_ITER_REPETIR_HASTA } }
+    });
+    assert(fallaLimiteL6.ok === false, 'Lección 6: posición dentro de la ventana pero limiteSeguridad no-null (salida por límite, no por condición) falla');
+    assert(fallaLimiteL6.observado.indexOf('límite') !== -1 || fallaLimiteL6.observado.indexOf('limite') !== -1, 'Lección 6: el mensaje de falla describe que se alcanzó el límite de seguridad');
+    assert(fallaLimiteL6.observado.toLowerCase().indexOf('bloque') === -1, 'Lección 6: el mensaje de falla no nombra un bloque');
+
+    var fallaSinSensorL6 = RS.lessons.check.evaluar(leccion6, {
+      estado: { x: 224, y: 300 }, resultadoRun: 'idle', metricas: { evalsSensor: 1, limiteSeguridad: null }
+    });
+    assert(fallaSinSensorL6.ok === false, 'Lección 6: menos de 2 evaluaciones del sensor falla (el bucle no llegó a repetirse lo suficiente)');
+
+    // --- Lesson 6's own reference program satisfies its own criterion, run end-to-end (real scheduler) ---
+    var scheduler6 = RS.runtime.scheduler;
+    var feedbackDiv6 = document.createElement('div');
+    document.body.appendChild(feedbackDiv6);
+    RS.ui.feedback.init(feedbackDiv6);
+
+    var arbolL6 = [
+      { tipo: 'repetir_hasta', sensor: 'hayObstaculo', blockId: 'rh1', cuerpo: [
+        { tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'a1' }
+      ] }
+    ];
+    scheduler6.iniciarConArbol(arbolL6);
+    for (var i6 = 0; i6 < 2000 && scheduler6.obtenerEstado() === 'running'; i6++) {
+      scheduler6._procesarFrame(16);
+    }
+    assertEquals(scheduler6.obtenerEstado(), 'idle', 'Lección 6: el programa de referencia termina en idle (sale por condición, no por límite)');
+    var snapshotRealL6 = { estado: RS.robot.estado, resultadoRun: scheduler6.obtenerEstado(), metricas: scheduler6.obtenerMetricas() };
+    var resultadoRealL6 = RS.lessons.check.evaluar(leccion6, snapshotRealL6);
+    assert(resultadoRealL6.ok === true, 'Lección 6: el programa de referencia (repetir hasta hayObstaculo(){avanzar(100)}) cumple su propio criterio en una corrida real');
+    assertEquals(scheduler6.obtenerMetricas().limiteSeguridad, null, 'Lección 6: la corrida real no dispara el límite de seguridad (sale por condición)');
+
+    scheduler6.reiniciar();
+    document.body.removeChild(feedbackDiv6);
+  })();
+
+  // ================= Lesson 7: desafío integrado + criterion (Slice C2) =================
+  grupo('Lección 7: contenido sin fuga de solución, criterio acepta cualquier recorrido sin colisión (C2.9 verificado empíricamente)');
+  (function () {
+    var leccion7 = RS.lessons.CONTENIDO.filter(function (l) { return l.id === 7; })[0];
+    assert(!!leccion7 && !!leccion7.criterio, 'Lección 7 tiene un criterio.evaluar definido');
+
+    // --- No-solution-leak (C2.6): the example/modification programs, run as-is, do NOT satisfy L7's criterion ---
+    var scheduler7 = RS.runtime.scheduler;
+    var feedbackDiv7 = document.createElement('div');
+    document.body.appendChild(feedbackDiv7);
+    RS.ui.feedback.init(feedbackDiv7);
+
+    var arbolEjemploL7 = [
+      { tipo: 'accion', accion: 'avanzar', valor: 900, blockId: 'a1' },
+      { tipo: 'repetir_hasta', sensor: 'hayObstaculo', blockId: 'rh1', cuerpo: [
+        { tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'a2' }
+      ] }
+    ];
+    scheduler7.iniciarConArbol(arbolEjemploL7);
+    for (var i7a = 0; i7a < 2000 && scheduler7.obtenerEstado() === 'running'; i7a++) {
+      scheduler7._procesarFrame(16);
+    }
+    var snapshotEjemploL7 = { estado: RS.robot.estado, resultadoRun: scheduler7.obtenerEstado(), metricas: scheduler7.obtenerMetricas() };
+    var resultadoEjemploL7 = RS.lessons.check.evaluar(leccion7, snapshotEjemploL7);
+    assert(resultadoEjemploL7.ok === false, 'Lección 7 (no-fuga-de-solución): el programa del "ejemplo" (se detiene junto al obstáculo, sin rodearlo) NO cumple el criterio por sí solo');
+    scheduler7.reiniciar();
+
+    // --- Reference full-traverse route: real scheduler run, empirically confirms design's x>=480 threshold (C2.9) ---
+    var arbolRutaSurL7 = [
+      { tipo: 'accion', accion: 'avanzar', valor: 900, blockId: 'r1' },
+      { tipo: 'repetir_hasta', sensor: 'hayObstaculo', blockId: 'r2', cuerpo: [
+        { tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'r2b' }
+      ] },
+      { tipo: 'si_sino', sensor: 'hayObstaculo', blockId: 'r3',
+        cuerpo: [{ tipo: 'accion', accion: 'derecha', valor: 500, blockId: 'r3d' }], sino: [] },
+      { tipo: 'accion', accion: 'avanzar', valor: 750, blockId: 'r4' },
+      { tipo: 'accion', accion: 'izquierda', valor: 500, blockId: 'r5' },
+      { tipo: 'accion', accion: 'avanzar', valor: 2200, blockId: 'r6' }
+    ];
+    scheduler7.iniciarConArbol(arbolRutaSurL7);
+    for (var i7s = 0; i7s < 2000 && scheduler7.obtenerEstado() === 'running'; i7s++) {
+      scheduler7._procesarFrame(16);
+    }
+    assertEquals(scheduler7.obtenerEstado(), 'idle', 'Lección 7 (ruta sur): el recorrido de referencia termina en idle (sin colisión)');
+    var snapshotRutaSurL7 = { estado: RS.robot.estado, resultadoRun: scheduler7.obtenerEstado(), metricas: scheduler7.obtenerMetricas() };
+    assert(RS.robot.estado.x >= 480, 'Lección 7 (C2.9, verificación empírica): la ruta sur (rodea el obstáculo por y≈390) SÍ alcanza x>=480, confirmando el umbral fijado en el diseño');
+    var resultadoRutaSurL7 = RS.lessons.check.evaluar(leccion7, snapshotRutaSurL7);
+    assert(resultadoRutaSurL7.ok === true, 'Lección 7: la ruta sur (avanzar+repetir_hasta+si_sino+avanzar+izquierda+avanzar) cumple el criterio en una corrida real');
+    scheduler7.reiniciar();
+
+    // --- A second, differently-combined valid route (goes around the NORTH side instead) also satisfies the criterion ---
+    var arbolRutaNorteL7 = [
+      { tipo: 'accion', accion: 'avanzar', valor: 900, blockId: 'n1' },
+      { tipo: 'repetir_hasta', sensor: 'hayObstaculo', blockId: 'n2', cuerpo: [
+        { tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'n2b' }
+      ] },
+      { tipo: 'si_sino', sensor: 'hayObstaculo', blockId: 'n3',
+        cuerpo: [{ tipo: 'accion', accion: 'izquierda', valor: 500, blockId: 'n3i' }], sino: [] },
+      { tipo: 'accion', accion: 'avanzar', valor: 950, blockId: 'n4' },
+      { tipo: 'accion', accion: 'derecha', valor: 500, blockId: 'n5' },
+      { tipo: 'accion', accion: 'avanzar', valor: 2200, blockId: 'n6' }
+    ];
+    scheduler7.iniciarConArbol(arbolRutaNorteL7);
+    for (var i7n = 0; i7n < 2000 && scheduler7.obtenerEstado() === 'running'; i7n++) {
+      scheduler7._procesarFrame(16);
+    }
+    var estadoRutaNorteL7 = scheduler7.obtenerEstado();
+    var snapshotRutaNorteL7 = { estado: RS.robot.estado, resultadoRun: estadoRutaNorteL7, metricas: scheduler7.obtenerMetricas() };
+    var resultadoRutaNorteL7 = RS.lessons.check.evaluar(leccion7, snapshotRutaNorteL7);
+    assert(estadoRutaNorteL7 === 'idle' && resultadoRutaNorteL7.ok === true,
+      'Lección 7: una ruta distinta (rodea por el norte, izquierda/derecha en vez de derecha/izquierda) TAMBIÉN cumple el criterio — no exige una ruta exacta');
+    scheduler7.reiniciar();
+
+    // --- A colliding run always fails, regardless of x reached ---
+    var fallaColisionL7 = RS.lessons.check.evaluar(leccion7, {
+      estado: { x: 500 }, resultadoRun: 'error', metricas: { evalsSensor: 2, limiteSeguridad: null }
+    });
+    assert(fallaColisionL7.ok === false, 'Lección 7: resultadoRun="error" (colisión) siempre falla, aunque x>=480');
+
+    // --- A run that never consults the sensor fails even if it reaches x>=480 ---
+    var fallaSinSensorL7 = RS.lessons.check.evaluar(leccion7, {
+      estado: { x: 500 }, resultadoRun: 'idle', metricas: { evalsSensor: 0, limiteSeguridad: null }
+    });
+    assert(fallaSinSensorL7.ok === false, 'Lección 7: x>=480 pero sin haber consultado nunca el sensor falla');
+
+    document.body.removeChild(feedbackDiv7);
+  })();
+
+  // ================= Regresión: Lecciones 1-7 completas, bloques pre-existentes sin cambios (Slice C2) =================
+  grupo('Regresión: Lecciones 1-7 completas (13 secciones), un solo bloque nuevo por lección, sin cambios en lo previo');
+  (function () {
+    assertEquals(RS.lessons.CONTENIDO.map(function (l) { return l.id; }), [1, 2, 3, 4, 5, 6, 7], 'RS.lessons.CONTENIDO expone Lecciones 1 a 7, en orden de id (nav Node-checkable)');
+
+    var leccion3r = RS.lessons.CONTENIDO.filter(function (l) { return l.id === 3; })[0];
+    var leccion4r = RS.lessons.CONTENIDO.filter(function (l) { return l.id === 4; })[0];
+    var leccion5r = RS.lessons.CONTENIDO.filter(function (l) { return l.id === 5; })[0];
+    assert(!!leccion3r.criterio && !!leccion4r.criterio && !!leccion5r.criterio, 'Lecciones 3-5 conservan su criterio.evaluar (sin cambios por esta slice)');
+
+    // Same pre-existing-block-only tree as before: byte-identical cppView output.
+    var arbolPreexistenteC2 = [
+      { tipo: 'accion', accion: 'avanzar', valor: 1000, blockId: 'a1' },
+      { tipo: 'repetir', veces: 4, blockId: 'r1', cuerpo: [
+        { tipo: 'accion', accion: 'izquierda', valor: 500, blockId: 'i1' }
+      ] }
+    ];
+    var regA = RS.cppView.renderTexto(arbolPreexistenteC2);
+    var regB = RS.cppView.renderTexto(arbolPreexistenteC2);
+    assertEquals(regA, regB, 'cppView.renderTexto sigue siendo determinista/byte-idéntico tras agregar Lecciones 6-7 (solo contenido, sin tocar generator/interpreter)');
   })();
 
   // ================= Summary =================

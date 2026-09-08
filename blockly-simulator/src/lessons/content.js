@@ -199,6 +199,108 @@
           return 'El robot terminó en x=' + x + 'px, sin alejarse lo suficiente de su punto de partida horizontal.';
         }
       }
+    },
+    {
+      id: 6,
+      nivel: 'Nivel 3 — Autonomía',
+      titulo: 'Repetición',
+      objetivo: 'En esta lección aprenderás a hacer que el robot repita una acción de forma automática hasta que se cumpla una condición, en lugar de calcular a mano cuántas veces repetirla.',
+      concepto: 'El bloque "repetir hasta" es un bucle de pre-verificación: antes de cada pasada, consulta la condición; si ya es verdadera, no ejecuta el cuerpo ni una sola vez. Si es falsa, ejecuta el cuerpo una vez y vuelve a consultar la condición, repitiendo este ciclo hasta que la condición se cumpla. A diferencia de "repetir N veces" (que siempre repite una cantidad fija conocida de antemano), "repetir hasta" no sabe cuántas veces va a repetir: depende de lo que perciba el sensor en cada vuelta. Por seguridad, el simulador impone un límite máximo de repeticiones: si la condición nunca llega a cumplirse, el bucle se corta solo al llegar a ese límite, en vez de quedar repitiendo para siempre.',
+      ejemplo: 'INICIO → repetir hasta hayObstaculo() { avanzar(100) }',
+      bloques: 'avanzar(ms), repetir hasta (hayObstaculo) hacer, comparar (medirDistancia < número)',
+      comoFunciona: 'Antes de cada pasada del bucle, el bloque "repetir hasta" consulta la condición hayObstaculo(). Mientras sea falsa, ejecuta avanzar(100) y vuelve a preguntar. En cuanto hayObstaculo() se vuelve verdadera, el bucle termina sin ejecutar una pasada más, y el programa continúa con la siguiente instrucción (si hay alguna). Si la condición nunca se cumpliera, el simulador corta el bucle al alcanzar su límite de repeticiones de seguridad, para que el robot nunca quede repitiendo indefinidamente.',
+      prueba: 'Arma "repetir hasta hayObstaculo() { avanzar(100) }" y presioná Ejecutar. Observá que el robot avanza en pasos cortos, deteniéndose solo cuando la condición se cumple, sin que hayas calculado a mano cuántos pasos hacían falta.',
+      modificacion: 'Cambiá el valor de avanzar(100) por un paso más pequeño (por ejemplo avanzar(50)) y volvé a ejecutar. Observá que el robot necesita más repeticiones para llegar al mismo punto, y que el bucle sigue consultando la condición antes de cada paso.',
+      desafio: 'Programá al robot para que se acerque a un obstáculo repitiendo un paso pequeño hasta detectarlo con el sensor, sin calcular de antemano cuántas repeticiones necesita.',
+      criterioTexto: 'El robot debe quedar detenido cerca del obstáculo, entre x=217px y x=270px, a una altura similar a la inicial (|y − 300| ≤ 40px), habiendo consultado el sensor al menos dos veces, y sin haber alcanzado el límite de seguridad del bucle.',
+      pista: 'Pista 1: recordá que "repetir hasta" consulta la condición antes de cada pasada, no solo al final. Pista 2: si el paso de avanzar es demasiado grande, el robot puede pasarse del punto donde el sensor detecta el obstáculo; usá pasos pequeños. Pista 3: si el bucle nunca detecta el obstáculo, va a terminar solo al llegar a su límite de repeticiones de seguridad — revisá que la condición del bucle sea realmente la que detecta el obstáculo que tenés adelante.',
+      competencias: 'C6 — Repetición condicionada',
+      resultados: 'RA6 — Bucles de pre-verificación',
+      // Geometry: hayObstaculo() true for x>216 (design's pinned threshold).
+      // Reference program "repetir hasta hayObstaculo() { avanzar(100) }"
+      // empirically verified via a Node harness (real scheduler run, same
+      // method as Slice C1.1's empirical RED-test approach): exits at
+      // x=224, y=300, evalsSensor=13, limiteSeguridad=null — comfortably
+      // inside the pinned window, matching design's expected pose exactly.
+      criterio: {
+        evaluar: function (snapshot) {
+          if (!snapshot || !snapshot.estado || !snapshot.metricas) return false;
+          var x = snapshot.estado.x;
+          var y = snapshot.estado.y;
+          var m = snapshot.metricas;
+          return x >= 217 && x <= 270 && Math.abs(y - 300) <= 40 &&
+            m.evalsSensor >= 2 && m.limiteSeguridad === null;
+        },
+        describir: function (snapshot, ok) {
+          if (!snapshot || !snapshot.estado) return null;
+          var x = Math.round(snapshot.estado.x);
+          var m = snapshot.metricas || { evalsSensor: 0, limiteSeguridad: null };
+          if (ok) {
+            return 'El robot repitió el paso hasta detectar el obstáculo con su sensor y se detuvo en x=' + x + 'px, dentro de la zona esperada.';
+          }
+          if (m.limiteSeguridad) {
+            return 'El robot alcanzó el límite de seguridad del bucle sin que la condición llegara a cumplirse.';
+          }
+          if (m.evalsSensor < 2) {
+            return 'El robot terminó su ejecución habiendo consultado el sensor menos de dos veces: el bucle no llegó a repetirse lo suficiente.';
+          }
+          if (x < 217) {
+            return 'El robot se detuvo demasiado lejos del obstáculo (x=' + x + 'px).';
+          }
+          return 'El robot no se detuvo dentro de la zona esperada cerca del obstáculo (x=' + x + 'px).';
+        }
+      }
+    },
+    {
+      id: 7,
+      nivel: 'Nivel 3 — Autonomía',
+      titulo: 'Desafío integrado',
+      objetivo: 'En esta lección vas a combinar todo lo aprendido — secuencias, sensores, "si / si no" y "repetir hasta" — para programar al robot de punta a punta, decidiendo vos mismo cómo rodear un obstáculo.',
+      concepto: 'Un programa completo casi nunca usa una sola herramienta: combina una secuencia de pasos con decisiones ("si / si no") y repeticiones ("repetir hasta") que dependen de lo que el sensor va percibiendo en cada momento. No existe una única forma correcta de resolver un mismo problema: dos programas distintos, que usen bloques o combinaciones distintas, pueden lograr el mismo resultado si ambos hacen que el robot recorra el camino sin chocar.',
+      ejemplo: 'INICIO → avanzar(900) → repetir hasta hayObstaculo() { avanzar(100) } (el robot se acerca al obstáculo y se detiene junto a él; a partir de ahí, sos vos quien decide cómo continuar el recorrido).',
+      bloques: 'avanzar(ms), retroceder(ms), izquierda(ms), derecha(ms), detener(), si (hayObstaculo) hacer, si / si no, repetir hasta (hayObstaculo), comparar (medirDistancia < número)',
+      comoFunciona: 'Cada herramienta cumple su rol dentro del programa completo: la secuencia ordena los pasos, el sensor te dice cuándo hay un obstáculo cerca, "si / si no" elige entre dos acciones según lo que detecta el sensor, y "repetir hasta" repite un paso corto sin que vos calcules cuántas veces hace falta. Combinarlas te permite programar un recorrido que se adapta al obstáculo, en vez de una ruta fija memorizada de antemano.',
+      prueba: 'Arma el ejemplo (avanzar(900) → repetir hasta hayObstaculo() { avanzar(100) }) y presioná Ejecutar. Observá que el robot se detiene junto al obstáculo, listo para que agregues la parte del recorrido que lo rodea.',
+      modificacion: 'A partir del ejemplo, agregá un bloque "si / si no" que decida girar cuando el sensor detecte el obstáculo, y seguí completando el recorrido paso a paso hasta lograr que el robot lo rodee por completo.',
+      desafio: 'Programá al robot para que recorra el mapa completo, esquive el primer obstáculo que encuentra en su camino usando el sensor, y llegue bien lejos hacia la derecha del mapa, sin chocar en ningún momento.',
+      criterioTexto: 'El robot debe completar el recorrido y quedar detenido en x ≥ 480px, habiendo consultado el sensor al menos una vez durante la ejecución, sin haber chocado y sin haber alcanzado el límite de seguridad de ningún bucle. No existe una única ruta correcta: cualquier combinación de bloques que logre este resultado es válida.',
+      pista: 'Pista 1: pensá el desafío como varios pasos más chicos encadenados: acercarte al obstáculo, decidir hacia dónde rodearlo, y retomar el camino hacia la derecha. Pista 2: usá el sensor (con "si / si no" o "repetir hasta") para decidir cuándo girar, en vez de adivinar una distancia fija. Pista 3: después de rodear el obstáculo, acordate de volver a orientar al robot hacia la derecha antes de seguir avanzando, o terminará desviado de su recorrido.',
+      competencias: 'C7 — Integración de secuencias, sensores y control de flujo',
+      resultados: 'RA7 — Programa autónomo completo',
+      // Geometry: obstacle 1 at x300..360,y220..360; collision at x>=280.
+      // C2.9 empirical verification (design's flagged open question):
+      // a full reference route was run through the REAL scheduler (Node
+      // harness, same method as C1.1's empirical approach — not reasoning
+      // alone): avanzar(900) -> repetir_hasta(hayObstaculo){avanzar(100)}
+      // (reaches x=224) -> si_sino(hayObstaculo){derecha(500)} (turns to
+      // face south) -> avanzar(750) (reaches y=390, confirming design's
+      // "pass at y≈390" assumption) -> izquierda(500) (re-faces east) ->
+      // avanzar(2200). Real result: x=488, y=390, evalsSensor=5,
+      // limiteSeguridad=null, run ends idle (no collision). The pinned
+      // x>=480 threshold holds exactly as design assumed — NOT adjusted.
+      criterio: {
+        evaluar: function (snapshot) {
+          if (!snapshot || !snapshot.estado || !snapshot.metricas) return false;
+          var x = snapshot.estado.x;
+          var m = snapshot.metricas;
+          return x >= 480 && m.evalsSensor >= 1 && m.limiteSeguridad === null;
+        },
+        describir: function (snapshot, ok) {
+          if (!snapshot || !snapshot.estado) return null;
+          var x = Math.round(snapshot.estado.x);
+          var m = snapshot.metricas || { evalsSensor: 0, limiteSeguridad: null };
+          if (ok) {
+            return 'El robot completó el recorrido, rodeó el obstáculo usando su sensor y llegó a x=' + x + 'px sin chocar.';
+          }
+          if (m.limiteSeguridad) {
+            return 'El robot alcanzó el límite de seguridad de un bucle sin resolver la condición durante el recorrido.';
+          }
+          if (!m.evalsSensor) {
+            return 'El robot terminó su ejecución sin haber consultado nunca su sensor durante el recorrido.';
+          }
+          return 'El robot no completó el recorrido: se detuvo en x=' + x + 'px, sin llegar lo suficientemente lejos.';
+        }
+      }
     }
   ];
 })(typeof window !== 'undefined' ? window : this);
