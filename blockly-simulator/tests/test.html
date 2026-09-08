@@ -143,6 +143,31 @@
     };
   }
 
+  function bloqueSiSino(id, doInicial, elseInicial, condBlock) {
+    return {
+      type: 'rs_si_sino', id: id, _next: null,
+      getInputTargetBlock: function (name) {
+        if (name === 'DO') return doInicial;
+        if (name === 'ELSE') return elseInicial;
+        if (name === 'COND') return condBlock || null;
+        return null;
+      },
+      getNextBlock: function () { return this._next; }
+    };
+  }
+
+  function bloqueRepetirHasta(id, cuerpoInicial, condBlock) {
+    return {
+      type: 'rs_repetir_hasta', id: id, _next: null,
+      getInputTargetBlock: function (name) {
+        if (name === 'DO') return cuerpoInicial;
+        if (name === 'COND') return condBlock || null;
+        return null;
+      },
+      getNextBlock: function () { return this._next; }
+    };
+  }
+
   function bloqueMedirDistancia() {
     return { type: 'rs_medir_distancia' };
   }
@@ -262,6 +287,54 @@
         { tipo: 'accion', accion: 'detener', blockId: 'sd1' }
       ] }
     ], 'si con rs_comparar en COND: nodo "si" con condicion {op, izq, der}');
+
+    // rs_si_sino: nodo "si_sino" con COND por defecto (shadow rs_hay_obstaculo).
+    var arbolSiSinoDefault = RS.generator.buildProgramTree(workspaceFalso([
+      bloqueSiSino('ssd1', bloqueAccion('rs_derecha', 'ss-do', 500), bloqueAccion('rs_avanzar', 'ss-else', 1000))
+    ]));
+    assertEquals(arbolSiSinoDefault, [
+      { tipo: 'si_sino', sensor: 'hayObstaculo', blockId: 'ssd1',
+        cuerpo: [{ tipo: 'accion', accion: 'derecha', blockId: 'ss-do', valor: 500 }],
+        sino: [{ tipo: 'accion', accion: 'avanzar', blockId: 'ss-else', valor: 1000 }] }
+    ], 'si_sino (shadow por defecto): nodo con sensor:"hayObstaculo", cuerpo (DO) y sino (ELSE)');
+
+    // rs_si_sino: comparador como COND.
+    var comparadorSiSino = bloqueComparar('<', bloqueMedirDistancia(), bloqueNumero(20));
+    var arbolSiSinoComparador = RS.generator.buildProgramTree(workspaceFalso([
+      bloqueSiSino('ssc1', bloqueAccion('rs_detener', 'ssc-do', undefined), null, comparadorSiSino)
+    ]));
+    assertEquals(arbolSiSinoComparador, [
+      { tipo: 'si_sino', blockId: 'ssc1',
+        condicion: { op: '<', izq: { k: 'medirDistancia' }, der: { k: 'numero', v: 20 } },
+        cuerpo: [{ tipo: 'accion', accion: 'detener', blockId: 'ssc-do' }],
+        sino: [] }
+    ], 'si_sino con rs_comparar en COND: nodo con condicion {op, izq, der}; ELSE vacio -> sino:[]');
+
+    // rs_repetir_hasta: nodo "repetir_hasta" con COND por defecto (shadow rs_hay_obstaculo).
+    var arbolRepetirHastaDefault = RS.generator.buildProgramTree(workspaceFalso([
+      bloqueRepetirHasta('rhd1', bloqueAccion('rs_avanzar', 'rh-do', 100))
+    ]));
+    assertEquals(arbolRepetirHastaDefault, [
+      { tipo: 'repetir_hasta', sensor: 'hayObstaculo', blockId: 'rhd1',
+        cuerpo: [{ tipo: 'accion', accion: 'avanzar', blockId: 'rh-do', valor: 100 }] }
+    ], 'repetir_hasta (shadow por defecto): nodo con sensor:"hayObstaculo" y cuerpo (DO)');
+
+    // rs_repetir_hasta: comparador como COND.
+    var comparadorRepetirHasta = bloqueComparar('>=', bloqueMedirDistancia(), bloqueNumero(20));
+    var arbolRepetirHastaComparador = RS.generator.buildProgramTree(workspaceFalso([
+      bloqueRepetirHasta('rhc1', bloqueAccion('rs_avanzar', 'rhc-do', 100), comparadorRepetirHasta)
+    ]));
+    assertEquals(arbolRepetirHastaComparador, [
+      { tipo: 'repetir_hasta', blockId: 'rhc1',
+        condicion: { op: '>=', izq: { k: 'medirDistancia' }, der: { k: 'numero', v: 20 } },
+        cuerpo: [{ tipo: 'accion', accion: 'avanzar', blockId: 'rhc-do', valor: 100 }] }
+    ], 'repetir_hasta con rs_comparar en COND: nodo con condicion {op, izq, der}');
+
+    // rs_repetir_hasta: cuerpo vacio -> cuerpo:[] (no se cae, no lanza excepcion en generacion).
+    var arbolRepetirHastaVacio = RS.generator.buildProgramTree(workspaceFalso([bloqueRepetirHasta('rhv1', null)]));
+    assertEquals(arbolRepetirHastaVacio, [
+      { tipo: 'repetir_hasta', sensor: 'hayObstaculo', blockId: 'rhv1', cuerpo: [] }
+    ], 'repetir_hasta con cuerpo vacio: nodo generado con cuerpo:[]');
   })();
 
   // ================= cppView: Arduino sketch generator =================
@@ -331,6 +404,41 @@
     assert(textoSinSensor.indexOf('hayObstaculo') === -1, 'sin nodo si en el arbol, no se emite el stub de sensor');
     assert(texto.indexOf('bool hayObstaculo') !== -1, 'con nodo si en el arbol, se emite el stub hayObstaculo()');
 
+    // --- si_sino: honest-stub emission (never fabricates a real hayObstaculo() call) ---
+    var arbolSiSino = [
+      { tipo: 'si_sino', sensor: 'hayObstaculo', blockId: 'ss1',
+        cuerpo: [{ tipo: 'accion', accion: 'derecha', valor: 500, blockId: 'dd1' }],
+        sino: [{ tipo: 'accion', accion: 'avanzar', valor: 1000, blockId: 'de1' }] }
+    ];
+    var resultadoSiSino = RS.cppView.render(arbolSiSino);
+    var textoSiSino = RS.cppView.renderTexto(arbolSiSino);
+    var lineaSiSino = resultadoSiSino.lineas.filter(function (l) { return l.blockId === 'ss1'; })[0];
+    assert(lineaSiSino !== undefined, 'el nodo si_sino mapea su blockId a una linea');
+    assert(lineaSiSino.texto.indexOf('ATENCION') !== -1, 'el nodo si_sino genera un comentario ATENCION');
+    assert(resultadoSiSino.lineas.filter(function (l) { return l.blockId === 'dd1'; }).length === 0, 'el cuerpo DO de si_sino NO se traduce a codigo ejecutable');
+    assert(resultadoSiSino.lineas.filter(function (l) { return l.blockId === 'de1'; }).length === 0, 'el cuerpo ELSE de si_sino NO se traduce a codigo ejecutable');
+    var lineasGuionSiSino = resultadoSiSino.lineas.filter(function (l) { return l.seccion === 'guion'; });
+    var llamadaFabricadaSiSino = lineasGuionSiSino.some(function (l) { return l.texto.indexOf('hayObstaculo()') !== -1 && l.texto.indexOf('//') !== 0; });
+    assert(!llamadaFabricadaSiSino, 'ninguna linea de guion de si_sino contiene una llamada real a hayObstaculo()');
+    assert(textoSiSino.indexOf('bool hayObstaculo') !== -1, 'usaSensor() detecta si_sino: se emite el stub hayObstaculo() aunque no haya nodo "si" plano');
+
+    // --- repetir_hasta: honest-stub emission (never fabricates a real hayObstaculo() call) ---
+    var arbolRepetirHasta = [
+      { tipo: 'repetir_hasta', sensor: 'hayObstaculo', blockId: 'rh1', cuerpo: [
+        { tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'rhd1' }
+      ] }
+    ];
+    var resultadoRepetirHasta = RS.cppView.render(arbolRepetirHasta);
+    var textoRepetirHasta = RS.cppView.renderTexto(arbolRepetirHasta);
+    var lineaRepetirHasta = resultadoRepetirHasta.lineas.filter(function (l) { return l.blockId === 'rh1'; })[0];
+    assert(lineaRepetirHasta !== undefined, 'el nodo repetir_hasta mapea su blockId a una linea');
+    assert(lineaRepetirHasta.texto.indexOf('ATENCION') !== -1, 'el nodo repetir_hasta genera un comentario ATENCION');
+    assert(resultadoRepetirHasta.lineas.filter(function (l) { return l.blockId === 'rhd1'; }).length === 0, 'el cuerpo de repetir_hasta (avanzar) NO se traduce a codigo ejecutable');
+    var lineasGuionRepetirHasta = resultadoRepetirHasta.lineas.filter(function (l) { return l.seccion === 'guion'; });
+    var llamadaFabricadaRepetirHasta = lineasGuionRepetirHasta.some(function (l) { return l.texto.indexOf('hayObstaculo()') !== -1 && l.texto.indexOf('//') !== 0; });
+    assert(!llamadaFabricadaRepetirHasta, 'ninguna linea de guion de repetir_hasta contiene una llamada real a hayObstaculo()');
+    assert(textoRepetirHasta.indexOf('bool hayObstaculo') !== -1, 'usaSensor() detecta repetir_hasta: se emite el stub hayObstaculo()');
+
     // --- render()/renderTexto() share the same line records ---
     assertEquals(RS.cppView.renderTexto(arbol).split('\n').length, resultado.lineas.length, 'renderTexto tiene una linea por cada registro de render()');
 
@@ -394,6 +502,142 @@
     var walkerCerca = RS.runtime.interpreter.crear(arbolSi, RS.world, { x: xCerca, y: obstaculo.y + obstaculo.h / 2, angulo: 0 });
     var nodoCerca = walkerCerca.siguienteNodo();
     assertEquals(nodoCerca && nodoCerca.blockId, 'd1', 'condicion verdadera (cerca): el interprete entra al cuerpo del si');
+  })();
+
+  // ================= Interprete: si_sino selecciona la rama correcta =================
+  grupo('Interprete: si_sino ejecuta DO si la condicion es verdadera, ELSE si es falsa');
+  (function () {
+    var arbolSiSino = [
+      { tipo: 'si_sino', blockId: 'ss1',
+        condicion: { op: '<', izq: { k: 'medirDistancia' }, der: { k: 'numero', v: 15 } },
+        cuerpo: [{ tipo: 'accion', accion: 'detener', blockId: 'do1' }],
+        sino: [{ tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'else1' }] },
+      { tipo: 'accion', accion: 'led', valor: 1, blockId: 'a-despues' }
+    ];
+
+    var obstaculo = RS.world.obstaculos[0];
+
+    // Cerca del obstaculo -> condicion verdadera -> solo la rama DO se ejecuta.
+    var walkerCercaSS = RS.runtime.interpreter.crear(arbolSiSino, RS.world, { x: obstaculo.x - 15, y: obstaculo.y + obstaculo.h / 2, angulo: 0 });
+    var vistosCercaSS = [];
+    var n1 = walkerCercaSS.siguienteNodo();
+    while (n1 !== null) { vistosCercaSS.push(n1.blockId); n1 = walkerCercaSS.siguienteNodo(); }
+    assertEquals(vistosCercaSS, ['do1', 'a-despues'], 'si_sino (condicion verdadera): solo se yieldean hojas de DO, nunca de ELSE');
+
+    // Lejos del obstaculo -> condicion falsa -> solo la rama ELSE se ejecuta.
+    var walkerLejosSS = RS.runtime.interpreter.crear(arbolSiSino, RS.world, { x: 400, y: 300, angulo: 270 });
+    var vistosLejosSS = [];
+    var n2 = walkerLejosSS.siguienteNodo();
+    while (n2 !== null) { vistosLejosSS.push(n2.blockId); n2 = walkerLejosSS.siguienteNodo(); }
+    assertEquals(vistosLejosSS, ['else1', 'a-despues'], 'si_sino (condicion falsa): solo se yieldean hojas de ELSE, nunca de DO');
+  })();
+
+  // ================= Interprete: repetir_hasta (pre-test) + limite de seguridad =================
+  grupo('Interprete: repetir_hasta ejecuta pre-test, re-evalua por iteracion, y respeta el limite de seguridad');
+  (function () {
+    // --- Condicion ya verdadera al llegar: cero iteraciones (pre-test) ---
+    var condicionSiempreVerdadera = { op: '==', izq: { k: 'numero', v: 1 }, der: { k: 'numero', v: 1 } };
+    var arbolCondicionInicialVerdadera = [
+      { tipo: 'repetir_hasta', blockId: 'rh-skip', condicion: condicionSiempreVerdadera, cuerpo: [
+        { tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'nunca-visto' }
+      ] },
+      { tipo: 'accion', accion: 'led', valor: 1, blockId: 'despues-skip' }
+    ];
+    var walkerSkip = RS.runtime.interpreter.crear(arbolCondicionInicialVerdadera, RS.world, RS.robot.estado, null);
+    var vistosSkip = [];
+    var nSkip = walkerSkip.siguienteNodo();
+    while (nSkip !== null) { vistosSkip.push(nSkip.blockId); nSkip = walkerSkip.siguienteNodo(); }
+    assertEquals(vistosSkip, ['despues-skip'], 'repetir_hasta con condicion ya verdadera: cero iteraciones del cuerpo (pre-test)');
+    assertEquals(walkerSkip.limiteSeguridad(), null, 'repetir_hasta sin trip: limiteSeguridad() es null');
+
+    // --- Condicion se vuelve verdadera tras N pasadas: exactamente N pasadas, re-evaluada entre pasadas ---
+    // Usa el patron real: comparador sobre medirDistancia() con una pose que
+    // se acerca manualmente al obstaculo entre llamadas a siguienteNodo(),
+    // simulando lo que el scheduler real hace entre iteraciones.
+    var obstaculoRH = RS.world.obstaculos[0]; // {x:300,y:220,w:60,h:140}
+    RS.robot.commitPosicion(80, obstaculoRH.y + obstaculoRH.h / 2); // lejos, mirando al obstaculo (angulo 0)
+    var condicionCerca = { op: '<', izq: { k: 'medirDistancia' }, der: { k: 'numero', v: 15 } };
+    var arbolAcercamiento = [
+      { tipo: 'repetir_hasta', blockId: 'rh-acerca', condicion: condicionCerca, cuerpo: [
+        { tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'paso-acerca' }
+      ] },
+      { tipo: 'accion', accion: 'led', valor: 1, blockId: 'despues-acerca' }
+    ];
+    var walkerAcerca = RS.runtime.interpreter.crear(arbolAcercamiento, RS.world, RS.robot.estado, null);
+    var vistosAcerca = [];
+    var nAcerca = walkerAcerca.siguienteNodo();
+    var pasosAcerca = 0;
+    while (nAcerca !== null && pasosAcerca < 50) {
+      vistosAcerca.push(nAcerca.blockId);
+      if (nAcerca.blockId === 'paso-acerca') {
+        // Simula al scheduler avanzando al robot antes de re-evaluar la condicion.
+        RS.robot.commitPosicion(RS.robot.estado.x + 20, RS.robot.estado.y);
+      }
+      pasosAcerca++;
+      nAcerca = walkerAcerca.siguienteNodo();
+    }
+    assert(vistosAcerca.length > 1, 'repetir_hasta (acercandose): el cuerpo se yieldea mas de una vez antes de que la condicion se cumpla');
+    assertEquals(vistosAcerca[vistosAcerca.length - 1], 'despues-acerca', 'repetir_hasta (acercandose): al cumplirse la condicion, el programa continua tras el loop');
+    assert(vistosAcerca.slice(0, -1).every(function (id) { return id === 'paso-acerca'; }), 'repetir_hasta (acercandose): solo hojas del cuerpo se yieldean mientras la condicion es falsa');
+    assertEquals(walkerAcerca.limiteSeguridad(), null, 'repetir_hasta (acercandose, salida normal por condicion): limiteSeguridad() es null');
+    RS.robot.reset();
+
+    // --- Safety cap: empty body / never-true condition terminates at exactly MAX_ITER_REPETIR_HASTA ---
+    var condicionNuncaVerdadera = { op: '==', izq: { k: 'numero', v: 1 }, der: { k: 'numero', v: 2 } };
+    var arbolCapVacio = [
+      { tipo: 'repetir_hasta', blockId: 'rh-cap', condicion: condicionNuncaVerdadera, cuerpo: [] },
+      { tipo: 'accion', accion: 'led', valor: 1, blockId: 'despues-cap' }
+    ];
+    var walkerCap = RS.runtime.interpreter.crear(arbolCapVacio, RS.world, RS.robot.estado, null);
+    var nCap = walkerCap.siguienteNodo();
+    assertEquals(nCap && nCap.blockId, 'despues-cap', 'repetir_hasta con cuerpo vacio y condicion que nunca se cumple: el interprete NO se cuelga, el programa continua tras el limite de seguridad');
+    assertEquals(walkerCap.limiteSeguridad(), { blockId: 'rh-cap', iteraciones: RS.config.MAX_ITER_REPETIR_HASTA },
+      'repetir_hasta: al disparar el limite, limiteSeguridad() = {blockId, iteraciones: MAX_ITER_REPETIR_HASTA}');
+
+    // --- Safety cap does not fire when the body has real leaf actions and the ---
+    // --- condition never becomes true either: still bounded, still yields exactly MAX_ITER leaves ---
+    var arbolCapConCuerpo = [
+      { tipo: 'repetir_hasta', blockId: 'rh-cap2', condicion: condicionNuncaVerdadera, cuerpo: [
+        { tipo: 'accion', accion: 'led', valor: 1, blockId: 'iter-cap2' }
+      ] }
+    ];
+    var walkerCap2 = RS.runtime.interpreter.crear(arbolCapConCuerpo, RS.world, RS.robot.estado, null);
+    var pasosCap2 = 0;
+    var nodoCap2 = walkerCap2.siguienteNodo();
+    while (nodoCap2 !== null) { pasosCap2++; nodoCap2 = walkerCap2.siguienteNodo(); }
+    assertEquals(pasosCap2, RS.config.MAX_ITER_REPETIR_HASTA, 'repetir_hasta con cuerpo no vacio y condicion que nunca se cumple: se yieldean exactamente MAX_ITER_REPETIR_HASTA hojas antes de terminar');
+    assertEquals(walkerCap2.limiteSeguridad(), { blockId: 'rh-cap2', iteraciones: RS.config.MAX_ITER_REPETIR_HASTA }, 'repetir_hasta con cuerpo no vacio: tambien dispara limiteSeguridad al llegar al tope');
+  })();
+
+  // ================= Scheduler: repetir_hasta wires the real limiteSeguridad metric =================
+  grupo('Scheduler: repetir_hasta con limite de seguridad termina en idle (nunca error/stopped) y expone la metrica');
+  (function () {
+    var feedbackDivRH = document.createElement('div');
+    document.body.appendChild(feedbackDivRH);
+    RS.ui.feedback.init(feedbackDivRH);
+
+    var scheduler = RS.runtime.scheduler;
+    var condicionNuncaVerdaderaSched = { op: '==', izq: { k: 'numero', v: 1 }, der: { k: 'numero', v: 2 } };
+    var arbolSched = [
+      { tipo: 'repetir_hasta', blockId: 'rh-sched', condicion: condicionNuncaVerdaderaSched, cuerpo: [] },
+      { tipo: 'accion', accion: 'led', valor: 1, blockId: 'despues-sched' }
+    ];
+    scheduler.iniciarConArbol(arbolSched);
+    // A single tick is enough: the interpreter's own while-loop already
+    // resolves the entire capped loop synchronously inside siguienteNodo().
+    scheduler._procesarFrame(16);
+
+    assertEquals(scheduler.obtenerEstado(), 'idle', 'repetir_hasta con limite disparado: el run termina en idle, NUNCA en error (no es una colision) ni stopped (no fue detenido manualmente)');
+    var metricasRH = scheduler.obtenerMetricas();
+    assertEquals(metricasRH.limiteSeguridad, { blockId: 'rh-sched', iteraciones: RS.config.MAX_ITER_REPETIR_HASTA }, 'scheduler.obtenerMetricas().limiteSeguridad expone el trip real (ya no hardcodeado a null)');
+
+    scheduler.reiniciar();
+    document.body.removeChild(feedbackDivRH);
+
+    // Confirm a normal (non-tripping) run still reports limiteSeguridad: null.
+    scheduler.iniciarConArbol([{ tipo: 'accion', accion: 'led', valor: 1, blockId: 'l-normal' }]);
+    assertEquals(scheduler.obtenerMetricas().limiteSeguridad, null, 'una corrida sin repetir_hasta sigue reportando limiteSeguridad: null');
+    scheduler.reiniciar();
   })();
 
   // ================= Scheduler: esperar pausa sin mover el robot =================
@@ -576,6 +820,162 @@
     var leccion1 = RS.lessons.CONTENIDO.filter(function (l) { return l.id === 1; })[0];
     var sinCriterio = RS.lessons.check.evaluar(leccion1, { estado: { x: 999 }, resultadoRun: 'idle' });
     assert(sinCriterio.ok === false, 'Lección 1 (criterio: null): check.evaluar no puede dar exito');
+  })();
+
+  // ================= Lessons 3-4: content, criteria, metrics infra (Slice A) =================
+  grupo('Lecciones 3-4: contenido, criterios y métricas (evalsSensor)');
+  (function () {
+    var leccion3 = RS.lessons.CONTENIDO.filter(function (l) { return l.id === 3; })[0];
+    var leccion4 = RS.lessons.CONTENIDO.filter(function (l) { return l.id === 4; })[0];
+    assert(!!leccion3 && !!leccion3.criterio, 'Lección 3 tiene un criterio.evaluar definido');
+    assert(!!leccion4 && !!leccion4.criterio, 'Lección 4 tiene un criterio.evaluar definido');
+
+    // --- Lesson 3: reference pose passes, short of the target region fails ---
+    var pasaL3 = RS.lessons.check.evaluar(leccion3, { estado: { x: 200, y: 420 }, resultadoRun: 'idle' });
+    assert(pasaL3.ok === true, 'Lección 3: pose de referencia (x=200,y=420) cumple el criterio');
+
+    var fallaCortoL3 = RS.lessons.check.evaluar(leccion3, { estado: { x: 100, y: 300 }, resultadoRun: 'idle' });
+    assert(fallaCortoL3.ok === false, 'Lección 3: robot corto de la región objetivo falla');
+    assert(fallaCortoL3.observado.toLowerCase().indexOf('avanzar') === -1 && fallaCortoL3.observado.toLowerCase().indexOf('bloque') === -1,
+      'Lección 3: el mensaje de falla describe comportamiento, no nombra un bloque');
+
+    var fallaSinGiroL3 = RS.lessons.check.evaluar(leccion3, { estado: { x: 200, y: 300 }, resultadoRun: 'idle' });
+    assert(fallaSinGiroL3.ok === false, 'Lección 3: avanzar sin girar (misma altura) falla aunque x sea suficiente');
+
+    // --- Lesson 4: criterion depends on evalsSensor, not just position ---
+    var pasaL4 = RS.lessons.check.evaluar(leccion4, {
+      estado: { x: 240, y: 300 }, resultadoRun: 'idle', metricas: { evalsSensor: 1, limiteSeguridad: null }
+    });
+    assert(pasaL4.ok === true, 'Lección 4: posición correcta + sensor consultado cumple el criterio');
+
+    var fallaSinSensorL4 = RS.lessons.check.evaluar(leccion4, {
+      estado: { x: 240, y: 300 }, resultadoRun: 'idle', metricas: { evalsSensor: 0, limiteSeguridad: null }
+    });
+    assert(fallaSinSensorL4.ok === false, 'Lección 4: posición correcta SIN consultar el sensor falla (no basta con la posición)');
+    assert(fallaSinSensorL4.observado.indexOf('sensor') !== -1, 'Lección 4: el mensaje de falla menciona que el sensor no fue consultado');
+    assert(fallaSinSensorL4.observado.toLowerCase().indexOf('bloque') === -1, 'Lección 4: el mensaje de falla no nombra un bloque');
+
+    var fallaFueraDeZonaL4 = RS.lessons.check.evaluar(leccion4, {
+      estado: { x: 400, y: 300 }, resultadoRun: 'idle', metricas: { evalsSensor: 1, limiteSeguridad: null }
+    });
+    assert(fallaFueraDeZonaL4.ok === false, 'Lección 4: sensor consultado pero posición fuera de la zona segura falla');
+
+    // --- obtenerMetricas() shape after a run with no repetir_hasta ---
+    var scheduler = RS.runtime.scheduler;
+    var feedbackDiv4 = document.createElement('div');
+    document.body.appendChild(feedbackDiv4);
+    RS.ui.feedback.init(feedbackDiv4);
+
+    var arbolSensor = [
+      { tipo: 'accion', accion: 'avanzar', valor: 1300, blockId: 'a1' },
+      { tipo: 'si', sensor: 'hayObstaculo', blockId: 's1', cuerpo: [
+        { tipo: 'accion', accion: 'detener', blockId: 'd1' }
+      ] }
+    ];
+    scheduler.iniciarConArbol(arbolSensor);
+    for (var i = 0; i < 500 && scheduler.obtenerEstado() === 'running'; i++) {
+      scheduler._procesarFrame(16);
+    }
+    var metricasFinales = scheduler.obtenerMetricas();
+    assertEquals(scheduler.obtenerEstado(), 'idle', 'la ejecución con si-sensor termina en idle (sin colisión)');
+    assert(metricasFinales.evalsSensor >= 1, 'obtenerMetricas().evalsSensor >= 1 tras evaluar el bloque si-sensor al menos una vez');
+    assertEquals(metricasFinales.limiteSeguridad, null, 'obtenerMetricas().limiteSeguridad es null (no hay repetir_hasta en esta slice)');
+
+    // The reference program (ejemplo de la Lección 4) actually satisfies its
+    // own pinned criterion when run end-to-end through the real scheduler.
+    var snapshotRealL4 = { estado: RS.robot.estado, resultadoRun: scheduler.obtenerEstado(), metricas: metricasFinales };
+    var resultadoRealL4 = RS.lessons.check.evaluar(leccion4, snapshotRealL4);
+    assert(resultadoRealL4.ok === true, 'Lección 4: el programa de referencia (avanzar+si-hayObstaculo) cumple su propio criterio en una corrida real');
+
+    scheduler.reiniciar();
+    document.body.removeChild(feedbackDiv4);
+
+    // Confirm iniciarConArbol() resets the counters for the next run.
+    scheduler.iniciarConArbol([{ tipo: 'accion', accion: 'led', valor: 1, blockId: 'l1' }]);
+    var metricasNuevaCorrida = scheduler.obtenerMetricas();
+    assertEquals(metricasNuevaCorrida, { evalsSensor: 0, limiteSeguridad: null }, 'iniciarConArbol() resetea evalsSensor/limiteSeguridad al comenzar una nueva corrida');
+    scheduler.reiniciar();
+  })();
+
+  // ================= Lesson 5: rs_si_sino + criterion (Slice B) =================
+  grupo('Lección 5: contenido, exactamente un bloque nuevo, criterio compuesto (evalsSensor + posición)');
+  (function () {
+    var leccion4b = RS.lessons.CONTENIDO.filter(function (l) { return l.id === 4; })[0];
+    var leccion5 = RS.lessons.CONTENIDO.filter(function (l) { return l.id === 5; })[0];
+    assert(!!leccion5 && !!leccion5.criterio, 'Lección 5 tiene un criterio.evaluar definido');
+    assert(leccion5.bloques.indexOf('si no') !== -1, 'Lección 5 introduce el bloque "si / si no"');
+    assert(leccion4b.bloques.indexOf('si no') === -1, 'Lección 4 no menciona "si no" (bloque introducido recién en Lección 5)');
+
+    // --- Compound: passes on correct zone with no collision, fails on collision even if position matches ---
+    var pasaL5 = RS.lessons.check.evaluar(leccion5, {
+      estado: { x: 224, y: 420 }, resultadoRun: 'idle', metricas: { evalsSensor: 1, limiteSeguridad: null }
+    });
+    assert(pasaL5.ok === true, 'Lección 5: pose de referencia (x=224,y=420) con sensor consultado cumple el criterio');
+
+    var fallaColisionL5 = RS.lessons.check.evaluar(leccion5, {
+      estado: { x: 224, y: 420 }, resultadoRun: 'error', metricas: { evalsSensor: 1, limiteSeguridad: null }
+    });
+    assert(fallaColisionL5.ok === false, 'Lección 5: misma posición pero con colisión (resultadoRun=error) falla');
+
+    var fallaSinSensorL5 = RS.lessons.check.evaluar(leccion5, {
+      estado: { x: 224, y: 420 }, resultadoRun: 'idle', metricas: { evalsSensor: 0, limiteSeguridad: null }
+    });
+    assert(fallaSinSensorL5.ok === false, 'Lección 5: posición correcta SIN consultar el sensor falla');
+    assert(fallaSinSensorL5.observado.toLowerCase().indexOf('bloque') === -1, 'Lección 5: el mensaje de falla no nombra un bloque');
+
+    var fallaSinAlejarseL5 = RS.lessons.check.evaluar(leccion5, {
+      estado: { x: 224, y: 300 }, resultadoRun: 'idle', metricas: { evalsSensor: 1, limiteSeguridad: null }
+    });
+    assert(fallaSinAlejarseL5.ok === false, 'Lección 5: sensor consultado pero sin cambio de altura falla (rama tomada no cambió de dirección)');
+
+    // --- Lesson 5's own reference program satisfies its own criterion, run end-to-end ---
+    var scheduler5 = RS.runtime.scheduler;
+    var feedbackDiv5 = document.createElement('div');
+    document.body.appendChild(feedbackDiv5);
+    RS.ui.feedback.init(feedbackDiv5);
+
+    var arbolL5 = [
+      { tipo: 'accion', accion: 'avanzar', valor: 1200, blockId: 'a1' },
+      { tipo: 'si_sino', sensor: 'hayObstaculo', blockId: 'ss1',
+        cuerpo: [{ tipo: 'accion', accion: 'derecha', valor: 500, blockId: 'd1' }],
+        sino: [] },
+      { tipo: 'accion', accion: 'avanzar', valor: 1000, blockId: 'a2' }
+    ];
+    scheduler5.iniciarConArbol(arbolL5);
+    for (var i = 0; i < 500 && scheduler5.obtenerEstado() === 'running'; i++) {
+      scheduler5._procesarFrame(16);
+    }
+    assertEquals(scheduler5.obtenerEstado(), 'idle', 'Lección 5: el programa de referencia termina en idle (sin colisión)');
+    var snapshotRealL5 = { estado: RS.robot.estado, resultadoRun: scheduler5.obtenerEstado(), metricas: scheduler5.obtenerMetricas() };
+    var resultadoRealL5 = RS.lessons.check.evaluar(leccion5, snapshotRealL5);
+    assert(resultadoRealL5.ok === true, 'Lección 5: el programa de referencia (avanzar+si_sino+avanzar) cumple su propio criterio en una corrida real');
+
+    scheduler5.reiniciar();
+    document.body.removeChild(feedbackDiv5);
+  })();
+
+  // ================= Regresión: bloques y lecciones pre-existentes sin cambios =================
+  grupo('Regresión: bloques pre-existentes y Lecciones 1-2 sin cambios (Slice B)');
+  (function () {
+    // Same pre-existing-block-only tree as before rs_si_sino existed: byte-identical output.
+    var arbolPreexistente = [
+      { tipo: 'accion', accion: 'avanzar', valor: 1000, blockId: 'a1' },
+      { tipo: 'si', sensor: 'hayObstaculo', blockId: 's1', cuerpo: [
+        { tipo: 'accion', accion: 'detener', blockId: 'd1' }
+      ] },
+      { tipo: 'repetir', veces: 4, blockId: 'r1', cuerpo: [
+        { tipo: 'accion', accion: 'izquierda', valor: 500, blockId: 'i1' }
+      ] }
+    ];
+    var reg1 = RS.cppView.renderTexto(arbolPreexistente);
+    var reg2 = RS.cppView.renderTexto(arbolPreexistente);
+    assertEquals(reg1, reg2, 'cppView.renderTexto es determinista/byte-idéntico para un árbol sin si_sino');
+
+    var leccion1 = RS.lessons.CONTENIDO.filter(function (l) { return l.id === 1; })[0];
+    var leccion2 = RS.lessons.CONTENIDO.filter(function (l) { return l.id === 2; })[0];
+    assert(leccion1.criterio === null, 'Lección 1 sigue sin criterio (sin cambios)');
+    assert(typeof leccion2.criterio.evaluar === 'function', 'Lección 2 conserva su criterio.evaluar (sin cambios)');
+    assertEquals(RS.lessons.CONTENIDO.map(function (l) { return l.id; }), [1, 2, 3, 4, 5], 'RS.lessons.CONTENIDO expone Lecciones 1 a 5 en orden de id');
   })();
 
   // ================= Summary =================

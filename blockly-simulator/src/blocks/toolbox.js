@@ -70,6 +70,11 @@
           },
           {
             kind: 'block',
+            type: 'rs_si_sino',
+            inputs: { COND: { shadow: { type: 'rs_hay_obstaculo' } } }
+          },
+          {
+            kind: 'block',
             type: 'rs_comparar',
             inputs: {
               IZQ: { shadow: { type: 'rs_medir_distancia' } },
@@ -83,7 +88,12 @@
         name: 'Repetición',
         colour: '20',
         contents: [
-          { kind: 'block', type: 'rs_repetir' }
+          { kind: 'block', type: 'rs_repetir' },
+          {
+            kind: 'block',
+            type: 'rs_repetir_hasta',
+            inputs: { COND: { shadow: { type: 'rs_hay_obstaculo' } } }
+          }
         ]
       }
     ]

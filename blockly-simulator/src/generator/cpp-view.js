@@ -39,11 +39,11 @@
     return CONTADORES[depth] || ('i' + depth);
   }
 
-  /** True iff the tree contains any `si` (sensor-dependent) node, at any depth. */
+  /** True iff the tree contains any `si`/`si_sino`/`repetir_hasta` (sensor-dependent) node, at any depth. */
   function usaSensor(cuerpo) {
     for (var i = 0; i < cuerpo.length; i++) {
       var node = cuerpo[i];
-      if (node.tipo === 'si') return true;
+      if (node.tipo === 'si' || node.tipo === 'si_sino' || node.tipo === 'repetir_hasta') return true;
       if (node.tipo === 'repetir' && usaSensor(node.cuerpo)) return true;
     }
     return false;
@@ -264,6 +264,32 @@
         ], 'guion');
         addLinea(indent, null, [
           tok('// no se ejecuta (ver hayObstaculo() en la seccion de sensores arriba).', 'com')
+        ], 'guion');
+        return;
+      }
+      if (node.tipo === 'si_sino') {
+        // Same honest-stub rule as 'si' above: this hardware has no real
+        // sensor, so neither the DO nor the ELSE branch is translated into
+        // executable code — only a comment at this exact position.
+        addLinea(indent, node.blockId, [
+          tok('// ATENCION: bloque "si / si no" (con sensor) sin sensor real en este hardware;', 'com')
+        ], 'guion');
+        addLinea(indent, null, [
+          tok('// ninguna de las dos ramas se ejecuta (ver hayObstaculo() en sensores arriba).', 'com')
+        ], 'guion');
+        return;
+      }
+      if (node.tipo === 'repetir_hasta') {
+        // Same honest-stub rule: this hardware has no real sensor, and the
+        // loop's exit condition may depend on one, so the body is never
+        // translated into executable code (unlike `repetir`'s real `for`
+        // loop above, whose count is known at compile time) — only a
+        // comment at this exact position.
+        addLinea(indent, node.blockId, [
+          tok('// ATENCION: bloque "repetir hasta" (con sensor) sin sensor real en este hardware;', 'com')
+        ], 'guion');
+        addLinea(indent, null, [
+          tok('// el cuerpo no se ejecuta (ver hayObstaculo() en la seccion de sensores arriba).', 'com')
         ], 'guion');
         return;
       }

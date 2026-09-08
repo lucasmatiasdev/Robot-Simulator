@@ -3,15 +3,24 @@
  * for a lesson's Criterio de éxito, sized to the pilot only (per design's
  * lesson-success-check capability).
  *
- * `snapshot` shape: { estado, inicial, resultadoRun: 'idle'|'error'|'stopped', colision }
+ * `snapshot` shape: { estado, inicial, resultadoRun: 'idle'|'error'|'stopped', colision, metricas }
  *   estado    — RS.robot.estado at the moment the run ended (idle/error/stopped)
  *   inicial   — RS.world.poseInicial (for feedback wording)
  *   resultadoRun — the scheduler state the run ended in
  *   colision  — the colliding obstacle/'limite' when resultadoRun === 'error', else null
+ *   metricas  — RS.runtime.scheduler.obtenerMetricas(): { evalsSensor, limiteSeguridad }.
+ *               `evalsSensor` counts sensor/comparator evaluations during the
+ *               run (used by lessons whose criterion requires the student to
+ *               actually consult the sensor, not just reach a position).
+ *               `limiteSeguridad` stays null until a later slice wires the
+ *               `repetir_hasta` safety-bound trip.
  *
  * Returns { ok, observado }. `observado` describes ONLY observed robot
  * behavior — it never names which block to add/change/remove (see
  * ui/feedback.js for the same "describe the behavior, never the fix" rule).
+ * A lesson's `criterio` MAY expose an optional `describir(snapshot, ok)`
+ * hook returning a lesson-specific `observado` string; when absent, the
+ * generic x-position wording below is used (keeps Lessons 1-2 unchanged).
  */
 (function (global) {
   'use strict';
@@ -44,6 +53,14 @@
     }
 
     var ok = !!leccion.criterio.evaluar(snapshot);
+
+    if (typeof leccion.criterio.describir === 'function') {
+      var descripcion = leccion.criterio.describir(snapshot, ok);
+      if (typeof descripcion === 'string' && descripcion.length > 0) {
+        return { ok: ok, observado: descripcion };
+      }
+    }
+
     return {
       ok: ok,
       observado: ok

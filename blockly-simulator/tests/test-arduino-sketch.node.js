@@ -151,6 +151,70 @@ if (fs.existsSync(mqttHandlerPath)) {
   assertEquals(antes, despues, 'example/control_PaperOne/mqtt_handler.h no fue modificado por la generacion');
 }
 
+// ---- rs_si_sino (if/else): honest-stub emission, never fabricates a real ----
+// ---- hayObstaculo() call in the emitted sketch; sketch remains compilable ----
+var arbolSiSino = [
+  { tipo: 'accion', accion: 'avanzar', valor: 1200, blockId: 'av1' },
+  { tipo: 'si_sino', sensor: 'hayObstaculo', blockId: 'ss1',
+    cuerpo: [{ tipo: 'accion', accion: 'derecha', valor: 500, blockId: 'ssd1' }],
+    sino: [{ tipo: 'accion', accion: 'avanzar', valor: 1000, blockId: 'sse1' }] }
+];
+var resultadoSiSino = RS.cppView.render(arbolSiSino);
+var textoSiSino = RS.cppView.renderTexto(arbolSiSino);
+
+assertEquals((textoSiSino.match(/void setup\(\)/g) || []).length, 1, 'si_sino: contiene exactamente un void setup()');
+assertEquals((textoSiSino.match(/void loop\(\)/g) || []).length, 1, 'si_sino: contiene exactamente un void loop()');
+
+var lineaSiSino = resultadoSiSino.lineas.filter(function (l) { return l.blockId === 'ss1'; })[0];
+assert(!!lineaSiSino, 'si_sino: el nodo mapea su blockId a una linea del sketch');
+assert(lineaSiSino.texto.indexOf('ATENCION') !== -1, 'si_sino: la linea contiene el comentario ATENCION');
+assert(lineaSiSino.seccion === 'guion', 'si_sino: la linea vive en la seccion guion (dentro de setup)');
+
+var lineasGuionSiSino = resultadoSiSino.lineas.filter(function (l) { return l.seccion === 'guion'; });
+var hayLlamadaRealSiSino = lineasGuionSiSino.some(function (l) {
+  return /(^|[^/])hayObstaculo\(\)/.test(l.texto) && l.texto.indexOf('//') !== 0;
+});
+assert(!hayLlamadaRealSiSino, 'si_sino: ninguna linea del guion contiene una llamada REAL a hayObstaculo() (solo el comentario)');
+assert(resultadoSiSino.lineas.filter(function (l) { return l.blockId === 'ssd1'; }).length === 0, 'si_sino: la rama DO (derecha) no se tradujo a codigo ejecutable');
+assert(resultadoSiSino.lineas.filter(function (l) { return l.blockId === 'sse1'; }).length === 0, 'si_sino: la rama ELSE (avanzar) no se tradujo a codigo ejecutable');
+assert(textoSiSino.indexOf('bool hayObstaculo() { return false; }') !== -1, 'si_sino: se emite el stub honesto hayObstaculo() porque el arbol usa un nodo si_sino');
+
+var idxLoopSiSino = textoSiSino.indexOf('void loop()');
+var cuerpoLoopSiSino = textoSiSino.substring(idxLoopSiSino);
+assert(!/\bavanzar\(\d|\bretroceder\(\d|\bgirarIzquierda\(\d|\bgirarDerecha\(\d/.test(cuerpoLoopSiSino), 'si_sino: loop() no llama a ninguna funcion de movimiento');
+
+// ---- rs_repetir_hasta: honest-stub emission, never fabricates a real ----
+// ---- hayObstaculo() call, body never translated into executable code ----
+var arbolRepetirHasta = [
+  { tipo: 'repetir_hasta', sensor: 'hayObstaculo', blockId: 'rh1',
+    cuerpo: [{ tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'rhd1' }] },
+  { tipo: 'accion', accion: 'detener', blockId: 'despues1' }
+];
+var resultadoRepetirHasta = RS.cppView.render(arbolRepetirHasta);
+var textoRepetirHasta = RS.cppView.renderTexto(arbolRepetirHasta);
+
+assertEquals((textoRepetirHasta.match(/void setup\(\)/g) || []).length, 1, 'repetir_hasta: contiene exactamente un void setup()');
+assertEquals((textoRepetirHasta.match(/void loop\(\)/g) || []).length, 1, 'repetir_hasta: contiene exactamente un void loop()');
+
+var lineaRepetirHasta = resultadoRepetirHasta.lineas.filter(function (l) { return l.blockId === 'rh1'; })[0];
+assert(!!lineaRepetirHasta, 'repetir_hasta: el nodo mapea su blockId a una linea del sketch');
+assert(lineaRepetirHasta.texto.indexOf('ATENCION') !== -1, 'repetir_hasta: la linea contiene el comentario ATENCION');
+assert(lineaRepetirHasta.seccion === 'guion', 'repetir_hasta: la linea vive en la seccion guion (dentro de setup)');
+assertEquals(resultadoRepetirHasta.lineasPorBloque.rh1.length, 1, 'repetir_hasta: el blockId mapea solo a su(s) linea(s) de cabecera, no a una linea de cierre separada');
+
+var lineasGuionRepetirHasta = resultadoRepetirHasta.lineas.filter(function (l) { return l.seccion === 'guion'; });
+var hayLlamadaRealRepetirHasta = lineasGuionRepetirHasta.some(function (l) {
+  return /(^|[^/])hayObstaculo\(\)/.test(l.texto) && l.texto.indexOf('//') !== 0;
+});
+assert(!hayLlamadaRealRepetirHasta, 'repetir_hasta: ninguna linea del guion contiene una llamada REAL a hayObstaculo() (solo el comentario)');
+assert(resultadoRepetirHasta.lineas.filter(function (l) { return l.blockId === 'rhd1'; }).length === 0, 'repetir_hasta: el cuerpo (avanzar) NO se tradujo a codigo ejecutable en el guion');
+assert(textoRepetirHasta.indexOf('bool hayObstaculo() { return false; }') !== -1, 'repetir_hasta: se emite el stub honesto hayObstaculo() porque el arbol usa un nodo repetir_hasta');
+assert(resultadoRepetirHasta.lineas.filter(function (l) { return l.blockId === 'despues1'; }).length === 1, 'repetir_hasta: el resto del programa (despues del loop) SI se traduce a codigo ejecutable');
+
+var idxLoopRepetirHasta = textoRepetirHasta.indexOf('void loop()');
+var cuerpoLoopRepetirHasta = textoRepetirHasta.substring(idxLoopRepetirHasta);
+assert(!/\bavanzar\(\d|\bretroceder\(\d|\bgirarIzquierda\(\d|\bgirarDerecha\(\d/.test(cuerpoLoopRepetirHasta), 'repetir_hasta: loop() no llama a ninguna funcion de movimiento');
+
 // ---- esperar (wait) action maps to Arduino's built-in delay(ms) ----
 var arbolEspera = [
   { tipo: 'accion', accion: 'esperar', valor: 750, blockId: 'e1' }

@@ -4,6 +4,8 @@
  *   { tipo:'accion',  accion, valor, blockId }
  *   { tipo:'repetir', veces, cuerpo:[...], blockId }
  *   { tipo:'si',      sensor:'hayObstaculo', cuerpo:[...], blockId }
+ *   { tipo:'si_sino', sensor|condicion, cuerpo:[...], sino:[...], blockId }
+ *   { tipo:'repetir_hasta', sensor|condicion, cuerpo:[...], blockId }
  *
  * RS.protocol.toMqttPayload(node) strips a leaf action node down to the
  * exact firmware payload shape { accion, valor } (no blockId, no metadata).
@@ -105,6 +107,40 @@
         nodoSi.sensor = 'hayObstaculo';
       }
       return nodoSi;
+    }
+
+    if (type === 'rs_repetir_hasta') {
+      var hastaCuerpoBlock = block.getInputTargetBlock('DO');
+      var nodoHasta = { tipo: 'repetir_hasta', cuerpo: walkChain(hastaCuerpoBlock), blockId: block.id };
+      var condTargetHasta = block.getInputTargetBlock('COND');
+      if (condTargetHasta && condTargetHasta.type === 'rs_comparar') {
+        nodoHasta.condicion = leerComparador(condTargetHasta);
+      } else {
+        // Default shadow (rs_hay_obstaculo) or no COND target: same rule as
+        // rs_si_obstaculo/rs_si_sino above.
+        nodoHasta.sensor = 'hayObstaculo';
+      }
+      return nodoHasta;
+    }
+
+    if (type === 'rs_si_sino') {
+      var doBlock = block.getInputTargetBlock('DO');
+      var elseBlock = block.getInputTargetBlock('ELSE');
+      var nodoSiSino = {
+        tipo: 'si_sino',
+        cuerpo: walkChain(doBlock),
+        sino: walkChain(elseBlock),
+        blockId: block.id
+      };
+      var condTargetSiSino = block.getInputTargetBlock('COND');
+      if (condTargetSiSino && condTargetSiSino.type === 'rs_comparar') {
+        nodoSiSino.condicion = leerComparador(condTargetSiSino);
+      } else {
+        // Default shadow (rs_hay_obstaculo) or no COND target: same rule as
+        // rs_si_obstaculo above.
+        nodoSiSino.sensor = 'hayObstaculo';
+      }
+      return nodoSiSino;
     }
 
     // rs_hay_obstaculo / rs_medir_distancia are value (reporter) blocks —

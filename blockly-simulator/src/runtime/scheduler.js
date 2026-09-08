@@ -21,6 +21,8 @@
     var ctx = null;
     var rayoFlashHasta = 0;
     var listeners = [];
+    var evalsSensor = 0;
+    var limiteSeguridad = null;
 
     function notificar() {
       listeners.forEach(function (fn) { fn(estado); });
@@ -36,6 +38,12 @@
 
     function avanzarSiguienteNodo() {
       currentNode = interpreter.siguienteNodo();
+      // Pick up a repetir_hasta safety-cap trip, if one just happened. D4:
+      // this is a behavioral-failure signal on the run's metrics, never a
+      // scheduler run-state change — the rest of the program (if any) keeps
+      // executing and the run still ends in normal 'idle'.
+      var trip = interpreter.limiteSeguridad ? interpreter.limiteSeguridad() : null;
+      if (trip) limiteSeguridad = trip;
       elapsedNode = 0;
       if (currentNode === null) {
         estado = 'idle';
@@ -145,6 +153,7 @@
 
     function onSensorEval() {
       rayoFlashHasta = (lastTs || 0) + FLASH_RAYO_MS;
+      evalsSensor += 1;
     }
 
     return {
@@ -169,10 +178,22 @@
         if (estado === 'running') return;
         RS.robot.reset();
         if (RS.ui && RS.ui.feedback) RS.ui.feedback.limpiar();
+        evalsSensor = 0;
+        limiteSeguridad = null;
         interpreter = RS.runtime.interpreter.crear(tree, RS.world, RS.robot.estado, onSensorEval);
         estado = 'running';
         notificar();
         avanzarSiguienteNodo();
+      },
+
+      /**
+       * obtenerMetricas() — observed-behavior counters used by lesson
+       * criteria (see lessons/check.js). `limiteSeguridad` is null unless a
+       * `repetir_hasta` loop tripped its MAX_ITER_REPETIR_HASTA safety cap
+       * during this run, in which case it is {blockId, iteraciones}.
+       */
+      obtenerMetricas: function () {
+        return { evalsSensor: evalsSensor, limiteSeguridad: limiteSeguridad };
       },
 
       /**

@@ -112,7 +112,8 @@
         estado: RS.robot ? RS.robot.estado : null,
         inicial: RS.world ? RS.world.poseInicial : null,
         resultadoRun: nuevoEstado,
-        colision: nuevoEstado === 'error' ? true : null
+        colision: nuevoEstado === 'error' ? true : null,
+        metricas: (RS.runtime && RS.runtime.scheduler) ? RS.runtime.scheduler.obtenerMetricas() : { evalsSensor: 0, limiteSeguridad: null }
       };
     }
 

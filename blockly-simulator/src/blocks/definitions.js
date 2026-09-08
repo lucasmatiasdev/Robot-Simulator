@@ -1,9 +1,11 @@
 /**
  * RS block definitions: the 6 action blocks (avanzar, retroceder, izquierda,
  * derecha, detener, led) plus hayObstaculo()/medirDistancia() sensor blocks,
- * the repeat-N-times block, and the "si" decision block. Also: rs_inicio
- * (hat, no code), rs_espera (simulator/sketch-only wait), and rs_comparar
- * (usable inside the "si" block's COND value input).
+ * the repeat-N-times block, the repeat-until block (pre-test, "while not",
+ * with a mandatory safety-iteration cap), the "si" decision block, and
+ * "si/si no" (fixed two-slot if/else, no mutator). Also: rs_inicio (hat, no
+ * code), rs_espera (simulator/sketch-only wait), and rs_comparar (usable
+ * inside any COND value input).
  *
  * bailar() MUST NOT appear here — no block, field, or dropdown entry.
  */
@@ -105,6 +107,26 @@
     }
   };
 
+  // rs_si_sino — fixed two-slot if/else, NO mutator, NO else-if chaining.
+  // Reuses the exact COND value-input pattern from rs_si_obstaculo (same
+  // rs_hay_obstaculo default shadow, same rs_comparar swap-in rule). This is
+  // a DISTINCT block type from rs_si_obstaculo — it maps to a NEW program-tree
+  // node type ('si_sino', see program-tree.js) so rs_si_obstaculo's existing
+  // 'si' node/interpreter/cpp-view paths stay completely untouched.
+  Blockly.Blocks['rs_si_sino'] = {
+    init: function () {
+      this.appendValueInput('COND').setCheck('Boolean').appendField('si');
+      this.appendStatementInput('DO').setCheck(null);
+      this.appendDummyInput().appendField('si no');
+      this.appendStatementInput('ELSE').setCheck(null);
+      this.setPreviousStatement(true, null);
+      this.setNextStatement(true, null);
+      this.setColour(COLOR_SENSORES);
+      this.setTooltip('Ejecuta el primer cuerpo si la condición es verdadera, o el segundo ("si no") si es falsa (evaluada una sola vez, en tiempo de ejecución).');
+      this.setInputsInline(true);
+    }
+  };
+
   // --- Comparador (usable inside COND slots, e.g. rs_si_obstaculo) ---
   Blockly.Blocks['rs_comparar'] = {
     init: function () {
@@ -173,6 +195,25 @@
     }
   };
 
+  // rs_repetir_hasta — indefinite pre-test ("while not") loop with a
+  // mandatory safety cap (RS.config.MAX_ITER_REPETIR_HASTA, enforced in
+  // src/runtime/interpreter.js). Reuses the exact COND value-input pattern
+  // from rs_si_obstaculo/rs_si_sino (same rs_hay_obstaculo default shadow,
+  // same rs_comparar swap-in rule). Maps to a NEW program-tree node type
+  // ('repetir_hasta', see program-tree.js) — kept distinct from rs_repetir,
+  // whose fixed-count loop path stays completely untouched.
+  Blockly.Blocks['rs_repetir_hasta'] = {
+    init: function () {
+      this.appendValueInput('COND').setCheck('Boolean').appendField('repetir hasta');
+      this.appendStatementInput('DO').setCheck(null);
+      this.setPreviousStatement(true, null);
+      this.setNextStatement(true, null);
+      this.setColour(COLOR_REPETICION);
+      this.setTooltip('Repite el cuerpo hasta que la condición sea verdadera (evaluada antes de cada repetición). Tiene un límite de seguridad de iteraciones.');
+      this.setInputsInline(true);
+    }
+  };
+
   // Numeric literal used as the MS input's default shadow block.
   Blockly.Blocks['rs_numero'] = {
     init: function () {
@@ -187,7 +228,7 @@
     INICIO_TYPES: ['rs_inicio'],
     MOVIMIENTO_TYPES: ['rs_avanzar', 'rs_retroceder', 'rs_izquierda', 'rs_derecha', 'rs_detener', 'rs_espera'],
     ACTUADOR_TYPES: ['rs_led'],
-    SENSOR_TYPES: ['rs_hay_obstaculo', 'rs_medir_distancia', 'rs_si_obstaculo', 'rs_comparar'],
-    REPETICION_TYPES: ['rs_repetir']
+    SENSOR_TYPES: ['rs_hay_obstaculo', 'rs_medir_distancia', 'rs_si_obstaculo', 'rs_si_sino', 'rs_comparar'],
+    REPETICION_TYPES: ['rs_repetir', 'rs_repetir_hasta']
   };
 })(typeof window !== 'undefined' ? window : this);

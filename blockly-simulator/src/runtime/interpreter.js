@@ -1,7 +1,9 @@
 /**
  * RS.runtime.interpreter — explicit-stack tree walker over the program tree.
- * Descends into `repetir`/`si` bodies at runtime (never pre-expanded);
- * conditions and repetitions are evaluated live, one leaf at a time.
+ * Descends into `repetir`/`si`/`si_sino`/`repetir_hasta` bodies at runtime
+ * (never pre-expanded); conditions and repetitions are evaluated live, one
+ * leaf at a time. `repetir_hasta` (pre-test "while not" loop) is capped by
+ * RS.config.MAX_ITER_REPETIR_HASTA — see the body-exhaustion handling below.
  */
 (function (global) {
   'use strict';
@@ -20,6 +22,7 @@
    */
   function crear(tree, world, robotEstado, onSensorEval) {
     var stack = [{ tipo: 'root', cuerpo: tree || [], index: 0 }];
+    var limiteSeguridadTrip = null;
 
     function evaluarSensor(nombre) {
       var resultado;
@@ -89,6 +92,32 @@
             continue;
           }
 
+          if (node.tipo === 'repetir_hasta') {
+            // Pre-test ("while not") loop: skip entirely if the condition is
+            // already true at encounter (zero iterations); otherwise push a
+            // loop frame. See body-exhaustion handling below for the
+            // mandatory MAX_ITER_REPETIR_HASTA safety cap.
+            var cumpleInicio = node.condicion ? evaluarCondicion(node.condicion) : evaluarSensor(node.sensor);
+            if (!cumpleInicio) {
+              stack.push({ tipo: 'repetir_hasta', cuerpo: node.cuerpo, index: 0, iter: 0, node: node });
+            }
+            continue;
+          }
+
+          if (node.tipo === 'si_sino') {
+            // Evaluated once, at encounter time (not re-evaluated per tick,
+            // unlike a loop condition): pick DO or ELSE body and push a
+            // regular 'si' frame — always entered, unlike plain 'si' above.
+            var cumpleSiSino = node.condicion ? evaluarCondicion(node.condicion) : evaluarSensor(node.sensor);
+            stack.push({
+              tipo: 'si',
+              cuerpo: cumpleSiSino ? node.cuerpo : node.sino,
+              index: 0,
+              blockId: node.blockId
+            });
+            continue;
+          }
+
           // Unknown node type: skip.
           continue;
         }
@@ -104,6 +133,32 @@
           continue;
         }
 
+        if (top.tipo === 'repetir_hasta') {
+          // Completed one body pass: re-evaluate the condition (pre-test,
+          // "while not" semantics). SAFETY CAP FIRST: an empty body or a
+          // body whose actions never make the condition true would
+          // otherwise re-enter this branch forever, spinning synchronously
+          // inside THIS `while` loop (siguienteNodo() would never return —
+          // confirmed empirically: see apply-progress notes for Slice C1).
+          // The cap must live here, not in the scheduler, because the
+          // scheduler never regains control in that failure case.
+          top.iter += 1;
+          var maxIter = (RS.config && RS.config.MAX_ITER_REPETIR_HASTA) || 1000;
+          if (top.iter >= maxIter) {
+            limiteSeguridadTrip = { blockId: top.node.blockId, iteraciones: top.iter };
+            stack.pop();
+            continue; // D4: the safety trip is a behavioral signal, not an
+                      // abort — the rest of the program keeps executing.
+          }
+          var cumpleFin = top.node.condicion ? evaluarCondicion(top.node.condicion) : evaluarSensor(top.node.sensor);
+          if (cumpleFin) {
+            stack.pop();
+            continue;
+          }
+          top.index = 0;
+          continue;
+        }
+
         stack.pop();
       }
       return null;
@@ -111,7 +166,11 @@
 
     return {
       siguienteNodo: siguienteNodo,
-      terminado: function () { return stack.length === 0; }
+      terminado: function () { return stack.length === 0; },
+      // limiteSeguridad() -> null, or {blockId, iteraciones} once a
+      // repetir_hasta loop has tripped MAX_ITER_REPETIR_HASTA during this
+      // walk. Read by the scheduler after each siguienteNodo() call.
+      limiteSeguridad: function () { return limiteSeguridadTrip; }
     };
   }
 
