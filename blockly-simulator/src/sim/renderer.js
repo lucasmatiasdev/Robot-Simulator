@@ -121,6 +121,37 @@
         ctx.fillRect(o.x, o.y, o.w, o.h);
       });
 
+      // Goal marker (dashed, success-green — distinct from the gray
+      // obstacles) plus a small flag at its center so it reads as an
+      // "arrival point" rather than just another rectangle.
+      if (world.meta) {
+        ctx.save();
+        ctx.strokeStyle = '#16a34a';
+        ctx.lineWidth = 3;
+        ctx.setLineDash([6, 4]);
+        ctx.strokeRect(world.meta.x, world.meta.y, world.meta.w, world.meta.h);
+        ctx.fillStyle = 'rgba(22, 163, 74, 0.12)';
+        ctx.fillRect(world.meta.x, world.meta.y, world.meta.w, world.meta.h);
+        ctx.setLineDash([]);
+
+        var cx = world.meta.x + world.meta.w / 2;
+        var cy = world.meta.y + world.meta.h / 2;
+        ctx.strokeStyle = '#12833c';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy - 14);
+        ctx.lineTo(cx, cy + 14);
+        ctx.stroke();
+        ctx.fillStyle = '#16a34a';
+        ctx.beginPath();
+        ctx.moveTo(cx, cy - 14);
+        ctx.lineTo(cx + 16, cy - 9);
+        ctx.lineTo(cx, cy - 4);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      }
+
       // Sensor ray (only while a sensor is actively being evaluated)
       if (opts.rayoActivo) {
         var dist = opts.distanciaRayoPx || 0;

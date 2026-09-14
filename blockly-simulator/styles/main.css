@@ -31,14 +31,123 @@ html, body {
   color: var(--n-100);
 }
 
+/* The [hidden] attribute has very low UA-stylesheet specificity, so the
+   id-selector `display` rules below (#home, #app) would otherwise silently
+   win and keep the "hidden" view visible — these two overrides fix that. */
+#home[hidden],
+#app[hidden] {
+  display: none;
+}
+
+#home {
+  height: 100vh;
+  overflow-y: auto;
+  padding: var(--sp-6) var(--sp-5);
+  background: var(--n-900);
+}
+
+#home-cab {
+  max-width: 900px;
+  margin: 0 auto var(--sp-5);
+}
+
+#home-cab h1 {
+  margin: 0 0 var(--sp-2);
+  font-size: 22px;
+  color: var(--n-0);
+}
+
+#home-cab p {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--n-200);
+}
+
+#home-lista {
+  max-width: 760px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.home-leccion {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-5);
+  background: var(--n-800);
+  border-radius: var(--r-md);
+  box-shadow: var(--sh-2);
+}
+
+.home-tarjeta-resumen {
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+  color: var(--n-200);
+}
+
+.home-iniciar-btn {
+  align-self: center;
+  height: 44px;
+  padding: 0 var(--sp-6);
+  border: none;
+  border-radius: var(--r-sm);
+  background: var(--a-500);
+  color: var(--n-0);
+  font-family: var(--ff-ui);
+  font-weight: 700;
+  font-size: var(--fs-base);
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+
+.home-iniciar-btn:hover { background: var(--a-600); }
+
+.home-sandbox-btn {
+  align-self: center;
+  height: 32px;
+  padding: 0 var(--sp-4);
+  border: 1px solid var(--n-600);
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--n-200);
+  font-family: var(--ff-ui);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+
+.home-sandbox-btn:hover { background: var(--n-700); }
+
+#btn-volver-home {
+  height: 32px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--n-600);
+  background: transparent;
+  color: var(--n-100);
+  font-family: var(--ff-ui);
+  font-weight: 600;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+
+#btn-volver-home:hover { border-color: var(--n-400); }
+
 #app {
+  --w-leccion: 320px;
+  --w-editor: 460px;
+  --h-codigo: 240px;
   display: grid;
-  grid-template-columns: minmax(260px, 25fr) minmax(320px, 35fr) 40fr;
-  grid-template-rows: 48px 1fr minmax(180px, 34%);
+  grid-template-columns: var(--w-leccion) 6px var(--w-editor) 6px 1fr;
+  grid-template-rows: 48px 1fr 6px var(--h-codigo);
   grid-template-areas:
-    "barra   barra  barra"
-    "leccion editor sim"
-    "leccion editor codigo";
+    "barra   barra barra   barra barra"
+    "leccion gv1   editor  gv2   sim"
+    "leccion gv1   editor  gv2   gh1"
+    "leccion gv1   editor  gv2   codigo";
   height: 100vh;
   padding: var(--sp-3);
   gap: var(--sp-3);
@@ -47,10 +156,17 @@ html, body {
   transition: grid-template-columns 160ms ease;
 }
 
-/* Lesson panel collapsed: reclaims its width for editor/sim/codigo, the
-   panels actually worked in — see leccion-toggle-btn in main.js. */
+#app.gutter-arrastrando { transition: none; }
+
+/* Lesson panel collapsed: JS pins --w-leccion to 40px (see main.js) and
+   reclaims that width for editor/sim/codigo, the panels actually worked in. */
 #app.leccion-colapsada {
-  grid-template-columns: 40px minmax(380px, 45fr) 55fr;
+  --w-leccion: 40px;
+}
+
+#app.leccion-colapsada #gutter-leccion-editor {
+  pointer-events: none;
+  opacity: .35;
 }
 
 #barra {
@@ -151,6 +267,48 @@ html, body {
   overflow: hidden;
 }
 
+/* ---- Gutters: draggable dividers between panels ---- */
+.gutter {
+  position: relative;
+  background: transparent;
+  border-radius: var(--r-sm);
+}
+
+.gutter::after {
+  content: '';
+  position: absolute;
+  background: var(--n-600);
+  border-radius: var(--r-sm);
+  transition: background-color 120ms ease;
+}
+
+.gutter:hover::after,
+.gutter.gutter-activo::after {
+  background: var(--a-500);
+}
+
+.gutter-v {
+  cursor: col-resize;
+}
+
+.gutter-v::after {
+  top: 0;
+  bottom: 0;
+  left: 2px;
+  width: 2px;
+}
+
+.gutter-h {
+  cursor: row-resize;
+}
+
+.gutter-h::after {
+  left: 0;
+  right: 0;
+  top: 2px;
+  height: 2px;
+}
+
 #leccion { grid-area: leccion; }
 #leccion .panel-cab { justify-content: space-between; }
 #leccion .panel-body {
@@ -191,33 +349,6 @@ html, body {
   transform: rotate(180deg);
 }
 
-.leccion-nav {
-  display: flex;
-  gap: var(--sp-2);
-  margin-bottom: var(--sp-3);
-}
-
-.leccion-nav-btn {
-  height: 26px;
-  padding: 0 var(--sp-3);
-  border-radius: var(--r-sm);
-  border: 1px solid var(--n-600);
-  background: transparent;
-  color: var(--n-200);
-  font-family: var(--ff-ui);
-  font-size: var(--fs-xs);
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.leccion-nav-btn:hover { border-color: var(--n-400); }
-
-.leccion-nav-btn-activa {
-  background: var(--a-500);
-  border-color: var(--a-500);
-  color: var(--n-0);
-}
-
 .leccion-titulo {
   margin: 0 0 var(--sp-3);
   font-size: var(--fs-base);
@@ -246,6 +377,13 @@ html, body {
   white-space: pre-line;
 }
 
+.leccion-sandbox-msg {
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+  color: var(--n-200);
+}
+
 .leccion-resultado {
   margin: var(--sp-3) 0 0;
   padding: var(--sp-2);
@@ -258,6 +396,28 @@ html, body {
 
 .leccion-resultado-ok { color: #7ee787; background: rgba(126, 231, 135, .08); }
 .leccion-resultado-fail { color: #ff9a8b; background: rgba(255, 154, 139, .08); }
+
+.leccion-completar-btn {
+  align-self: flex-start;
+  margin-top: var(--sp-3);
+  height: 32px;
+  padding: 0 var(--sp-4);
+  border: none;
+  border-radius: var(--r-sm);
+  background: var(--a-500);
+  color: var(--n-0);
+  font-family: var(--ff-ui);
+  font-weight: 600;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+
+.leccion-completar-btn:hover { background: var(--a-600); }
+
+#gutter-leccion-editor { grid-area: gv1; }
+#gutter-editor-sim { grid-area: gv2; }
+#gutter-sim-codigo { grid-area: gh1; }
 
 #editor { grid-area: editor; }
 #editor .panel-body { background: var(--n-700); }

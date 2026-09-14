@@ -35,7 +35,9 @@
     var codigoDiv = document.getElementById('codigo-panel');
     var feedbackDiv = document.getElementById('feedback-linea');
     var appEl = document.getElementById('app');
+    var homeEl = document.getElementById('home');
     var btnLeccionToggle = document.getElementById('btn-leccion-toggle');
+    var btnVolverHome = document.getElementById('btn-volver-home');
 
     var workspace = Blockly.inject(editorDiv, {
       toolbox: RS.toolbox,
@@ -63,11 +65,74 @@
       Blockly.svgResize(workspace);
     }
 
+    function mostrarWorkspace() {
+      homeEl.hidden = true;
+      appEl.hidden = false;
+      resize(); // display:none -> visible is a 0x0 -> real size jump; ResizeObserver alone can't be trusted for it
+    }
+
+    function mostrarHome() {
+      appEl.hidden = true;
+      homeEl.hidden = false;
+      renderizarHome(); // refleja lecciones recién desbloqueadas/completadas
+    }
+
+    function buscarLeccion(leccionId) {
+      var lista = RS.lessons.CONTENIDO || [];
+      for (var i = 0; i < lista.length; i++) {
+        if (lista[i].id === leccionId) return lista[i];
+      }
+      return null;
+    }
+
+    var homeListaEl = document.getElementById('home-lista');
+
+    function renderizarHome() {
+      if (!homeListaEl || !RS.lessons.home) return;
+      RS.lessons.home.init(homeListaEl, {
+        onIniciarLeccion: function (leccionId) {
+          if (RS.lessons.progress && !RS.lessons.progress.estaDesbloqueada(leccionId)) return;
+          var leccion = buscarLeccion(leccionId);
+          RS.world.cargarMapa(leccion ? leccion.mapa : {});
+          RS.robot.reset();
+          workspace.clear();
+          RS.lessons.panel.mostrarLeccion(leccionId);
+          mostrarWorkspace();
+        },
+        onIniciarSandbox: function () {
+          RS.world.cargarMapa({});
+          RS.robot.reset();
+          workspace.clear();
+          RS.lessons.panel.mostrarSandbox();
+          mostrarWorkspace();
+        }
+      });
+    }
+
+    if (homeEl && appEl) renderizarHome();
+
+    if (btnVolverHome) {
+      btnVolverHome.addEventListener('click', mostrarHome);
+    }
+
     if (btnLeccionToggle && appEl) {
+      var wLeccionPrevia = null; // recuerda el ancho arrastrado por el usuario para restaurarlo al expandir
       btnLeccionToggle.addEventListener('click', function () {
         var colapsada = appEl.classList.toggle('leccion-colapsada');
         btnLeccionToggle.setAttribute('aria-expanded', String(!colapsada));
         btnLeccionToggle.title = colapsada ? 'Expandir panel de lección' : 'Colapsar panel de lección';
+
+        // El drag deja --w-leccion como estilo inline, que siempre le gana a la
+        // regla CSS de .leccion-colapsada. Hay que pisarlo/restaurarlo a mano.
+        if (colapsada) {
+          wLeccionPrevia = appEl.style.getPropertyValue('--w-leccion') || null;
+          appEl.style.setProperty('--w-leccion', '40px');
+        } else if (wLeccionPrevia) {
+          appEl.style.setProperty('--w-leccion', wLeccionPrevia);
+        } else {
+          appEl.style.removeProperty('--w-leccion');
+        }
+
         resize();
       });
     }
@@ -78,6 +143,10 @@
       var ro = new ResizeObserver(resize);
       ro.observe(editorDiv);
       ro.observe(document.getElementById('sim'));
+    }
+
+    if (RS.ui.initPanelResize && appEl) {
+      RS.ui.initPanelResize(appEl);
     }
 
     resize();

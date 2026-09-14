@@ -1,7 +1,9 @@
 /**
  * RS.lessons.panel — renders the active lesson's sections, in the order
  * mandated by data/Modulo_Aprendizaje.odt section 15, into the 4th grid
- * panel (#leccion).
+ * panel (#leccion). Lesson selection itself now happens on the Home screen
+ * (see lessons/home.js); this module only renders whichever single lesson
+ * (or the sandbox message) main.js tells it to via mostrarLeccion/mostrarSandbox.
  *
  * Subscribes to the existing RS.runtime.scheduler.onCambioEstado (no new
  * scheduler state added). It tracks the previous state itself and derives
@@ -10,7 +12,7 @@
  *   running -> error   = collision
  *   running -> stopped = aborted (manual stop)
  * Only lessons with a non-null `criterio` (Lesson 2 onward) are evaluated —
- * Lesson 1 is pure identification and ignores every run outcome.
+ * Lesson 1 and the sandbox (leccionActiva === null) ignore every run outcome.
  */
 (function (global) {
   'use strict';
@@ -18,62 +20,39 @@
   var RS = global.RS = global.RS || {};
   RS.lessons = RS.lessons || {};
 
-  var SECCIONES = [
-    { clave: 'objetivo', titulo: 'Objetivo' },
-    { clave: 'concepto', titulo: 'Concepto' },
-    { clave: 'ejemplo', titulo: 'Ejemplo' },
-    { clave: 'bloques', titulo: 'Bloques utilizados' },
-    { clave: 'comoFunciona', titulo: '¿Cómo funciona?' },
-    { clave: 'prueba', titulo: 'Prueba en el simulador' },
-    { clave: 'modificacion', titulo: 'Modificación' },
-    { clave: 'desafio', titulo: 'Desafío' },
-    { clave: 'criterioTexto', titulo: 'Criterio de éxito' },
-    { clave: 'pista', titulo: 'Pista' },
-    { clave: 'competencias', titulo: 'Competencias' },
-    { clave: 'resultados', titulo: 'Resultados de aprendizaje' },
-    { clave: 'nivel', titulo: 'Nivel de dificultad' }
-  ];
-
   function crearPanel() {
     var contenedor = null;
     var leccionActiva = null;
     var resultadoEl = null;
     var estadoPrevio = null;
 
-    function renderizarNav() {
-      var nav = document.createElement('div');
-      nav.className = 'leccion-nav';
-      RS.lessons.CONTENIDO.forEach(function (leccion) {
-        var boton = document.createElement('button');
-        boton.type = 'button';
-        boton.className = 'leccion-nav-btn';
-        boton.textContent = 'Lección ' + leccion.id;
-        if (leccion.id === leccionActiva.id) boton.classList.add('leccion-nav-btn-activa');
-        boton.addEventListener('click', function () {
-          seleccionarLeccion(leccion);
-        });
-        nav.appendChild(boton);
-      });
-      contenedor.appendChild(nav);
-    }
+    function renderizarSandbox() {
+      if (!contenedor) return;
+      contenedor.innerHTML = '';
 
-    function seleccionarLeccion(leccion) {
-      leccionActiva = leccion;
-      renderizar(leccion);
+      var h2 = document.createElement('h2');
+      h2.className = 'leccion-titulo';
+      h2.textContent = 'Sandbox';
+      contenedor.appendChild(h2);
+
+      var p = document.createElement('p');
+      p.className = 'leccion-sandbox-msg';
+      p.textContent = 'Práctica libre: armá cualquier programa y ejecutalo. No hay objetivo ni criterio de éxito en este modo.';
+      contenedor.appendChild(p);
+
+      resultadoEl = null;
     }
 
     function renderizar(leccion) {
       if (!contenedor) return;
       contenedor.innerHTML = '';
 
-      renderizarNav();
-
       var h2 = document.createElement('h2');
       h2.className = 'leccion-titulo';
       h2.textContent = leccion.titulo;
       contenedor.appendChild(h2);
 
-      SECCIONES.forEach(function (seccion) {
+      RS.lessons.SECCIONES.forEach(function (seccion) {
         var bloque = document.createElement('section');
         bloque.className = 'leccion-seccion';
 
@@ -88,9 +67,40 @@
         contenedor.appendChild(bloque);
       });
 
-      resultadoEl = document.createElement('p');
-      resultadoEl.className = 'leccion-resultado';
-      contenedor.appendChild(resultadoEl);
+      if (leccion.criterio) {
+        resultadoEl = document.createElement('p');
+        resultadoEl.className = 'leccion-resultado';
+        contenedor.appendChild(resultadoEl);
+      } else {
+        resultadoEl = null;
+        renderizarControlCompletado(leccion);
+      }
+    }
+
+    // Lecciones sin criterio evaluable (hoy solo la 1: no hay programa que
+    // ejecutar) no pueden auto-completarse por resultado de corrida — se
+    // marcan a mano para desbloquear la siguiente.
+    function renderizarControlCompletado(leccion) {
+      if (!contenedor) return;
+
+      if (RS.lessons.progress && RS.lessons.progress.estaCompletada(leccion.id)) {
+        var msg = document.createElement('p');
+        msg.className = 'leccion-resultado leccion-resultado-ok';
+        msg.textContent = 'Lección completada.';
+        contenedor.appendChild(msg);
+        return;
+      }
+
+      var boton = document.createElement('button');
+      boton.type = 'button';
+      boton.className = 'leccion-completar-btn';
+      boton.textContent = 'Marcar como completada';
+      boton.addEventListener('click', function () {
+        if (RS.lessons.progress) RS.lessons.progress.marcarCompletada(leccion.id);
+        contenedor.removeChild(boton);
+        renderizarControlCompletado(leccion);
+      });
+      contenedor.appendChild(boton);
     }
 
     function limpiarResultado() {
@@ -127,17 +137,28 @@
       var snapshot = construirSnapshot(nuevoEstado);
       var resultado = RS.lessons.check.evaluar(leccionActiva, snapshot);
       mostrarResultado(resultado);
+      if (resultado.ok && RS.lessons.progress) {
+        RS.lessons.progress.marcarCompletada(leccionActiva.id);
+      }
     }
 
     return {
       init: function (el) {
         contenedor = el;
-        leccionActiva = RS.lessons.CONTENIDO[0] || null;
-        if (leccionActiva) renderizar(leccionActiva);
         if (RS.runtime && RS.runtime.scheduler) {
           estadoPrevio = RS.runtime.scheduler.obtenerEstado();
           RS.runtime.scheduler.onCambioEstado(alCambiarEstadoScheduler);
         }
+      },
+      mostrarLeccion: function (id) {
+        var leccion = RS.lessons.CONTENIDO.filter(function (l) { return l.id === id; })[0];
+        if (!leccion) return;
+        leccionActiva = leccion;
+        renderizar(leccion);
+      },
+      mostrarSandbox: function () {
+        leccionActiva = null;
+        renderizarSandbox();
       },
       leccionActual: function () {
         return leccionActiva;

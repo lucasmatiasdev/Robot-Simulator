@@ -21,6 +21,7 @@
      stubs below, matching the minimal API program-tree.js actually calls. -->
 <script src="../src/config.js"></script>
 <script src="../src/lessons/content.js"></script>
+<script src="../src/lessons/progress.js"></script>
 <script src="../src/lessons/check.js"></script>
 <script src="../src/generator/program-tree.js"></script>
 <script src="../src/generator/cpp-view.js"></script>
@@ -788,38 +789,71 @@
   })();
 
   // ================= Lessons: check.evaluar (Lesson 2 success criterion) =================
-  grupo('Lecciones: check.evaluar — criterio de Lección 2 (x >= 260)');
+  grupo('Lecciones: check.evaluar — criterio de Lección 2 (zona de meta x:[310,360] y:[270,330], v2 mapa más rico)');
   (function () {
     var leccion2 = RS.lessons.CONTENIDO.filter(function (l) { return l.id === 2; })[0];
     assert(!!leccion2 && !!leccion2.criterio, 'Lección 2 tiene un criterio.evaluar definido');
 
-    // Pasa exactamente en el umbral y por encima.
-    var pasaJusto = RS.lessons.check.evaluar(leccion2, { estado: { x: 260 }, resultadoRun: 'idle' });
-    assert(pasaJusto.ok === true, 'check.evaluar: x=260 (umbral exacto) pasa');
+    // Pasa dentro de la zona de meta (bordes incluidos).
+    var pasaJusto = RS.lessons.check.evaluar(leccion2, { estado: { x: 310, y: 300 }, resultadoRun: 'idle' });
+    assert(pasaJusto.ok === true, 'check.evaluar: x=310 (borde de la zona) pasa');
 
-    var pasaHolgado = RS.lessons.check.evaluar(leccion2, { estado: { x: 300 }, resultadoRun: 'idle' });
-    assert(pasaHolgado.ok === true, 'check.evaluar: x=300 pasa');
+    var pasaHolgado = RS.lessons.check.evaluar(leccion2, { estado: { x: 332, y: 300 }, resultadoRun: 'idle' });
+    assert(pasaHolgado.ok === true, 'check.evaluar: x=332 (centro de la zona) pasa');
 
-    // Falla por debajo del umbral.
-    var falla = RS.lessons.check.evaluar(leccion2, { estado: { x: 150 }, resultadoRun: 'idle' });
-    assert(falla.ok === false, 'check.evaluar: x=150 (debajo del umbral) falla');
-    assert(falla.observado.indexOf('150') !== -1, 'el mensaje de falla describe la posicion observada');
+    // Falla antes de la zona de meta.
+    var falla = RS.lessons.check.evaluar(leccion2, { estado: { x: 200, y: 300 }, resultadoRun: 'idle' });
+    assert(falla.ok === false, 'check.evaluar: x=200 (antes de la zona) falla');
+    assert(falla.observado.indexOf('200') !== -1, 'el mensaje de falla describe la posicion observada');
     assert(falla.observado.toLowerCase().indexOf('avanzar') === -1 && falla.observado.toLowerCase().indexOf('bloque') === -1,
       'el mensaje de falla describe comportamiento, no nombra el bloque/arreglo a aplicar');
 
     // Colisión: falla sin importar la posición, describe la colisión, no el fix.
-    var fallaColision = RS.lessons.check.evaluar(leccion2, { estado: { x: 295 }, resultadoRun: 'error' });
+    var fallaColision = RS.lessons.check.evaluar(leccion2, { estado: { x: 332, y: 300 }, resultadoRun: 'error' });
     assert(fallaColision.ok === false, 'check.evaluar: resultadoRun="error" (colisión) siempre falla');
     assert(fallaColision.observado.indexOf('choc') !== -1, 'el mensaje de colisión describe que el robot chocó');
 
     // Detención manual: falla, describe la interrupción.
-    var fallaDetenido = RS.lessons.check.evaluar(leccion2, { estado: { x: 200 }, resultadoRun: 'stopped' });
+    var fallaDetenido = RS.lessons.check.evaluar(leccion2, { estado: { x: 200, y: 300 }, resultadoRun: 'stopped' });
     assert(fallaDetenido.ok === false, 'check.evaluar: resultadoRun="stopped" (detenido manualmente) falla');
 
     // Lección 1 (sin criterio): evaluar() devuelve ok:false y un mensaje explicando por qué.
     var leccion1 = RS.lessons.CONTENIDO.filter(function (l) { return l.id === 1; })[0];
     var sinCriterio = RS.lessons.check.evaluar(leccion1, { estado: { x: 999 }, resultadoRun: 'idle' });
     assert(sinCriterio.ok === false, 'Lección 1 (criterio: null): check.evaluar no puede dar exito');
+
+    // El programa de referencia de la Lección 2 cumple su propio criterio en una corrida real.
+    var scheduler2 = RS.runtime.scheduler;
+    var feedbackDiv2 = document.createElement('div');
+    document.body.appendChild(feedbackDiv2);
+    RS.ui.feedback.init(feedbackDiv2);
+    RS.world.cargarMapa(leccion2.mapa);
+    var arbolL2 = [
+      { tipo: 'accion', accion: 'avanzar', valor: 2100, blockId: 'a1' },
+      { tipo: 'accion', accion: 'detener', blockId: 'd1' }
+    ];
+    scheduler2.iniciarConArbol(arbolL2);
+    for (var i2 = 0; i2 < 500 && scheduler2.obtenerEstado() === 'running'; i2++) {
+      scheduler2._procesarFrame(16);
+    }
+    assertEquals(scheduler2.obtenerEstado(), 'idle', 'Lección 2: el programa de referencia termina en idle (sin colisión)');
+    var snapshotRealL2 = { estado: RS.robot.estado, resultadoRun: scheduler2.obtenerEstado(), metricas: scheduler2.obtenerMetricas() };
+    var resultadoRealL2 = RS.lessons.check.evaluar(leccion2, snapshotRealL2);
+    assert(resultadoRealL2.ok === true, 'Lección 2: el programa de referencia (avanzar(2100)+detener) cumple su propio criterio en una corrida real');
+    scheduler2.reiniciar();
+
+    // Un avance excesivo choca contra el obstáculo más lejano del mapa v2.
+    scheduler2.iniciarConArbol([
+      { tipo: 'accion', accion: 'avanzar', valor: 3000, blockId: 'a1' },
+      { tipo: 'accion', accion: 'detener', blockId: 'd1' }
+    ]);
+    for (var i2c = 0; i2c < 500 && scheduler2.obtenerEstado() === 'running'; i2c++) {
+      scheduler2._procesarFrame(16);
+    }
+    assertEquals(scheduler2.obtenerEstado(), 'error', 'Lección 2: avanzar(3000) choca contra el obstáculo (mapa v2, más lejano)');
+    scheduler2.reiniciar();
+    document.body.removeChild(feedbackDiv2);
+    RS.world.cargarMapa({});
   })();
 
   // ================= Lessons 3-4: content, criteria, metrics infra (Slice A) =================
@@ -830,44 +864,94 @@
     assert(!!leccion3 && !!leccion3.criterio, 'Lección 3 tiene un criterio.evaluar definido');
     assert(!!leccion4 && !!leccion4.criterio, 'Lección 4 tiene un criterio.evaluar definido');
 
-    // --- Lesson 3: reference pose passes, short of the target region fails ---
-    var pasaL3 = RS.lessons.check.evaluar(leccion3, { estado: { x: 200, y: 420 }, resultadoRun: 'idle' });
-    assert(pasaL3.ok === true, 'Lección 3: pose de referencia (x=200,y=420) cumple el criterio');
+    // --- Lesson 3 (v2, two-turn zigzag): reference pose (inside the goal zone) passes, short fails ---
+    var pasaL3 = RS.lessons.check.evaluar(leccion3, { estado: { x: 380, y: 444 }, resultadoRun: 'idle' });
+    assert(pasaL3.ok === true, 'Lección 3: pose de referencia (x=380,y=444) cumple el criterio (dentro de la zona de meta)');
 
     var fallaCortoL3 = RS.lessons.check.evaluar(leccion3, { estado: { x: 100, y: 300 }, resultadoRun: 'idle' });
-    assert(fallaCortoL3.ok === false, 'Lección 3: robot corto de la región objetivo falla');
+    assert(fallaCortoL3.ok === false, 'Lección 3: robot corto de la zona de meta falla');
     assert(fallaCortoL3.observado.toLowerCase().indexOf('avanzar') === -1 && fallaCortoL3.observado.toLowerCase().indexOf('bloque') === -1,
       'Lección 3: el mensaje de falla describe comportamiento, no nombra un bloque');
 
-    var fallaSinGiroL3 = RS.lessons.check.evaluar(leccion3, { estado: { x: 200, y: 300 }, resultadoRun: 'idle' });
-    assert(fallaSinGiroL3.ok === false, 'Lección 3: avanzar sin girar (misma altura) falla aunque x sea suficiente');
+    var fallaSinGiroL3 = RS.lessons.check.evaluar(leccion3, { estado: { x: 260, y: 300 }, resultadoRun: 'idle' });
+    assert(fallaSinGiroL3.ok === false, 'Lección 3: avanzar sin girar (misma altura) falla aunque x sea suficiente (fuera de la zona de meta)');
 
-    // --- Lesson 4: criterion depends on evalsSensor, not just position ---
+    var fallaUnSoloGiroL3 = RS.lessons.check.evaluar(leccion3, { estado: { x: 260, y: 453 }, resultadoRun: 'idle' });
+    assert(fallaUnSoloGiroL3.ok === false, 'Lección 3: un solo giro (se queda en el segundo tramo, no vuelve al este) falla — la zona de meta está más al este');
+
+    var scheduler3 = RS.runtime.scheduler;
+    var feedbackDiv3 = document.createElement('div');
+    document.body.appendChild(feedbackDiv3);
+    RS.ui.feedback.init(feedbackDiv3);
+    RS.world.cargarMapa(leccion3.mapa);
+
+    // Colisión real #1: ir derecho sin girar choca contra el primer obstáculo.
+    scheduler3.iniciarConArbol([{ tipo: 'accion', accion: 'avanzar', valor: 3000, blockId: 'a1' }]);
+    for (var i3c = 0; i3c < 500 && scheduler3.obtenerEstado() === 'running'; i3c++) {
+      scheduler3._procesarFrame(16);
+    }
+    assertEquals(scheduler3.obtenerEstado(), 'error', 'Lección 3: avanzar sin girar choca contra el primer obstáculo');
+    var resultadoChoqueL3 = RS.lessons.check.evaluar(leccion3, { estado: RS.robot.estado, resultadoRun: scheduler3.obtenerEstado() });
+    assert(resultadoChoqueL3.ok === false, 'Lección 3: la colisión falla el criterio');
+    scheduler3.reiniciar();
+
+    // Colisión real #2: girar una sola vez y seguir de largo hacia el sur choca contra el segundo obstáculo.
+    scheduler3.iniciarConArbol([
+      { tipo: 'accion', accion: 'avanzar', valor: 1500, blockId: 'a1' },
+      { tipo: 'accion', accion: 'derecha', valor: 500, blockId: 'd1' },
+      { tipo: 'accion', accion: 'avanzar', valor: 3000, blockId: 'a2' }
+    ]);
+    for (var i3g = 0; i3g < 500 && scheduler3.obtenerEstado() === 'running'; i3g++) {
+      scheduler3._procesarFrame(16);
+    }
+    assertEquals(scheduler3.obtenerEstado(), 'error', 'Lección 3: un solo giro seguido de un tramo largo choca contra el segundo obstáculo');
+    scheduler3.reiniciar();
+
+    // El programa de referencia (avanzar+derecha+avanzar+izquierda+avanzar, dos giros) cumple su propio criterio en una corrida real.
+    scheduler3.iniciarConArbol([
+      { tipo: 'accion', accion: 'avanzar', valor: 1500, blockId: 'a1' },
+      { tipo: 'accion', accion: 'derecha', valor: 500, blockId: 'd1' },
+      { tipo: 'accion', accion: 'avanzar', valor: 1200, blockId: 'a2' },
+      { tipo: 'accion', accion: 'izquierda', valor: 500, blockId: 'i1' },
+      { tipo: 'accion', accion: 'avanzar', valor: 1000, blockId: 'a3' }
+    ]);
+    for (var i3 = 0; i3 < 500 && scheduler3.obtenerEstado() === 'running'; i3++) {
+      scheduler3._procesarFrame(16);
+    }
+    assertEquals(scheduler3.obtenerEstado(), 'idle', 'Lección 3: el programa de referencia termina en idle (sin colisión)');
+    var resultadoRealL3 = RS.lessons.check.evaluar(leccion3, { estado: RS.robot.estado, resultadoRun: scheduler3.obtenerEstado() });
+    assert(resultadoRealL3.ok === true, 'Lección 3: el programa de referencia (avanzar+derecha+avanzar+izquierda+avanzar) cumple su propio criterio en una corrida real');
+    scheduler3.reiniciar();
+    document.body.removeChild(feedbackDiv3);
+    RS.world.cargarMapa({});
+
+    // --- Lesson 4 (v2, longer canyon): criterion depends on evalsSensor AND landing inside the goal zone x:[350,405] y:[255,345] ---
     var pasaL4 = RS.lessons.check.evaluar(leccion4, {
-      estado: { x: 240, y: 300 }, resultadoRun: 'idle', metricas: { evalsSensor: 1, limiteSeguridad: null }
+      estado: { x: 390, y: 300 }, resultadoRun: 'idle', metricas: { evalsSensor: 1, limiteSeguridad: null }
     });
-    assert(pasaL4.ok === true, 'Lección 4: posición correcta + sensor consultado cumple el criterio');
+    assert(pasaL4.ok === true, 'Lección 4: posición dentro de la zona de meta + sensor consultado cumple el criterio');
 
     var fallaSinSensorL4 = RS.lessons.check.evaluar(leccion4, {
-      estado: { x: 240, y: 300 }, resultadoRun: 'idle', metricas: { evalsSensor: 0, limiteSeguridad: null }
+      estado: { x: 390, y: 300 }, resultadoRun: 'idle', metricas: { evalsSensor: 0, limiteSeguridad: null }
     });
     assert(fallaSinSensorL4.ok === false, 'Lección 4: posición correcta SIN consultar el sensor falla (no basta con la posición)');
     assert(fallaSinSensorL4.observado.indexOf('sensor') !== -1, 'Lección 4: el mensaje de falla menciona que el sensor no fue consultado');
     assert(fallaSinSensorL4.observado.toLowerCase().indexOf('bloque') === -1, 'Lección 4: el mensaje de falla no nombra un bloque');
 
     var fallaFueraDeZonaL4 = RS.lessons.check.evaluar(leccion4, {
-      estado: { x: 400, y: 300 }, resultadoRun: 'idle', metricas: { evalsSensor: 1, limiteSeguridad: null }
+      estado: { x: 500, y: 300 }, resultadoRun: 'idle', metricas: { evalsSensor: 1, limiteSeguridad: null }
     });
-    assert(fallaFueraDeZonaL4.ok === false, 'Lección 4: sensor consultado pero posición fuera de la zona segura falla');
+    assert(fallaFueraDeZonaL4.ok === false, 'Lección 4: sensor consultado pero posición fuera de la zona de meta falla');
 
     // --- obtenerMetricas() shape after a run with no repetir_hasta ---
     var scheduler = RS.runtime.scheduler;
     var feedbackDiv4 = document.createElement('div');
     document.body.appendChild(feedbackDiv4);
     RS.ui.feedback.init(feedbackDiv4);
+    RS.world.cargarMapa(leccion4.mapa);
 
     var arbolSensor = [
-      { tipo: 'accion', accion: 'avanzar', valor: 1300, blockId: 'a1' },
+      { tipo: 'accion', accion: 'avanzar', valor: 2583, blockId: 'a1' },
       { tipo: 'si', sensor: 'hayObstaculo', blockId: 's1', cuerpo: [
         { tipo: 'accion', accion: 'detener', blockId: 'd1' }
       ] }
@@ -887,8 +971,20 @@
     var resultadoRealL4 = RS.lessons.check.evaluar(leccion4, snapshotRealL4);
     assert(resultadoRealL4.ok === true, 'Lección 4: el programa de referencia (avanzar+si-hayObstaculo) cumple su propio criterio en una corrida real');
 
+    // Un avance corto (el sensor nunca se dispara) queda fuera de la zona de meta.
+    scheduler.iniciarConArbol([
+      { tipo: 'accion', accion: 'avanzar', valor: 1500, blockId: 'a1' },
+      { tipo: 'si', sensor: 'hayObstaculo', blockId: 's1', cuerpo: [{ tipo: 'accion', accion: 'detener', blockId: 'd1' }] }
+    ]);
+    for (var i4c = 0; i4c < 500 && scheduler.obtenerEstado() === 'running'; i4c++) {
+      scheduler._procesarFrame(16);
+    }
+    var resultadoCortoL4 = RS.lessons.check.evaluar(leccion4, { estado: RS.robot.estado, resultadoRun: scheduler.obtenerEstado(), metricas: scheduler.obtenerMetricas() });
+    assert(resultadoCortoL4.ok === false, 'Lección 4: un avance corto (sensor nunca detecta el obstáculo) queda fuera de la zona de meta');
+
     scheduler.reiniciar();
     document.body.removeChild(feedbackDiv4);
+    RS.world.cargarMapa({});
 
     // Confirm iniciarConArbol() resets the counters for the next run.
     scheduler.iniciarConArbol([{ tipo: 'accion', accion: 'led', valor: 1, blockId: 'l1' }]);
@@ -906,25 +1002,25 @@
     assert(leccion5.bloques.indexOf('si no') !== -1, 'Lección 5 introduce el bloque "si / si no"');
     assert(leccion4b.bloques.indexOf('si no') === -1, 'Lección 4 no menciona "si no" (bloque introducido recién en Lección 5)');
 
-    // --- Compound: passes on correct zone with no collision, fails on collision even if position matches ---
+    // --- Compound (v2 map): passes inside the goal zone with no collision, fails on collision even if position matches ---
     var pasaL5 = RS.lessons.check.evaluar(leccion5, {
-      estado: { x: 224, y: 420 }, resultadoRun: 'idle', metricas: { evalsSensor: 1, limiteSeguridad: null }
+      estado: { x: 308, y: 396 }, resultadoRun: 'idle', metricas: { evalsSensor: 1, limiteSeguridad: null }
     });
-    assert(pasaL5.ok === true, 'Lección 5: pose de referencia (x=224,y=420) con sensor consultado cumple el criterio');
+    assert(pasaL5.ok === true, 'Lección 5: pose de referencia (x=308,y=396) con sensor consultado cumple el criterio');
 
     var fallaColisionL5 = RS.lessons.check.evaluar(leccion5, {
-      estado: { x: 224, y: 420 }, resultadoRun: 'error', metricas: { evalsSensor: 1, limiteSeguridad: null }
+      estado: { x: 308, y: 396 }, resultadoRun: 'error', metricas: { evalsSensor: 1, limiteSeguridad: null }
     });
     assert(fallaColisionL5.ok === false, 'Lección 5: misma posición pero con colisión (resultadoRun=error) falla');
 
     var fallaSinSensorL5 = RS.lessons.check.evaluar(leccion5, {
-      estado: { x: 224, y: 420 }, resultadoRun: 'idle', metricas: { evalsSensor: 0, limiteSeguridad: null }
+      estado: { x: 308, y: 396 }, resultadoRun: 'idle', metricas: { evalsSensor: 0, limiteSeguridad: null }
     });
     assert(fallaSinSensorL5.ok === false, 'Lección 5: posición correcta SIN consultar el sensor falla');
     assert(fallaSinSensorL5.observado.toLowerCase().indexOf('bloque') === -1, 'Lección 5: el mensaje de falla no nombra un bloque');
 
     var fallaSinAlejarseL5 = RS.lessons.check.evaluar(leccion5, {
-      estado: { x: 224, y: 300 }, resultadoRun: 'idle', metricas: { evalsSensor: 1, limiteSeguridad: null }
+      estado: { x: 308, y: 300 }, resultadoRun: 'idle', metricas: { evalsSensor: 1, limiteSeguridad: null }
     });
     assert(fallaSinAlejarseL5.ok === false, 'Lección 5: sensor consultado pero sin cambio de altura falla (rama tomada no cambió de dirección)');
 
@@ -933,13 +1029,14 @@
     var feedbackDiv5 = document.createElement('div');
     document.body.appendChild(feedbackDiv5);
     RS.ui.feedback.init(feedbackDiv5);
+    RS.world.cargarMapa(leccion5.mapa);
 
     var arbolL5 = [
-      { tipo: 'accion', accion: 'avanzar', valor: 1200, blockId: 'a1' },
+      { tipo: 'accion', accion: 'avanzar', valor: 1900, blockId: 'a1' },
       { tipo: 'si_sino', sensor: 'hayObstaculo', blockId: 'ss1',
         cuerpo: [{ tipo: 'accion', accion: 'derecha', valor: 500, blockId: 'd1' }],
         sino: [] },
-      { tipo: 'accion', accion: 'avanzar', valor: 1000, blockId: 'a2' }
+      { tipo: 'accion', accion: 'avanzar', valor: 800, blockId: 'a2' }
     ];
     scheduler5.iniciarConArbol(arbolL5);
     for (var i = 0; i < 500 && scheduler5.obtenerEstado() === 'running'; i++) {
@@ -949,9 +1046,37 @@
     var snapshotRealL5 = { estado: RS.robot.estado, resultadoRun: scheduler5.obtenerEstado(), metricas: scheduler5.obtenerMetricas() };
     var resultadoRealL5 = RS.lessons.check.evaluar(leccion5, snapshotRealL5);
     assert(resultadoRealL5.ok === true, 'Lección 5: el programa de referencia (avanzar+si_sino+avanzar) cumple su propio criterio en una corrida real');
+    scheduler5.reiniciar();
+
+    // Un primer tramo demasiado largo choca contra el obstáculo antes de llegar a la decisión.
+    scheduler5.iniciarConArbol([
+      { tipo: 'accion', accion: 'avanzar', valor: 2400, blockId: 'a1' },
+      { tipo: 'si_sino', sensor: 'hayObstaculo', blockId: 'ss1',
+        cuerpo: [{ tipo: 'accion', accion: 'derecha', valor: 500, blockId: 'd1' }], sino: [] },
+      { tipo: 'accion', accion: 'avanzar', valor: 800, blockId: 'a2' }
+    ]);
+    for (var i5l = 0; i5l < 500 && scheduler5.obtenerEstado() === 'running'; i5l++) {
+      scheduler5._procesarFrame(16);
+    }
+    assertEquals(scheduler5.obtenerEstado(), 'error', 'Lección 5: un primer tramo demasiado largo choca contra el obstáculo antes de la decisión');
+    scheduler5.reiniciar();
+
+    // Un segundo tramo corto (gira pero no llega a la zona de meta) falla.
+    scheduler5.iniciarConArbol([
+      { tipo: 'accion', accion: 'avanzar', valor: 1900, blockId: 'a1' },
+      { tipo: 'si_sino', sensor: 'hayObstaculo', blockId: 'ss1',
+        cuerpo: [{ tipo: 'accion', accion: 'derecha', valor: 500, blockId: 'd1' }], sino: [] },
+      { tipo: 'accion', accion: 'avanzar', valor: 200, blockId: 'a2' }
+    ]);
+    for (var i5c = 0; i5c < 500 && scheduler5.obtenerEstado() === 'running'; i5c++) {
+      scheduler5._procesarFrame(16);
+    }
+    var resultadoCortoL5 = RS.lessons.check.evaluar(leccion5, { estado: RS.robot.estado, resultadoRun: scheduler5.obtenerEstado(), metricas: scheduler5.obtenerMetricas() });
+    assert(resultadoCortoL5.ok === false, 'Lección 5: gira pero el segundo tramo es demasiado corto para llegar a la zona de meta');
 
     scheduler5.reiniciar();
     document.body.removeChild(feedbackDiv5);
+    RS.world.cargarMapa({});
   })();
 
   // ================= Regresión: bloques y lecciones pre-existentes sin cambios =================
@@ -987,21 +1112,21 @@
     assert(leccion6.bloques.indexOf('repetir hasta') !== -1, 'Lección 6 introduce el bloque "repetir hasta"');
     assert(leccion5c.bloques.indexOf('repetir hasta') === -1, 'Lección 5 no menciona "repetir hasta" (bloque introducido recién en Lección 6)');
 
-    // --- Passes on the reference pose/metrics ---
+    // --- Passes on the reference pose/metrics (v2: longer corridor, more repetitions) ---
     var pasaL6 = RS.lessons.check.evaluar(leccion6, {
-      estado: { x: 224, y: 300 }, resultadoRun: 'idle', metricas: { evalsSensor: 13, limiteSeguridad: null }
+      estado: { x: 344, y: 300 }, resultadoRun: 'idle', metricas: { evalsSensor: 23, limiteSeguridad: null }
     });
-    assert(pasaL6.ok === true, 'Lección 6: pose de referencia (x=224,y=300) con evalsSensor=13 y sin límite cumple el criterio');
+    assert(pasaL6.ok === true, 'Lección 6: pose de referencia (x=344,y=300) con evalsSensor=23 y sin límite cumple el criterio');
 
     // --- Fails when short of the zone ---
     var fallaCortoL6 = RS.lessons.check.evaluar(leccion6, {
-      estado: { x: 210, y: 300 }, resultadoRun: 'idle', metricas: { evalsSensor: 4, limiteSeguridad: null }
+      estado: { x: 250, y: 300 }, resultadoRun: 'idle', metricas: { evalsSensor: 10, limiteSeguridad: null }
     });
-    assert(fallaCortoL6.ok === false, 'Lección 6: robot corto de la zona (x=210) falla');
+    assert(fallaCortoL6.ok === false, 'Lección 6: robot corto de la zona (x=250) falla');
 
     // --- Fails when limiteSeguridad is non-null (cap-driven exit), EVEN IF position matches ---
     var fallaLimiteL6 = RS.lessons.check.evaluar(leccion6, {
-      estado: { x: 224, y: 300 }, resultadoRun: 'idle',
+      estado: { x: 344, y: 300 }, resultadoRun: 'idle',
       metricas: { evalsSensor: RS.config.MAX_ITER_REPETIR_HASTA, limiteSeguridad: { blockId: 'rh1', iteraciones: RS.config.MAX_ITER_REPETIR_HASTA } }
     });
     assert(fallaLimiteL6.ok === false, 'Lección 6: posición dentro de la ventana pero limiteSeguridad no-null (salida por límite, no por condición) falla');
@@ -1009,7 +1134,7 @@
     assert(fallaLimiteL6.observado.toLowerCase().indexOf('bloque') === -1, 'Lección 6: el mensaje de falla no nombra un bloque');
 
     var fallaSinSensorL6 = RS.lessons.check.evaluar(leccion6, {
-      estado: { x: 224, y: 300 }, resultadoRun: 'idle', metricas: { evalsSensor: 1, limiteSeguridad: null }
+      estado: { x: 344, y: 300 }, resultadoRun: 'idle', metricas: { evalsSensor: 1, limiteSeguridad: null }
     });
     assert(fallaSinSensorL6.ok === false, 'Lección 6: menos de 2 evaluaciones del sensor falla (el bucle no llegó a repetirse lo suficiente)');
 
@@ -1018,6 +1143,7 @@
     var feedbackDiv6 = document.createElement('div');
     document.body.appendChild(feedbackDiv6);
     RS.ui.feedback.init(feedbackDiv6);
+    RS.world.cargarMapa(leccion6.mapa);
 
     var arbolL6 = [
       { tipo: 'repetir_hasta', sensor: 'hayObstaculo', blockId: 'rh1', cuerpo: [
@@ -1032,10 +1158,12 @@
     var snapshotRealL6 = { estado: RS.robot.estado, resultadoRun: scheduler6.obtenerEstado(), metricas: scheduler6.obtenerMetricas() };
     var resultadoRealL6 = RS.lessons.check.evaluar(leccion6, snapshotRealL6);
     assert(resultadoRealL6.ok === true, 'Lección 6: el programa de referencia (repetir hasta hayObstaculo(){avanzar(100)}) cumple su propio criterio en una corrida real');
+    assert(scheduler6.obtenerMetricas().evalsSensor >= 20, 'Lección 6 (mapa v2, corredor más largo): el recorrido de referencia necesita muchas más repeticiones que antes');
     assertEquals(scheduler6.obtenerMetricas().limiteSeguridad, null, 'Lección 6: la corrida real no dispara el límite de seguridad (sale por condición)');
 
     scheduler6.reiniciar();
     document.body.removeChild(feedbackDiv6);
+    RS.world.cargarMapa({});
   })();
 
   // ================= Lesson 7: desafío integrado + criterion (Slice C2) =================
@@ -1049,6 +1177,7 @@
     var feedbackDiv7 = document.createElement('div');
     document.body.appendChild(feedbackDiv7);
     RS.ui.feedback.init(feedbackDiv7);
+    RS.world.cargarMapa(leccion7.mapa);
 
     var arbolEjemploL7 = [
       { tipo: 'accion', accion: 'avanzar', valor: 900, blockId: 'a1' },
@@ -1065,7 +1194,28 @@
     assert(resultadoEjemploL7.ok === false, 'Lección 7 (no-fuga-de-solución): el programa del "ejemplo" (se detiene junto al obstáculo, sin rodearlo) NO cumple el criterio por sí solo');
     scheduler7.reiniciar();
 
-    // --- Reference full-traverse route: real scheduler run, empirically confirms design's x>=480 threshold (C2.9) ---
+    // --- v2: a SECOND load-bearing obstacle sits further east — detouring around only the
+    // first one and then barreling straight east collides against it. The second detour is
+    // not optional. ---
+    var arbolUnSoloDetourL7 = [
+      { tipo: 'accion', accion: 'avanzar', valor: 900, blockId: 'u1' },
+      { tipo: 'repetir_hasta', sensor: 'hayObstaculo', blockId: 'u2', cuerpo: [
+        { tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'u2b' }
+      ] },
+      { tipo: 'si_sino', sensor: 'hayObstaculo', blockId: 'u3',
+        cuerpo: [{ tipo: 'accion', accion: 'derecha', valor: 500, blockId: 'u3d' }], sino: [] },
+      { tipo: 'accion', accion: 'avanzar', valor: 750, blockId: 'u4' },
+      { tipo: 'accion', accion: 'izquierda', valor: 500, blockId: 'u5' },
+      { tipo: 'accion', accion: 'avanzar', valor: 3400, blockId: 'u6' }
+    ];
+    scheduler7.iniciarConArbol(arbolUnSoloDetourL7);
+    for (var i7u = 0; i7u < 2000 && scheduler7.obtenerEstado() === 'running'; i7u++) {
+      scheduler7._procesarFrame(16);
+    }
+    assertEquals(scheduler7.obtenerEstado(), 'error', 'Lección 7 (v2): rodear solo el primer obstáculo y seguir de largo choca contra el segundo');
+    scheduler7.reiniciar();
+
+    // --- Reference full-traverse route (rodea AMBOS obstáculos): real scheduler run, empirically verified ---
     var arbolRutaSurL7 = [
       { tipo: 'accion', accion: 'avanzar', valor: 900, blockId: 'r1' },
       { tipo: 'repetir_hasta', sensor: 'hayObstaculo', blockId: 'r2', cuerpo: [
@@ -1075,7 +1225,14 @@
         cuerpo: [{ tipo: 'accion', accion: 'derecha', valor: 500, blockId: 'r3d' }], sino: [] },
       { tipo: 'accion', accion: 'avanzar', valor: 750, blockId: 'r4' },
       { tipo: 'accion', accion: 'izquierda', valor: 500, blockId: 'r5' },
-      { tipo: 'accion', accion: 'avanzar', valor: 2200, blockId: 'r6' }
+      { tipo: 'repetir_hasta', sensor: 'hayObstaculo', blockId: 'r6', cuerpo: [
+        { tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'r6b' }
+      ] },
+      { tipo: 'si_sino', sensor: 'hayObstaculo', blockId: 'r7',
+        cuerpo: [{ tipo: 'accion', accion: 'derecha', valor: 500, blockId: 'r7d' }], sino: [] },
+      { tipo: 'accion', accion: 'avanzar', valor: 700, blockId: 'r8' },
+      { tipo: 'accion', accion: 'izquierda', valor: 500, blockId: 'r9' },
+      { tipo: 'accion', accion: 'avanzar', valor: 1900, blockId: 'r10' }
     ];
     scheduler7.iniciarConArbol(arbolRutaSurL7);
     for (var i7s = 0; i7s < 2000 && scheduler7.obtenerEstado() === 'running'; i7s++) {
@@ -1083,9 +1240,10 @@
     }
     assertEquals(scheduler7.obtenerEstado(), 'idle', 'Lección 7 (ruta sur): el recorrido de referencia termina en idle (sin colisión)');
     var snapshotRutaSurL7 = { estado: RS.robot.estado, resultadoRun: scheduler7.obtenerEstado(), metricas: scheduler7.obtenerMetricas() };
-    assert(RS.robot.estado.x >= 480, 'Lección 7 (C2.9, verificación empírica): la ruta sur (rodea el obstáculo por y≈390) SÍ alcanza x>=480, confirmando el umbral fijado en el diseño');
+    assert(RS.robot.estado.x >= 620 && RS.robot.estado.x <= 790 && RS.robot.estado.y >= 90 && RS.robot.estado.y <= 510,
+      'Lección 7 (verificación empírica): la ruta sur (rodea ambos obstáculos por el sur) llega dentro de la zona de meta');
     var resultadoRutaSurL7 = RS.lessons.check.evaluar(leccion7, snapshotRutaSurL7);
-    assert(resultadoRutaSurL7.ok === true, 'Lección 7: la ruta sur (avanzar+repetir_hasta+si_sino+avanzar+izquierda+avanzar) cumple el criterio en una corrida real');
+    assert(resultadoRutaSurL7.ok === true, 'Lección 7: la ruta sur (dos detours + reorientación) cumple el criterio en una corrida real');
     scheduler7.reiniciar();
 
     // --- A second, differently-combined valid route (goes around the NORTH side instead) also satisfies the criterion ---
@@ -1098,7 +1256,14 @@
         cuerpo: [{ tipo: 'accion', accion: 'izquierda', valor: 500, blockId: 'n3i' }], sino: [] },
       { tipo: 'accion', accion: 'avanzar', valor: 950, blockId: 'n4' },
       { tipo: 'accion', accion: 'derecha', valor: 500, blockId: 'n5' },
-      { tipo: 'accion', accion: 'avanzar', valor: 2200, blockId: 'n6' }
+      { tipo: 'repetir_hasta', sensor: 'hayObstaculo', blockId: 'n6', cuerpo: [
+        { tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'n6b' }
+      ] },
+      { tipo: 'si_sino', sensor: 'hayObstaculo', blockId: 'n7',
+        cuerpo: [{ tipo: 'accion', accion: 'izquierda', valor: 500, blockId: 'n7i' }], sino: [] },
+      { tipo: 'accion', accion: 'avanzar', valor: 700, blockId: 'n8' },
+      { tipo: 'accion', accion: 'derecha', valor: 500, blockId: 'n9' },
+      { tipo: 'accion', accion: 'avanzar', valor: 1900, blockId: 'n10' }
     ];
     scheduler7.iniciarConArbol(arbolRutaNorteL7);
     for (var i7n = 0; i7n < 2000 && scheduler7.obtenerEstado() === 'running'; i7n++) {
@@ -1108,22 +1273,23 @@
     var snapshotRutaNorteL7 = { estado: RS.robot.estado, resultadoRun: estadoRutaNorteL7, metricas: scheduler7.obtenerMetricas() };
     var resultadoRutaNorteL7 = RS.lessons.check.evaluar(leccion7, snapshotRutaNorteL7);
     assert(estadoRutaNorteL7 === 'idle' && resultadoRutaNorteL7.ok === true,
-      'Lección 7: una ruta distinta (rodea por el norte, izquierda/derecha en vez de derecha/izquierda) TAMBIÉN cumple el criterio — no exige una ruta exacta');
+      'Lección 7: una ruta distinta (rodea ambos obstáculos por el norte, izquierda/derecha en vez de derecha/izquierda) TAMBIÉN cumple el criterio — no exige una ruta exacta');
     scheduler7.reiniciar();
 
     // --- A colliding run always fails, regardless of x reached ---
     var fallaColisionL7 = RS.lessons.check.evaluar(leccion7, {
-      estado: { x: 500 }, resultadoRun: 'error', metricas: { evalsSensor: 2, limiteSeguridad: null }
+      estado: { x: 700, y: 300 }, resultadoRun: 'error', metricas: { evalsSensor: 2, limiteSeguridad: null }
     });
-    assert(fallaColisionL7.ok === false, 'Lección 7: resultadoRun="error" (colisión) siempre falla, aunque x>=480');
+    assert(fallaColisionL7.ok === false, 'Lección 7: resultadoRun="error" (colisión) siempre falla, aunque esté dentro de la zona de meta');
 
-    // --- A run that never consults the sensor fails even if it reaches x>=480 ---
+    // --- A run that never consults the sensor fails even if it reaches the goal zone ---
     var fallaSinSensorL7 = RS.lessons.check.evaluar(leccion7, {
-      estado: { x: 500 }, resultadoRun: 'idle', metricas: { evalsSensor: 0, limiteSeguridad: null }
+      estado: { x: 700, y: 300 }, resultadoRun: 'idle', metricas: { evalsSensor: 0, limiteSeguridad: null }
     });
-    assert(fallaSinSensorL7.ok === false, 'Lección 7: x>=480 pero sin haber consultado nunca el sensor falla');
+    assert(fallaSinSensorL7.ok === false, 'Lección 7: dentro de la zona de meta pero sin haber consultado nunca el sensor falla');
 
     document.body.removeChild(feedbackDiv7);
+    RS.world.cargarMapa({});
   })();
 
   // ================= Regresión: Lecciones 1-7 completas, bloques pre-existentes sin cambios (Slice C2) =================

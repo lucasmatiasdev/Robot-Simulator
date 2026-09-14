@@ -7,8 +7,16 @@
 <link rel="stylesheet" href="styles/main.css" />
 </head>
 <body>
-<div id="app">
+<div id="home">
+  <header id="home-cab">
+    <h1>Simulador de Robot</h1>
+    <p>Leé la lección actual y presioná Iniciar Desafío cuando estés listo.</p>
+  </header>
+  <div id="home-lista"></div>
+</div>
+<div id="app" hidden>
   <div id="barra">
+    <button id="btn-volver-home" type="button" title="Volver a la lista de lecciones">← Lecciones</button>
     <button id="btn-ejecutar" type="button">Ejecutar</button>
     <button id="btn-detener" type="button" disabled>Detener</button>
     <button id="btn-reiniciar" type="button">Reiniciar</button>
@@ -21,18 +29,21 @@
     </header>
     <div class="panel-body" id="leccion-body"></div>
   </div>
+  <div id="gutter-leccion-editor" class="gutter gutter-v" role="separator" aria-orientation="vertical" aria-label="Redimensionar panel de lección" tabindex="0"></div>
   <div id="editor" class="panel">
     <header class="panel-cab">Editor de bloques</header>
     <div class="panel-body" id="editor-body">
       <div id="editor-blockly"></div>
     </div>
   </div>
+  <div id="gutter-editor-sim" class="gutter gutter-v" role="separator" aria-orientation="vertical" aria-label="Redimensionar editor de bloques" tabindex="0"></div>
   <div id="sim" class="panel">
     <header class="panel-cab">Simulador</header>
     <div class="panel-body" id="sim-body">
       <canvas id="sim-canvas"></canvas>
     </div>
   </div>
+  <div id="gutter-sim-codigo" class="gutter gutter-h" role="separator" aria-orientation="horizontal" aria-label="Redimensionar simulador" tabindex="0"></div>
   <div id="codigo" class="panel">
     <header class="panel-cab">Sketch Arduino UNO</header>
     <div class="panel-body" id="codigo-body">
@@ -72,8 +83,11 @@
 <script src="src/ui/controls.js"></script>
 <script src="src/ui/feedback.js"></script>
 <script src="src/lessons/content.js"></script>
+<script src="src/lessons/progress.js"></script>
 <script src="src/lessons/check.js"></script>
 <script src="src/lessons/panel.js"></script>
+<script src="src/lessons/home.js"></script>
+<script src="src/ui/panel-resize.js"></script>
 <script src="src/main.js"></script>
 </body>
 </html>
