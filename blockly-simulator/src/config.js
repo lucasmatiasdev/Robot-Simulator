@@ -12,10 +12,24 @@
     WORLD_WIDTH: 800,
     WORLD_HEIGHT: 600,
 
+    // --- Grid (authoring/storage format only; see src/sim/gridAdapter.js).
+    // CELL_SIZE * GRID_COLS/GRID_ROWS MUST equal WORLD_WIDTH/WORLD_HEIGHT
+    // exactly (zero remainder), per design D1-D3. ---
+    CELL_SIZE: 40, // px per grid cell (10cm at ESCALA=4)
+    GRID_COLS: 20, // 20 * 40 = 800 = WORLD_WIDTH
+    GRID_ROWS: 15, // 15 * 40 = 600 = WORLD_HEIGHT
+
     // --- Sensors ---
     ESCALA: 4, // px per simulated cm
     RANGO_MAX: 100, // max simulated distance (cm)
     UMBRAL_OBSTACULO: 20, // hayObstaculo() = medirDistancia() <= 20 (cm)
+    UMBRAL_CELDAS: 2, // UMBRAL_OBSTACULO (20cm) / CELL_SIZE-as-cm (10cm) = 2 cells
+
+    // Minimum corridor width, in cells, that keeps the 40px robot AABB's
+    // lateral slack (+-40px) safe against free-angle drift under normal
+    // traversal (design D3). A narrower corridor is reserved for deliberate
+    // Nivel 3 precision segments.
+    MIN_CORREDOR_CELDAS: 3,
 
     // --- Kinematics ---
     GIRO: 0.18, // degrees per ms (izquierda/derecha), value NOT divided by 4

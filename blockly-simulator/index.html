@@ -20,6 +20,15 @@
     <button id="btn-ejecutar" type="button">Ejecutar</button>
     <button id="btn-detener" type="button" disabled>Detener</button>
     <button id="btn-reiniciar" type="button">Reiniciar</button>
+    <div id="editor-mapa" hidden>
+      <button id="btn-modo-editar-mapa" type="button" aria-pressed="false">Editar mapa</button>
+      <div id="editor-mapa-herramientas" hidden>
+        <button type="button" data-herramienta="muro" class="herramienta-activa">Muro</button>
+        <button type="button" data-herramienta="borrar">Borrar</button>
+        <button type="button" data-herramienta="inicio">Inicio</button>
+        <button type="button" data-herramienta="meta">Meta</button>
+      </div>
+    </div>
     <span id="feedback-linea" role="status" aria-live="polite"></span>
   </div>
   <div id="leccion" class="panel">
@@ -73,6 +82,7 @@
 <script src="src/generator/program-tree.js"></script>
 <script src="src/generator/cpp-view.js"></script>
 <script src="src/sim/world.js"></script>
+<script src="src/sim/gridAdapter.js"></script>
 <script src="src/sim/robot.js"></script>
 <script src="src/sim/sensors.js"></script>
 <script src="src/sim/renderer.js"></script>
@@ -82,6 +92,7 @@
 <script src="src/ui/highlight.js"></script>
 <script src="src/ui/controls.js"></script>
 <script src="src/ui/feedback.js"></script>
+<script src="src/ui/mapEditor.js"></script>
 <script src="src/lessons/content.js"></script>
 <script src="src/lessons/progress.js"></script>
 <script src="src/lessons/check.js"></script>

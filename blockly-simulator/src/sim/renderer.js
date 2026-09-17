@@ -82,7 +82,44 @@
     }
   }
 
+  /**
+   * dibujarGrilla(ctx) — draws the CELL_SIZE grid overlay used by the
+   * sandbox map editor (design D5). Only called from dibujar() when
+   * RS.renderer.mostrarGrilla is true; does not touch obstacle/goal/robot
+   * drawing or any collision/state logic.
+   */
+  function dibujarGrilla(ctx) {
+    var cfg = RS.config;
+    var cell = cfg.CELL_SIZE;
+
+    ctx.save();
+    ctx.strokeStyle = 'rgba(90, 110, 130, 0.35)';
+    ctx.lineWidth = 1;
+
+    for (var col = 1; col < cfg.GRID_COLS; col++) {
+      var x = col * cell + 0.5; // +0.5 keeps 1px lines crisp on the canvas grid
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, cfg.WORLD_HEIGHT);
+      ctx.stroke();
+    }
+
+    for (var row = 1; row < cfg.GRID_ROWS; row++) {
+      var y = row * cell + 0.5;
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(cfg.WORLD_WIDTH, y);
+      ctx.stroke();
+    }
+
+    ctx.restore();
+  }
+
   RS.renderer = {
+    // Sandbox map editor toggles this on/off (design D5); false everywhere
+    // else (lessons never draw the grid overlay).
+    mostrarGrilla: false,
+
     /** Sizes the canvas backing store to WORLD size * devicePixelRatio. */
     ajustarCanvas: function (canvas) {
       var cfg = RS.config;
@@ -114,6 +151,10 @@
       ctx.strokeStyle = '#9aa5b1';
       ctx.lineWidth = 2;
       ctx.strokeRect(1, 1, cfg.WORLD_WIDTH - 2, cfg.WORLD_HEIGHT - 2);
+
+      // Grid overlay (sandbox map editor only, design D5) — after the
+      // background, before obstacles, so obstacles/meta/robot draw on top.
+      if (RS.renderer.mostrarGrilla) dibujarGrilla(ctx);
 
       // Obstacles
       ctx.fillStyle = '#5c6b7a';

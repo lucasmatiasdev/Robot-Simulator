@@ -38,6 +38,9 @@
     var homeEl = document.getElementById('home');
     var btnLeccionToggle = document.getElementById('btn-leccion-toggle');
     var btnVolverHome = document.getElementById('btn-volver-home');
+    var editorMapaEl = document.getElementById('editor-mapa');
+    var btnModoEditarMapa = document.getElementById('btn-modo-editar-mapa');
+    var herramientasMapaEl = document.getElementById('editor-mapa-herramientas');
 
     var workspace = Blockly.inject(editorDiv, {
       toolbox: RS.toolbox,
@@ -60,6 +63,38 @@
 
     var ctx = RS.renderer.ajustarCanvas(canvas);
     RS.runtime.scheduler.iniciarBucle(ctx);
+
+    if (RS.ui.mapEditor) RS.ui.mapEditor.init(canvas);
+
+    function salirDeModoEdicion() {
+      if (!RS.ui.mapEditor) return;
+      RS.ui.mapEditor.establecerModoEdicion(false);
+      if (btnModoEditarMapa) btnModoEditarMapa.setAttribute('aria-pressed', 'false');
+      if (herramientasMapaEl) herramientasMapaEl.hidden = true;
+    }
+
+    if (btnModoEditarMapa && RS.ui.mapEditor) {
+      btnModoEditarMapa.addEventListener('click', function () {
+        var activo = !RS.ui.mapEditor.enModoEdicion();
+        RS.ui.mapEditor.establecerModoEdicion(activo);
+        btnModoEditarMapa.setAttribute('aria-pressed', String(activo));
+        if (herramientasMapaEl) herramientasMapaEl.hidden = !activo;
+      });
+    }
+
+    if (herramientasMapaEl && RS.ui.mapEditor) {
+      var botonesHerramienta = herramientasMapaEl.querySelectorAll('button[data-herramienta]');
+      for (var h = 0; h < botonesHerramienta.length; h++) {
+        botonesHerramienta[h].addEventListener('click', function (evt) {
+          var nombre = evt.currentTarget.getAttribute('data-herramienta');
+          RS.ui.mapEditor.establecerHerramienta(nombre);
+          for (var k = 0; k < botonesHerramienta.length; k++) {
+            botonesHerramienta[k].classList.remove('herramienta-activa');
+          }
+          evt.currentTarget.classList.add('herramienta-activa');
+        });
+      }
+    }
 
     function resize() {
       Blockly.svgResize(workspace);
@@ -97,13 +132,25 @@
           RS.robot.reset();
           workspace.clear();
           RS.lessons.panel.mostrarLeccion(leccionId);
+          // The map editor is sandbox-only: never active during a graded lesson.
+          salirDeModoEdicion();
+          if (editorMapaEl) editorMapaEl.hidden = true;
           mostrarWorkspace();
         },
         onIniciarSandbox: function () {
-          RS.world.cargarMapa({});
+          // Loads the saved custom sandbox map from localStorage if
+          // present/valid, else a fresh empty grid map (replaces the
+          // previous hardcoded RS.world.cargarMapa({})).
+          if (RS.ui.mapEditor) {
+            RS.ui.mapEditor.iniciarSandbox();
+          } else {
+            RS.world.cargarMapa({});
+          }
           RS.robot.reset();
           workspace.clear();
           RS.lessons.panel.mostrarSandbox();
+          salirDeModoEdicion();
+          if (editorMapaEl) editorMapaEl.hidden = false;
           mostrarWorkspace();
         }
       });

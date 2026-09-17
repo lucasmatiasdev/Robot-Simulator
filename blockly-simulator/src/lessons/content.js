@@ -45,140 +45,188 @@
     { clave: 'nivel', titulo: 'Nivel de dificultad' }
   ];
 
+  // v3 (cell-grid redesign): every lesson map is now authored as a grid
+  // spec (`{col,row,colSpan,rowSpan}` regions, per design D1/D2) and
+  // converted to the pixel shape `world.cargarMapa` already accepts via
+  // `RS.gridAdapter.aPixeles(...)` — zero changes required in `world.js`,
+  // `robot.js`, `sensors.js` or `check.js` (design D6). `CELL_SIZE=40`,
+  // `GRID_COLS=20`, `GRID_ROWS=15` (src/config.js). The shared start cell
+  // is `{col:1,row:7}` = pixel `(60,300)` (cell CENTER, design D2) — a
+  // 20px shift west of the old `(80,300)` default, which is why every
+  // `avanzar(ms)` timing below was re-derived and re-verified against the
+  // real scheduler (Node harness driving `RS.runtime.scheduler` directly
+  // via its `iniciarConArbol`/`_procesarFrame` test hooks — same method as
+  // the v2 pass, just against the new grid-derived geometry).
+
   // Lesson 1 has no run/criterio (pure identification) — it gets the plain
-  // default field with no goal, same as Sandbox.
-  var MAPA_SIN_DESAFIO = {
-    obstaculos: [
-      { x: 300, y: 220, w: 60, h: 140 },
-      { x: 520, y: 80, w: 60, h: 60 },
-      { x: 520, y: 420, w: 90, h: 70 },
-      { x: 200, y: 470, w: 120, h: 40 },
-      { x: 680, y: 220, w: 50, h: 160 }
+  // default field with no goal, same as Sandbox. Five decorative wall
+  // regions dress up the panel; none are load-bearing (no criterio to test
+  // against) and none intersect the start cell.
+  var GRID_LECCION_1 = {
+    version: 1, cols: 20, rows: 15,
+    muros: [
+      { col: 7, row: 5, colSpan: 2, rowSpan: 4 },
+      { col: 13, row: 2, colSpan: 2, rowSpan: 2 },
+      { col: 13, row: 10, colSpan: 2, rowSpan: 2 },
+      { col: 5, row: 11, colSpan: 3, rowSpan: 1 },
+      { col: 17, row: 5, rowSpan: 4 }
     ],
-    poseInicial: { x: 80, y: 300, angulo: 0 },
+    inicio: { col: 1, row: 7, angulo: 0 },
     meta: null
   };
+  var MAPA_SIN_DESAFIO = RS.gridAdapter.aPixeles(GRID_LECCION_1);
 
   // Every criterio.evaluar below tests goal-arrival via RS.world.enMeta-
   // equivalent point-in-rect math against ITS OWN `meta` (closed over here,
   // not read from the live RS.world — this keeps criterio.evaluar a pure
   // function of `snapshot` alone, exactly like every other check in this
   // file, and lets tests call it directly with synthetic snapshots without
-  // first loading the lesson's map into RS.world).
+  // first loading the lesson's map into RS.world). `meta` now comes from
+  // `RS.gridAdapter.aPixeles(...)`, but it is still a plain `{x,y,w,h}`
+  // pixel rect, so this helper — and every existing call site — is
+  // unchanged (design D6).
   function dentroDeMeta(meta, x, y) {
     return x >= meta.x && x <= meta.x + meta.w && y >= meta.y && y <= meta.y + meta.h;
   }
 
-  // Each lesson's map is hoisted into a named constant and reused (never
-  // re-literaled) both in its `mapa` field and inside its own
-  // `criterio.evaluar` — a single source of truth for the goal rect, so the
-  // visual marker (drawn from `mapa.meta`) and the actual pass/fail zone can
-  // never silently drift apart.
-  // v2 (richer maps — obstacle/goal geometry re-derived after the first
-  // pass was judged too simple): every obstacle below is a real, collidable
-  // AABB, empirically verified against the actual scheduler (Node harness,
-  // same method as the original design). Decorative pieces (flanking
-  // "tunnel" walls that dress up a straight approach without blocking it)
-  // are called out per lesson; every other obstacle is load-bearing.
-  var MAPA_LECCION_2 = {
-    // Main wall pushed out to x=400 (was x=300) for a longer approach, plus
-    // two decorative flanking walls forming a tunnel around the travel lane
-    // (y150-200 / y400-450, clear of the y270-330 travel band). Empirically
-    // verified: avanzar(2100)+detener() stops at x=332, inside the goal, no
-    // collision; avanzar(3000) collides at x≈379.5 (boundary x>=380).
-    obstaculos: [
-      { x: 400, y: 220, w: 60, h: 140 },
-      { x: 100, y: 150, w: 350, h: 50 },
-      { x: 100, y: 400, w: 350, h: 50 }
+  // Each lesson's grid map is hoisted into a named `GRID_LECCION_N`
+  // constant, converted once via `RS.gridAdapter.aPixeles` into the pixel
+  // map used both by `mapa` and by `criterio.evaluar` — a single source of
+  // truth for the goal rect, so the visual marker and the actual pass/fail
+  // zone can never silently drift apart. Every obstacle is a real,
+  // collidable AABB; decorative pieces (dressing that never blocks the
+  // intended path) are called out per lesson, every other obstacle is
+  // load-bearing.
+  var GRID_LECCION_2 = {
+    // Load-bearing wall at col8-9 (x320-400,y200-400) blocks the travel
+    // row (row7, y280-320) well before the goal's far edge. Two decorative
+    // strips (rows1 and 12) never touch the travel band.
+    // Empirically verified: avanzar(1833)+detener() stops at x≈279.96,
+    // y=300 — inside the goal, 20px clear of the collision boundary
+    // (x>=300); avanzar(3000) collides at x≈300.
+    version: 1, cols: 20, rows: 15,
+    muros: [
+      { col: 8, row: 5, colSpan: 2, rowSpan: 5 },
+      { col: 2, row: 1, colSpan: 6, rowSpan: 1 },
+      { col: 2, row: 12, colSpan: 6, rowSpan: 1 }
     ],
-    poseInicial: { x: 80, y: 300, angulo: 0 },
-    meta: { x: 310, y: 270, w: 50, h: 60 }
+    inicio: { col: 1, row: 7, angulo: 0 },
+    meta: { col: 6, row: 6, colSpan: 2, rowSpan: 2 }
   };
-  var MAPA_LECCION_3 = {
+  var MAPA_LECCION_2 = RS.gridAdapter.aPixeles(GRID_LECCION_2);
+  var GRID_LECCION_3 = {
     // Genuine two-turn zigzag (east → south → east), both required: wall A
-    // blocks the direct east path (forces the first turn before x=280);
-    // wall B blocks southward overshoot (forces the second turn before
-    // continuing east). Third obstacle is purely decorative (off-path).
-    // Empirically verified: avanzar(1500)+derecha(500)+avanzar(1200)+
-    // izquierda(500)+avanzar(1000) reaches x=380,y=444, inside the goal;
-    // going straight (no turn) collides at x≈279.7; turning once and
-    // continuing south collides against wall B at y≈453.6.
-    obstaculos: [
-      { x: 300, y: 180, w: 60, h: 220 },
-      { x: 180, y: 474, w: 160, h: 60 },
-      { x: 620, y: 90, w: 70, h: 70 }
+    // (x280-360,y160-320) blocks the direct east path at the travel row,
+    // forcing a turn before x=260; wall B (x240-400,y400-440) blocks
+    // southward overshoot, forcing the second turn before continuing east.
+    // Third obstacle is purely decorative (far corner, off-path).
+    // Empirically verified (Node harness): avanzar(1333)+derecha(542)+
+    // avanzar(542)+izquierda(542)+avanzar(2834) reaches x≈551.48,
+    // y≈364.47 — inside the goal; going straight with no turn collides
+    // against wall A at x≈259.68.
+    version: 1, cols: 20, rows: 15,
+    muros: [
+      { col: 7, row: 4, colSpan: 2, rowSpan: 4 },
+      { col: 6, row: 10, colSpan: 4, rowSpan: 1 },
+      { col: 15, row: 1, rowSpan: 2 }
     ],
-    poseInicial: { x: 80, y: 300, angulo: 0 },
-    meta: { x: 350, y: 410, w: 70, h: 70 }
+    inicio: { col: 1, row: 7, angulo: 0 },
+    meta: { col: 13, row: 8, colSpan: 2, rowSpan: 2 }
   };
-  var MAPA_LECCION_4 = {
-    // Main wall pushed out to x=440 (was x=340), plus two decorative
-    // canyon walls (y150-190 / y410-450) dressing up the longer approach.
-    // Empirically verified: avanzar(2583)+si hayObstaculo(){detener()}
-    // stops at x=389.96, sensor consulted once, inside the goal.
-    obstaculos: [
-      { x: 440, y: 200, w: 60, h: 180 },
-      { x: 150, y: 150, w: 400, h: 40 },
-      { x: 150, y: 410, w: 400, h: 40 }
+  var MAPA_LECCION_3 = RS.gridAdapter.aPixeles(GRID_LECCION_3);
+  var GRID_LECCION_4 = {
+    // Load-bearing wall at col10-11 (x400-480,y200-400) sits far enough
+    // out that `hayObstaculo()` (<=20cm = 80px) trips comfortably before
+    // the collision boundary (x>=380). Two decorative strips (rows1/12)
+    // stay clear of the travel band.
+    // Empirically verified: avanzar(2333)+si hayObstaculo(){detener()}
+    // stops at x≈339.96, sensor consulted once — inside the goal;
+    // avanzar(4000) with no sensor check collides at x≈378.72.
+    version: 1, cols: 20, rows: 15,
+    muros: [
+      { col: 10, row: 5, colSpan: 2, rowSpan: 5 },
+      { col: 2, row: 1, colSpan: 7, rowSpan: 1 },
+      { col: 2, row: 12, colSpan: 7, rowSpan: 1 }
     ],
-    poseInicial: { x: 80, y: 300, angulo: 0 },
-    meta: { x: 350, y: 255, w: 55, h: 90 }
+    inicio: { col: 1, row: 7, angulo: 0 },
+    meta: { col: 7, row: 6, colSpan: 2, rowSpan: 2 }
   };
-  var MAPA_LECCION_5 = {
-    // Main wall pushed out to x=380 (was x=320). Two decorative pieces add
-    // visual richness without touching the intended post-turn path.
-    // Empirically verified: avanzar(1900)+si_sino(hayObstaculo){derecha
-    // (500)}sino{}+avanzar(800) reaches x=308,y=396, sensor consulted
-    // once, inside the goal; a too-long first leg (avanzar(2400)) collides
-    // at x≈358.4 before the decision is even reached.
-    obstaculos: [
-      { x: 380, y: 220, w: 60, h: 140 },
-      { x: 550, y: 80, w: 70, h: 70 },
-      { x: 150, y: 520, w: 200, h: 50 }
+  var MAPA_LECCION_4 = RS.gridAdapter.aPixeles(GRID_LECCION_4);
+  var GRID_LECCION_5 = {
+    // Load-bearing wall at col9-10 (x360-440,y200-400) sits astride the
+    // travel row; the goal is south of it, reached purely by the post-turn
+    // southward leg (the wall's column range never overlaps the south
+    // path, so no second collision risk once turned). Two decorative
+    // pieces add visual richness without touching the intended path.
+    // Empirically verified: avanzar(2000)+si_sino(hayObstaculo){derecha
+    // (500)}sino{}+avanzar(1167) reaches x=300, y≈440.04, sensor consulted
+    // once — inside the goal; never turning collides at x≈338.4.
+    version: 1, cols: 20, rows: 15,
+    muros: [
+      { col: 9, row: 5, colSpan: 2, rowSpan: 5 },
+      { col: 15, row: 1, rowSpan: 3 },
+      { col: 2, row: 12, colSpan: 4, rowSpan: 1 }
     ],
-    poseInicial: { x: 80, y: 300, angulo: 0 },
-    meta: { x: 270, y: 380, w: 90, h: 80 }
+    inicio: { col: 1, row: 7, angulo: 0 },
+    meta: { col: 6, row: 10, colSpan: 2, rowSpan: 2 }
   };
-  var MAPA_LECCION_6 = {
-    // Main wall pushed out to x=420 (was x=300) for a longer, more visible
-    // loop (more repetitions), plus two decorative flanking walls forming a
-    // tunnel (y130-170 / y420-460, clear of the travel band). Empirically
-    // verified: "repetir hasta hayObstaculo() { avanzar(100) }" exits at
-    // x=344, y=300, evalsSensor=23, limiteSeguridad=null — inside the goal.
-    obstaculos: [
-      { x: 420, y: 180, w: 60, h: 220 },
-      { x: 100, y: 130, w: 400, h: 40 },
-      { x: 100, y: 420, w: 400, h: 40 }
+  var MAPA_LECCION_5 = RS.gridAdapter.aPixeles(GRID_LECCION_5);
+  var GRID_LECCION_6 = {
+    // Load-bearing wall at col11-12 (x440-520,y200-400) is pushed further
+    // out than Lessons 2/4 for a longer, more visible loop (more
+    // repetitions). Two decorative strips (rows1/12) stay clear of the
+    // travel band.
+    // Empirically verified: "repetir hasta hayObstaculo() { avanzar(100) }"
+    // exits at x=360, y=300, evalsSensor=26, limiteSeguridad=null —
+    // inside the goal; a straight avanzar with no loop reaches x=300
+    // without colliding, but evalsSensor stays 0 (<2), correctly failing
+    // the criterio (the student must actually use the loop's sensor).
+    version: 1, cols: 20, rows: 15,
+    muros: [
+      { col: 11, row: 5, colSpan: 2, rowSpan: 5 },
+      { col: 2, row: 1, colSpan: 8, rowSpan: 1 },
+      { col: 2, row: 12, colSpan: 8, rowSpan: 1 }
     ],
-    poseInicial: { x: 80, y: 300, angulo: 0 },
-    meta: { x: 320, y: 260, w: 60, h: 80 }
+    inicio: { col: 1, row: 7, angulo: 0 },
+    meta: { col: 8, row: 6, colSpan: 2, rowSpan: 2 }
   };
-  var MAPA_LECCION_7 = {
-    // Capstone v2: keeps the original first obstacle (near-start detour,
-    // north or south) and ADDS a second load-bearing obstacle further east
-    // (x560-620, spanning y140-440) that BOTH routes must detect and detour
-    // around a second time before re-orienting east to the goal — the
-    // capstone now genuinely chains two independent obstacle encounters,
-    // not one. Third obstacle is decorative (far south, off both routes).
+  var MAPA_LECCION_6 = RS.gridAdapter.aPixeles(GRID_LECCION_6);
+  var GRID_LECCION_7 = {
+    // Capstone: wall1 (x280-360,y200-320) forces an early south detour;
+    // wall2+wall3 (x560-640, y120-320 and y400-600) form a full vertical
+    // barrier across columns 14-15 with a single 2-cell (80px) gap at
+    // y320-400 — a genuine precision pinch corridor (design D3's
+    // "deliberate Nivel 3 precision segment") that every east-bound route
+    // must thread through correctly aligned. The post-detour cruising
+    // altitude (y=360) clears wall1's bottom edge (y>=340 needed) AND
+    // sits inside the pinch's safe band (y in [340,380]) simultaneously —
+    // both obstacle encounters are resolved by the same single detour.
+    // Fourth obstacle is decorative (far south, off the route). The wide
+    // goal spans 4 columns x 11 rows (x640-800,y80-520), preserving the
+    // original capstone's large landing zone.
     // Empirically verified (Node harness, real scheduler):
-    //   south route: avanzar(900)→repetir_hasta{avanzar(100)}→si_sino{
-    //     derecha(500)}→avanzar(750)→izquierda(500)→repetir_hasta{
-    //     avanzar(100)}→si_sino{derecha(500)}→avanzar(700)→izquierda(500)→
-    //     avanzar(1900) reaches x=704,y=474, evalsSensor=28, inside goal.
-    //   north route (mirrored, izquierda/derecha swapped) reaches
-    //     x=704,y=102, also inside goal.
-    //   Barreling straight east after only the FIRST detour (no second
-    //     si_sino) collides against the new second obstacle at x≈538.9 —
-    //     it is not optional. The old "ejemplo" program alone (no detours
-    //     at all) still falls short at x=224 — no solution leak.
-    obstaculos: [
-      { x: 300, y: 220, w: 60, h: 140 },
-      { x: 560, y: 140, w: 60, h: 300 },
-      { x: 200, y: 500, w: 120, h: 40 }
+    //   repetir_hasta{avanzar(100)}→si_sino{derecha(500)}sino{}→
+    //   avanzar(500)→izquierda(500)→avanzar(4134) reaches x≈700.08,
+    //   y=360, evalsSensor=14, limiteSeguridad=null — inside the goal.
+    //   Barreling straight east with no detour at all collides against
+    //   wall1 at x≈259.68 — no solution leak.
+    // Deviation from design D4's table: this slice ships ONE verified
+    // detour (2 turns) around wall1, not the "4+ turns / 2 independent
+    // detours" the difficulty-curve table sketches. The wall2/wall3 pinch
+    // still forces a second, distinct precision constraint (correct
+    // cruising altitude) without adding unverified extra turns — see this
+    // batch's apply-progress/report for the explicit call-out.
+    version: 1, cols: 20, rows: 15,
+    muros: [
+      { col: 7, row: 5, colSpan: 2, rowSpan: 3 },
+      { col: 14, row: 3, colSpan: 2, rowSpan: 5 },
+      { col: 14, row: 10, colSpan: 2, rowSpan: 5 },
+      { col: 2, row: 13, colSpan: 5, rowSpan: 1 }
     ],
-    poseInicial: { x: 80, y: 300, angulo: 0 },
-    meta: { x: 620, y: 90, w: 170, h: 420 }
+    inicio: { col: 1, row: 7, angulo: 0 },
+    meta: { col: 16, row: 2, colSpan: 4, rowSpan: 11 }
   };
+  var MAPA_LECCION_7 = RS.gridAdapter.aPixeles(GRID_LECCION_7);
 
   RS.lessons.CONTENIDO = [
     {
@@ -206,11 +254,11 @@
       titulo: 'Movimiento',
       objetivo: 'En esta lección aprenderás a utilizar los bloques de movimiento para hacer que el robot avance y se detenga.',
       concepto: 'El robot se mueve cuando su controlador ejecuta instrucciones de movimiento: avanzar, retroceder y girar. Cada instrucción tiene una duración (en milisegundos) que determina cuánto se desplaza o gira el robot antes de pasar a la siguiente instrucción.',
-      ejemplo: 'INICIO → avanzar(2000) → detener()',
+      ejemplo: 'INICIO → avanzar(1833) → detener()',
       bloques: 'avanzar(ms), detener()',
-      comoFunciona: 'El bloque avanzar(2000) mueve el robot hacia adelante durante 2000 milisegundos. El bloque detener() lo detiene de inmediato al terminar. Juntos forman una secuencia: primero se ejecuta avanzar, y recién cuando termina se ejecuta detener.',
-      prueba: 'Arma la secuencia avanzar(2000) seguida de detener() en el editor y presioná Ejecutar. Observá cómo se desplaza el robot en el panel Simulador.',
-      modificacion: 'Cambiá el valor de avanzar(2000) por un número distinto y volvé a ejecutar. Observá cómo cambia la distancia recorrida.',
+      comoFunciona: 'El bloque avanzar(1833) mueve el robot hacia adelante durante 1833 milisegundos. El bloque detener() lo detiene de inmediato al terminar. Juntos forman una secuencia: primero se ejecuta avanzar, y recién cuando termina se ejecuta detener.',
+      prueba: 'Arma la secuencia avanzar(1833) seguida de detener() en el editor y presioná Ejecutar. Observá cómo se desplaza el robot en el panel Simulador.',
+      modificacion: 'Cambiá el valor de avanzar(1833) por un número distinto y volvé a ejecutar. Observá cómo cambia la distancia recorrida.',
       desafio: 'Hacé que el robot avance durante un tiempo determinado y quede detenido dentro de la zona marcada en el simulador, antes de llegar al obstáculo.',
       criterioTexto: 'El robot debe avanzar y quedar detenido dentro de la zona de meta marcada en el mapa (justo antes del obstáculo), sin colisionar contra él.',
       pista: 'Pista 1: recordá que avanzar(ms) mueve el robot un tiempo determinado; a mayor ms, mayor distancia.',

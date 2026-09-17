@@ -32,10 +32,13 @@ html, body {
 }
 
 /* The [hidden] attribute has very low UA-stylesheet specificity, so the
-   id-selector `display` rules below (#home, #app) would otherwise silently
-   win and keep the "hidden" view visible — these two overrides fix that. */
+   id-selector `display` rules below (#home, #app, #editor-mapa,
+   #editor-mapa-herramientas) would otherwise silently win and keep the
+   "hidden" element visible — these overrides fix that. */
 #home[hidden],
-#app[hidden] {
+#app[hidden],
+#editor-mapa[hidden],
+#editor-mapa-herramientas[hidden] {
   display: none;
 }
 
@@ -220,6 +223,27 @@ html, body {
   color: var(--n-200);
   opacity: .5;
   cursor: not-allowed;
+}
+
+#editor-mapa {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+#editor-mapa-herramientas {
+  display: flex;
+  gap: var(--sp-1);
+}
+
+#btn-modo-editar-mapa[aria-pressed="true"] {
+  background: var(--a-500);
+  color: var(--n-0);
+}
+
+#editor-mapa-herramientas button.herramienta-activa {
+  border-color: var(--a-500);
+  color: var(--a-500);
 }
 
 #feedback-linea {
