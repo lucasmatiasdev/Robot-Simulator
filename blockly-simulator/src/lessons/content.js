@@ -8,10 +8,12 @@
  * modificacion, desafio, criterioTexto, pista, competencias, resultados,
  * nivel.
  *
- * `criterio` is null when the lesson has no run-derived success check
- * (Lesson 1 is pure identification, see spec's lesson-success-check
- * capability). Lesson 2's `criterio.evaluar(snapshot)` checks
- * `snapshot.estado.x >= 260` (see check.js for the snapshot shape).
+ * `criterio` is null only for lessons with no run-derived success check.
+ * Every lesson (1-7) now has a real, run-checkable `criterio` — Lesson 1's
+ * identification-focused text is paired with a pre-loaded program (see
+ * main.js's irALeccion) so it still has a goal to run toward. Lesson 2's
+ * `criterio.evaluar(snapshot)` checks `dentroDeMeta(...)` (see check.js for
+ * the snapshot shape).
  *
  * Lessons 3-4 (this slice) introduce no new block types: Lesson 3
  * (Secuencias) uses only movement blocks; Lesson 4 (Sensores) uses only the
@@ -58,10 +60,20 @@
   // via its `iniciarConArbol`/`_procesarFrame` test hooks — same method as
   // the v2 pass, just against the new grid-derived geometry).
 
-  // Lesson 1 has no run/criterio (pure identification) — it gets the plain
-  // default field with no goal, same as Sandbox. Five decorative wall
-  // regions dress up the panel; none are load-bearing (no criterio to test
-  // against) and none intersect the start cell.
+  // Lesson 1 keeps its pure-identification teaching goal (no block-building
+  // required) but now has a real, run-checkable goal too: a small program is
+  // pre-loaded into the workspace by main.js's irALeccion(1) (INICIO ->
+  // avanzar(1167) -> detener()), so the student presses Ejecutar and watches
+  // the robot reach the marked meta while reading the identification content.
+  // The meta sits at cols4-5,rows6-7 (x160-240,y240-320) — strictly before
+  // col7 (x280), the near edge of the first decorative-turned-real wall
+  // below, with ~40px of AABB clearance to spare (robot half-size 20px lands
+  // at x=220 max, wall starts at x=280). The other 3 walls never touch row7
+  // and stay purely decorative. Empirically verified (Node harness, real
+  // scheduler): avanzar(1167)+detener() reaches x=200.04, y=300 — inside the
+  // goal; avanzar(5000) with no stop collides against the col7 wall at
+  // x≈259.68, confirming the wall is genuinely load-bearing on this path if
+  // overshot (it just isn't reachable by the short pre-loaded program).
   var GRID_LECCION_1 = {
     version: 1, cols: 20, rows: 15,
     muros: [
@@ -72,7 +84,7 @@
       { col: 17, row: 5, rowSpan: 4 }
     ],
     inicio: { col: 1, row: 7, angulo: 0 },
-    meta: null
+    meta: { col: 4, row: 6, colSpan: 2, rowSpan: 2 }
   };
   var MAPA_SIN_DESAFIO = RS.gridAdapter.aPixeles(GRID_LECCION_1);
 
@@ -235,18 +247,23 @@
       titulo: '¿Qué es un robot?',
       objetivo: 'En esta lección aprenderás a identificar los componentes básicos de un robot móvil y a comprender su función dentro del simulador.',
       concepto: 'Un robot está compuesto por un sensor (percibe el entorno), un actuador (produce movimiento o acción), un controlador (decide qué hacer) y un entorno (el espacio donde el robot se mueve). En el simulador, estos cuatro elementos ya están presentes: el sensor de distancia, las ruedas como actuador, el programa de bloques como controlador y el mapa como entorno.',
-      ejemplo: 'No hay programa que construir todavía: el ejemplo es visual. Observa el robot en el panel Simulador y localiza cada componente sobre su chasis.',
-      bloques: 'Ninguno todavía — esta lección no requiere armar un programa.',
+      ejemplo: 'Ya hay un programa armado esperándote: INICIO → avanzar(1167) → detener(). No necesitás construir nada todavía — mirá el panel Simulador y presioná Ejecutar.',
+      bloques: 'avanzar(ms), detener() — ya están armados como referencia; el objetivo de esta lección es identificarlos, no construirlos.',
       comoFunciona: 'El chasis azul es el cuerpo del robot. Las ruedas (actuador) permiten el movimiento. El sensor frontal mide la distancia a los obstáculos. El programa que arma con bloques cumple el rol de controlador: decide qué instrucción ejecutar.',
-      prueba: 'Esta lección no requiere ejecutar un programa en el simulador todavía. Simplemente observa el robot en el panel Simulador.',
-      modificacion: 'No aplica en esta lección: no hay programa que modificar.',
-      desafio: 'Señala, en el panel Simulador, dónde ubicarías el sensor, el actuador y el controlador del robot.',
-      criterioTexto: 'El estudiante identifica correctamente los cuatro componentes (robot, sensor, actuador, controlador) sin ejecutar ningún programa.',
+      prueba: 'Presioná Ejecutar y observá cómo el robot avanza y se detiene dentro de la zona de meta marcada en el panel Simulador. Mientras corre, relacioná lo que ves con los roles de comoFunciona: el controlador (el programa) ordena avanzar, el actuador (las ruedas) produce el movimiento y el sensor sigue midiendo distancia aunque el programa no lo consulte todavía.',
+      modificacion: 'No aplica en esta lección: no hay programa que modificar todavía.',
+      desafio: 'Presioná Ejecutar y confirmá que el robot llega y queda detenido dentro de la zona de meta marcada. Después, señalá sobre el panel Simulador dónde ubicarías el sensor, el actuador y el controlador del robot.',
+      criterioTexto: 'El robot debe llegar y quedar detenido dentro de la zona de meta marcada en el mapa, ejecutando el programa ya armado.',
       pista: 'Pista 1: recordá que un robot siempre combina percepción (sensor), decisión (controlador) y acción (actuador).',
       competencias: 'C1 — Fundamentos de robótica',
       resultados: 'RA1 — Identificación',
       mapa: MAPA_SIN_DESAFIO,
-      criterio: null
+      criterio: {
+        evaluar: function (snapshot) {
+          if (!snapshot || !snapshot.estado) return false;
+          return dentroDeMeta(MAPA_SIN_DESAFIO.meta, snapshot.estado.x, snapshot.estado.y);
+        }
+      }
     },
     {
       id: 2,

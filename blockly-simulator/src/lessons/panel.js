@@ -25,9 +25,12 @@
     var leccionActiva = null;
     var resultadoEl = null;
     var estadoPrevio = null;
+    var bannerSiguienteEl = null;
+    var alSolicitarSiguiente = null;
 
     function renderizarSandbox() {
       if (!contenedor) return;
+      quitarBannerSiguiente();
       contenedor.innerHTML = '';
 
       var h2 = document.createElement('h2');
@@ -41,10 +44,12 @@
       contenedor.appendChild(p);
 
       resultadoEl = null;
+      bannerSiguienteEl = null;
     }
 
     function renderizar(leccion) {
       if (!contenedor) return;
+      quitarBannerSiguiente();
       contenedor.innerHTML = '';
 
       var h2 = document.createElement('h2');
@@ -67,6 +72,8 @@
         contenedor.appendChild(bloque);
       });
 
+      bannerSiguienteEl = null;
+
       if (leccion.criterio) {
         resultadoEl = document.createElement('p');
         resultadoEl.className = 'leccion-resultado';
@@ -88,6 +95,7 @@
         msg.className = 'leccion-resultado leccion-resultado-ok';
         msg.textContent = 'Lección completada.';
         contenedor.appendChild(msg);
+        mostrarBannerSiguiente();
         return;
       }
 
@@ -116,6 +124,41 @@
       resultadoEl.classList.add(resultado.ok ? 'leccion-resultado-ok' : 'leccion-resultado-fail');
     }
 
+    // "You passed, jump to what's next" modal shown centered over the whole
+    // screen (not inside the small lesson panel) once a criterio-based run
+    // succeeds, or once Lesson 1 is marked complete by hand.
+    function mostrarBannerSiguiente() {
+      if (bannerSiguienteEl) return;
+
+      bannerSiguienteEl = document.createElement('div');
+      bannerSiguienteEl.className = 'leccion-modal-overlay';
+
+      var tarjeta = document.createElement('div');
+      tarjeta.className = 'leccion-siguiente-banner';
+
+      var mensaje = document.createElement('p');
+      mensaje.textContent = '¡Muy bien! Superaste esta lección.';
+      tarjeta.appendChild(mensaje);
+
+      var boton = document.createElement('button');
+      boton.type = 'button';
+      boton.className = 'leccion-siguiente-btn';
+      boton.textContent = 'Ir a la próxima lección →';
+      boton.addEventListener('click', function () {
+        if (alSolicitarSiguiente) alSolicitarSiguiente();
+      });
+      tarjeta.appendChild(boton);
+
+      bannerSiguienteEl.appendChild(tarjeta);
+      document.body.appendChild(bannerSiguienteEl);
+    }
+
+    function quitarBannerSiguiente() {
+      if (!bannerSiguienteEl) return;
+      if (bannerSiguienteEl.parentNode) bannerSiguienteEl.parentNode.removeChild(bannerSiguienteEl);
+      bannerSiguienteEl = null;
+    }
+
     /** Maps a running -> {idle|error|stopped} transition to a run snapshot. */
     function construirSnapshot(nuevoEstado) {
       return {
@@ -137,14 +180,20 @@
       var snapshot = construirSnapshot(nuevoEstado);
       var resultado = RS.lessons.check.evaluar(leccionActiva, snapshot);
       mostrarResultado(resultado);
-      if (resultado.ok && RS.lessons.progress) {
-        RS.lessons.progress.marcarCompletada(leccionActiva.id);
+      if (resultado.ok) {
+        if (RS.lessons.progress) RS.lessons.progress.marcarCompletada(leccionActiva.id);
+        mostrarBannerSiguiente();
+      } else {
+        // A fail after an earlier pass in the same session shouldn't leave a
+        // stale "next lesson" banner visible alongside the fail message.
+        quitarBannerSiguiente();
       }
     }
 
     return {
-      init: function (el) {
+      init: function (el, opciones) {
         contenedor = el;
+        alSolicitarSiguiente = (opciones && opciones.onSolicitarSiguiente) || null;
         if (RS.runtime && RS.runtime.scheduler) {
           estadoPrevio = RS.runtime.scheduler.obtenerEstado();
           RS.runtime.scheduler.onCambioEstado(alCambiarEstadoScheduler);
@@ -159,6 +208,13 @@
       mostrarSandbox: function () {
         leccionActiva = null;
         renderizarSandbox();
+      },
+      // Called by main.js when leaving the challenge view for the full-screen
+      // Home reading view: the "next lesson" modal lives on document.body,
+      // outside #leccion-body, so switching screens doesn't remove it on its
+      // own — it must be closed explicitly or it stays stuck on top of Home.
+      cerrarBannerSiguiente: function () {
+        quitarBannerSiguiente();
       },
       leccionActual: function () {
         return leccionActiva;

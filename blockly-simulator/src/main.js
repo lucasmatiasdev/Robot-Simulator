@@ -50,7 +50,9 @@
       grid: { spacing: 20, length: 3, colour: '#2b3948', snap: true }
     });
 
-    RS.lessons.panel.init(document.getElementById('leccion-body'));
+    RS.lessons.panel.init(document.getElementById('leccion-body'), {
+      onSolicitarSiguiente: avanzarDespuesDeCompletar
+    });
 
     RS.ui.initHighlight(workspace);
     RS.ui.feedback.init(feedbackDiv);
@@ -100,13 +102,20 @@
       Blockly.svgResize(workspace);
     }
 
+    var MS_TRANSICION_HOME = 220; // matches #home's CSS transition duration
+
     function mostrarWorkspace() {
-      homeEl.hidden = true;
-      appEl.hidden = false;
-      resize(); // display:none -> visible is a 0x0 -> real size jump; ResizeObserver alone can't be trusted for it
+      homeEl.classList.add('home-saliendo');
+      global.setTimeout(function () {
+        homeEl.hidden = true;
+        homeEl.classList.remove('home-saliendo');
+        appEl.hidden = false;
+        resize(); // display:none -> visible is a 0x0 -> real size jump; ResizeObserver alone can't be trusted for it
+      }, MS_TRANSICION_HOME);
     }
 
     function mostrarHome() {
+      if (RS.lessons.panel) RS.lessons.panel.cerrarBannerSiguiente();
       appEl.hidden = true;
       homeEl.hidden = false;
       renderizarHome(); // refleja lecciones recién desbloqueadas/completadas
@@ -120,23 +129,71 @@
       return null;
     }
 
+    // Lesson 1 is pure identification (no block-building required), but it
+    // now has a real goal too: this hardcodes INICIO -> avanzar(1167) ->
+    // detener() straight into the live Blockly workspace so the student
+    // presses Ejecutar and watches the robot reach it. 1167 is the exact ms
+    // value verified against the real scheduler for Lesson 1's meta/geometry
+    // (see src/lessons/content.js's GRID_LECCION_1 comment) — it MUST stay in
+    // sync with that map's meta region and with content.js's `ejemplo` text.
+    // Deliberately hardcoded/lesson-1-specific rather than a generic
+    // "preloaded program" mechanism: no other lesson needs one.
+    var MS_PRECARGA_LECCION_1 = 1167;
+
+    function precargarProgramaLeccion1(ws) {
+      var inicio = ws.newBlock('rs_inicio');
+      var avanzar = ws.newBlock('rs_avanzar');
+      var numero = ws.newBlock('rs_numero');
+      var detener = ws.newBlock('rs_detener');
+
+      inicio.initSvg();
+      avanzar.initSvg();
+      numero.initSvg();
+      detener.initSvg();
+
+      numero.getField('NUM').setValue(MS_PRECARGA_LECCION_1);
+
+      inicio.nextConnection.connect(avanzar.previousConnection);
+      avanzar.nextConnection.connect(detener.previousConnection);
+      avanzar.getInput('MS').connection.connect(numero.outputConnection);
+
+      inicio.render();
+      avanzar.render();
+      numero.render();
+      detener.render();
+
+      inicio.moveBy(40, 40);
+      Blockly.svgResize(ws);
+    }
+
+    function irALeccion(leccionId) {
+      if (RS.lessons.progress && !RS.lessons.progress.estaDesbloqueada(leccionId)) return;
+      var leccion = buscarLeccion(leccionId);
+      RS.world.cargarMapa(leccion ? leccion.mapa : {});
+      RS.robot.reset();
+      workspace.clear();
+      if (leccionId === 1) precargarProgramaLeccion1(workspace);
+      RS.lessons.panel.mostrarLeccion(leccionId);
+      // The map editor is sandbox-only: never active during a graded lesson.
+      salirDeModoEdicion();
+      if (editorMapaEl) editorMapaEl.hidden = true;
+      mostrarWorkspace();
+    }
+
+    // Called from the lesson panel's "next lesson" modal once a lesson is
+    // completed: goes back to the full-screen Home reading view for the next
+    // incomplete lesson (or the "module complete" screen), never straight
+    // into the simulator — the student starts the next challenge from there.
+    function avanzarDespuesDeCompletar() {
+      mostrarHome();
+    }
+
     var homeListaEl = document.getElementById('home-lista');
 
     function renderizarHome() {
       if (!homeListaEl || !RS.lessons.home) return;
       RS.lessons.home.init(homeListaEl, {
-        onIniciarLeccion: function (leccionId) {
-          if (RS.lessons.progress && !RS.lessons.progress.estaDesbloqueada(leccionId)) return;
-          var leccion = buscarLeccion(leccionId);
-          RS.world.cargarMapa(leccion ? leccion.mapa : {});
-          RS.robot.reset();
-          workspace.clear();
-          RS.lessons.panel.mostrarLeccion(leccionId);
-          // The map editor is sandbox-only: never active during a graded lesson.
-          salirDeModoEdicion();
-          if (editorMapaEl) editorMapaEl.hidden = true;
-          mostrarWorkspace();
-        },
+        onIniciarLeccion: irALeccion,
         onIniciarSandbox: function () {
           // Loads the saved custom sandbox map from localStorage if
           // present/valid, else a fresh empty grid map (replaces the

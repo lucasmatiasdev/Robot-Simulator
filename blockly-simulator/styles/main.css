@@ -47,28 +47,31 @@ html, body {
   overflow-y: auto;
   padding: var(--sp-6) var(--sp-5);
   background: var(--n-900);
+  transition: opacity 220ms ease, transform 220ms ease;
+}
+
+#home.home-saliendo {
+  opacity: 0;
+  transform: translateY(-32px);
 }
 
 #home-cab {
-  max-width: 900px;
   margin: 0 auto var(--sp-5);
 }
 
 #home-cab h1 {
   margin: 0 0 var(--sp-2);
-  font-size: 22px;
+  font-size: 28px;
   color: var(--n-0);
 }
 
 #home-cab p {
   margin: 0;
-  font-size: var(--fs-sm);
+  font-size: 15px;
   color: var(--n-200);
 }
 
 #home-lista {
-  max-width: 760px;
-  margin: 0 auto;
   display: flex;
   flex-direction: column;
   gap: var(--sp-4);
@@ -77,11 +80,26 @@ html, body {
 .home-leccion {
   display: flex;
   flex-direction: column;
-  gap: var(--sp-3);
-  padding: var(--sp-5);
+  gap: var(--sp-4);
+  padding: var(--sp-6);
   background: var(--n-800);
   border-radius: var(--r-md);
   box-shadow: var(--sh-2);
+  width: 100%;
+}
+
+.home-leccion .leccion-titulo {
+  font-size: 24px;
+  margin-bottom: var(--sp-2);
+}
+
+.home-leccion .leccion-seccion h3 {
+  font-size: 13px;
+}
+
+.home-leccion .leccion-seccion p {
+  font-size: 17px;
+  line-height: 1.6;
 }
 
 .home-tarjeta-resumen {
@@ -93,7 +111,7 @@ html, body {
 
 .home-iniciar-btn {
   align-self: center;
-  height: 44px;
+  height: 64px;
   padding: 0 var(--sp-6);
   border: none;
   border-radius: var(--r-sm);
@@ -101,7 +119,7 @@ html, body {
   color: var(--n-0);
   font-family: var(--ff-ui);
   font-weight: 700;
-  font-size: var(--fs-base);
+  font-size: 20px;
   cursor: pointer;
   transition: background-color 120ms ease;
 }
@@ -110,14 +128,14 @@ html, body {
 
 .home-sandbox-btn {
   align-self: center;
-  height: 32px;
-  padding: 0 var(--sp-4);
+  height: 48px;
+  padding: 0 var(--sp-5);
   border: 1px solid var(--n-600);
   border-radius: var(--r-sm);
   background: transparent;
   color: var(--n-200);
   font-family: var(--ff-ui);
-  font-size: var(--fs-sm);
+  font-size: 16px;
   cursor: pointer;
   transition: background-color 120ms ease;
 }
@@ -438,6 +456,54 @@ html, body {
 }
 
 .leccion-completar-btn:hover { background: var(--a-600); }
+
+.leccion-modal-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sp-5);
+  background: rgba(13, 18, 24, .72);
+  z-index: 100;
+}
+
+.leccion-siguiente-banner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-4);
+  max-width: 480px;
+  padding: var(--sp-6);
+  border-radius: var(--r-md);
+  background: var(--n-800);
+  border: 1px solid rgba(126, 231, 135, .35);
+  box-shadow: var(--sh-2);
+  text-align: center;
+}
+
+.leccion-siguiente-banner p {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.5;
+  color: #7ee787;
+}
+
+.leccion-siguiente-btn {
+  height: 40px;
+  padding: 0 var(--sp-5);
+  border: none;
+  border-radius: var(--r-sm);
+  background: var(--a-500);
+  color: var(--n-0);
+  font-family: var(--ff-ui);
+  font-weight: 600;
+  font-size: var(--fs-base);
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+
+.leccion-siguiente-btn:hover { background: var(--a-600); }
 
 #gutter-leccion-editor { grid-area: gv1; }
 #gutter-editor-sim { grid-area: gv2; }
