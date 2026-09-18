@@ -1,5 +1,5 @@
 /**
- * RS.robot — robot state (x, y, angulo, led) and kinematics.
+ * RS.robot — robot state (x, y, angulo) and kinematics.
  * VEL is px/ms (avanzar/retroceder), GIRO is deg/ms (izquierda/derecha),
  * both consumed with the block's ms value unchanged (no /4 divide).
  */
@@ -14,8 +14,7 @@
     return {
       x: pose.x,
       y: pose.y,
-      angulo: pose.angulo,
-      led: 0
+      angulo: pose.angulo
     };
   }
 
@@ -31,7 +30,6 @@
       estado.x = fresh.x;
       estado.y = fresh.y;
       estado.angulo = fresh.angulo;
-      estado.led = fresh.led;
       return estado;
     },
 
@@ -62,10 +60,6 @@
     girar: function (dtMs, sentido) {
       estado.angulo = (estado.angulo + sentido * cfg.GIRO * dtMs) % 360;
       if (estado.angulo < 0) estado.angulo += 360;
-    },
-
-    setLed: function (valor) {
-      estado.led = valor ? 1 : 0;
     }
   };
 })(typeof window !== 'undefined' ? window : this);

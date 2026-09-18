@@ -232,12 +232,12 @@
   // ================= Tree generation =================
   grupo('Generador: árbol de programa (no aplanado)');
   (function () {
-    var seq = encadenar(bloqueAccion('rs_avanzar', 'a1', 500), bloqueAccion('rs_led', 'l1', 1));
+    var seq = encadenar(bloqueAccion('rs_avanzar', 'a1', 500), bloqueAccion('rs_retroceder', 'l1', 1));
     var arbol = RS.generator.buildProgramTree(workspaceFalso([seq]));
     assertEquals(arbol, [
       { tipo: 'accion', accion: 'avanzar', blockId: 'a1', valor: 500 },
-      { tipo: 'accion', accion: 'led', blockId: 'l1', valor: 1 }
-    ], 'secuencia simple: avanzar(500) + led(1)');
+      { tipo: 'accion', accion: 'retroceder', blockId: 'l1', valor: 1 }
+    ], 'secuencia simple: avanzar(500) + retroceder(1)');
 
     var cuerpoRepetir = bloqueAccion('rs_avanzar', 'a2', 200);
     var rep = bloqueRepetir('r1', 4, cuerpoRepetir);
@@ -263,7 +263,7 @@
 
     var vocabulario = RS.config.ACCIONES;
     assert(vocabulario.indexOf('bailar') === -1, 'bailar() ausente del vocabulario del generador');
-    assertEquals(vocabulario, ['avanzar', 'retroceder', 'izquierda', 'derecha', 'detener', 'led'], 'vocabulario es exactamente el subconjunto de 6 acciones');
+    assertEquals(vocabulario, ['avanzar', 'retroceder', 'izquierda', 'derecha', 'detener'], 'vocabulario es exactamente el subconjunto de 5 acciones');
     assert(vocabulario.indexOf('esperar') === -1, 'esperar() NO forma parte de RS.config.ACCIONES (es solo simulador/sketch)');
 
     // rs_espera emite un nodo de acción 'esperar' con su valor MS.
@@ -381,14 +381,14 @@
     assert(/digitalWrite\(IN3, HIGH\)/.test(cuerpoIzq), 'girarIzquierda: IN3 HIGH');
     assert(/digitalWrite\(IN4, LOW\)/.test(cuerpoIzq), 'girarIzquierda: IN4 LOW');
 
-    // --- si node: comment present, no fabricated hayObstaculo() call in the guion ---
+    // --- si node: real if (hayObstaculo()) { ... } call in the guion, body translated ---
     var lineaSi = resultado.lineas.filter(function (l) { return l.blockId === 's1'; })[0];
     assert(lineaSi !== undefined, 'el nodo si mapea su blockId a una linea');
-    assert(lineaSi.texto.indexOf('ATENCION') !== -1, 'el nodo si genera un comentario ATENCION');
+    assertEquals(lineaSi.texto, 'if (hayObstaculo()) {', 'el nodo si genera un if (hayObstaculo()) real');
     var lineasGuion = resultado.lineas.filter(function (l) { return l.seccion === 'guion'; });
     var llamadaFabricada = lineasGuion.some(function (l) { return l.texto.indexOf('hayObstaculo()') !== -1 && l.texto.indexOf('//') !== 0; });
-    assert(!llamadaFabricada, 'ninguna linea de guion contiene una llamada real a hayObstaculo()');
-    assert(resultado.lineas.filter(function (l) { return l.blockId === 'd1'; }).length === 0, 'el cuerpo del si (detener) NO se traduce a codigo ejecutable');
+    assert(llamadaFabricada, 'alguna linea de guion contiene una llamada real a hayObstaculo()');
+    assert(resultado.lineas.filter(function (l) { return l.blockId === 'd1'; }).length === 1, 'el cuerpo del si (detener) SI se traduce a codigo ejecutable');
 
     // --- repetir: real for loop (compilable), header maps blockId, close brace does not ---
     var lineaRepetir = resultado.lineas.filter(function (l) { return l.blockId === 'r1'; })[0];
@@ -400,12 +400,13 @@
     var cuerpoLoop = texto.substring(idxLoop);
     assert(!/\bavanzar\(|\bretroceder\(|\bgirarIzquierda\(|\bgirarDerecha\(/.test(cuerpoLoop), 'loop() no llama a ninguna funcion de movimiento');
 
-    // --- sensor stub only emitted when tree uses a sensor node ---
+    // --- real HC-SR04 driver only emitted when tree uses a sensor node ---
     var textoSinSensor = RS.cppView.renderTexto([{ tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'x1' }]);
-    assert(textoSinSensor.indexOf('hayObstaculo') === -1, 'sin nodo si en el arbol, no se emite el stub de sensor');
-    assert(texto.indexOf('bool hayObstaculo') !== -1, 'con nodo si en el arbol, se emite el stub hayObstaculo()');
+    assert(textoSinSensor.indexOf('hayObstaculo') === -1, 'sin nodo si en el arbol, no se emite el driver del sensor');
+    assert(texto.indexOf('bool hayObstaculo() { return medirDistancia() <= UMBRAL_OBSTACULO; }') !== -1, 'con nodo si en el arbol, se emite el driver real hayObstaculo()');
+    assert(texto.indexOf('pulseIn(ECHO, HIGH, 30000UL)') !== -1, 'con nodo si en el arbol, se emite medirDistancia() con pulseIn() real');
 
-    // --- si_sino: honest-stub emission (never fabricates a real hayObstaculo() call) ---
+    // --- si_sino: real if/else emission (both branches translated into executable code) ---
     var arbolSiSino = [
       { tipo: 'si_sino', sensor: 'hayObstaculo', blockId: 'ss1',
         cuerpo: [{ tipo: 'accion', accion: 'derecha', valor: 500, blockId: 'dd1' }],
@@ -415,15 +416,16 @@
     var textoSiSino = RS.cppView.renderTexto(arbolSiSino);
     var lineaSiSino = resultadoSiSino.lineas.filter(function (l) { return l.blockId === 'ss1'; })[0];
     assert(lineaSiSino !== undefined, 'el nodo si_sino mapea su blockId a una linea');
-    assert(lineaSiSino.texto.indexOf('ATENCION') !== -1, 'el nodo si_sino genera un comentario ATENCION');
-    assert(resultadoSiSino.lineas.filter(function (l) { return l.blockId === 'dd1'; }).length === 0, 'el cuerpo DO de si_sino NO se traduce a codigo ejecutable');
-    assert(resultadoSiSino.lineas.filter(function (l) { return l.blockId === 'de1'; }).length === 0, 'el cuerpo ELSE de si_sino NO se traduce a codigo ejecutable');
+    assertEquals(lineaSiSino.texto, 'if (hayObstaculo()) {', 'el nodo si_sino genera un if (hayObstaculo()) real');
+    assert(textoSiSino.indexOf('} else {') !== -1, 'el nodo si_sino genera un else real');
+    assert(resultadoSiSino.lineas.filter(function (l) { return l.blockId === 'dd1'; }).length === 1, 'el cuerpo DO de si_sino SI se traduce a codigo ejecutable');
+    assert(resultadoSiSino.lineas.filter(function (l) { return l.blockId === 'de1'; }).length === 1, 'el cuerpo ELSE de si_sino SI se traduce a codigo ejecutable');
     var lineasGuionSiSino = resultadoSiSino.lineas.filter(function (l) { return l.seccion === 'guion'; });
     var llamadaFabricadaSiSino = lineasGuionSiSino.some(function (l) { return l.texto.indexOf('hayObstaculo()') !== -1 && l.texto.indexOf('//') !== 0; });
-    assert(!llamadaFabricadaSiSino, 'ninguna linea de guion de si_sino contiene una llamada real a hayObstaculo()');
-    assert(textoSiSino.indexOf('bool hayObstaculo') !== -1, 'usaSensor() detecta si_sino: se emite el stub hayObstaculo() aunque no haya nodo "si" plano');
+    assert(llamadaFabricadaSiSino, 'alguna linea de guion de si_sino contiene una llamada real a hayObstaculo()');
+    assert(textoSiSino.indexOf('int medirDistancia() {') !== -1, 'usaSensor() detecta si_sino: se emite el driver real medirDistancia() aunque no haya nodo "si" plano');
 
-    // --- repetir_hasta: honest-stub emission (never fabricates a real hayObstaculo() call) ---
+    // --- repetir_hasta: real counter-guarded for loop (pre-test "while not" + MAX_ITER cap) ---
     var arbolRepetirHasta = [
       { tipo: 'repetir_hasta', sensor: 'hayObstaculo', blockId: 'rh1', cuerpo: [
         { tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'rhd1' }
@@ -433,12 +435,12 @@
     var textoRepetirHasta = RS.cppView.renderTexto(arbolRepetirHasta);
     var lineaRepetirHasta = resultadoRepetirHasta.lineas.filter(function (l) { return l.blockId === 'rh1'; })[0];
     assert(lineaRepetirHasta !== undefined, 'el nodo repetir_hasta mapea su blockId a una linea');
-    assert(lineaRepetirHasta.texto.indexOf('ATENCION') !== -1, 'el nodo repetir_hasta genera un comentario ATENCION');
-    assert(resultadoRepetirHasta.lineas.filter(function (l) { return l.blockId === 'rhd1'; }).length === 0, 'el cuerpo de repetir_hasta (avanzar) NO se traduce a codigo ejecutable');
+    assertEquals(lineaRepetirHasta.texto, 'for (int i = 0; i < 1000 && !(hayObstaculo()); i++) {', 'el nodo repetir_hasta genera un for real con tope de seguridad');
+    assert(resultadoRepetirHasta.lineas.filter(function (l) { return l.blockId === 'rhd1'; }).length === 1, 'el cuerpo de repetir_hasta (avanzar) SI se traduce a codigo ejecutable');
     var lineasGuionRepetirHasta = resultadoRepetirHasta.lineas.filter(function (l) { return l.seccion === 'guion'; });
     var llamadaFabricadaRepetirHasta = lineasGuionRepetirHasta.some(function (l) { return l.texto.indexOf('hayObstaculo()') !== -1 && l.texto.indexOf('//') !== 0; });
-    assert(!llamadaFabricadaRepetirHasta, 'ninguna linea de guion de repetir_hasta contiene una llamada real a hayObstaculo()');
-    assert(textoRepetirHasta.indexOf('bool hayObstaculo') !== -1, 'usaSensor() detecta repetir_hasta: se emite el stub hayObstaculo()');
+    assert(llamadaFabricadaRepetirHasta, 'alguna linea de guion de repetir_hasta contiene una llamada real a hayObstaculo()');
+    assert(textoRepetirHasta.indexOf('int medirDistancia() {') !== -1, 'usaSensor() detecta repetir_hasta: se emite el driver real medirDistancia()');
 
     // --- render()/renderTexto() share the same line records ---
     assertEquals(RS.cppView.renderTexto(arbol).split('\n').length, resultado.lineas.length, 'renderTexto tiene una linea por cada registro de render()');
@@ -513,7 +515,7 @@
         condicion: { op: '<', izq: { k: 'medirDistancia' }, der: { k: 'numero', v: 15 } },
         cuerpo: [{ tipo: 'accion', accion: 'detener', blockId: 'do1' }],
         sino: [{ tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'else1' }] },
-      { tipo: 'accion', accion: 'led', valor: 1, blockId: 'a-despues' }
+      { tipo: 'accion', accion: 'detener', valor: 1, blockId: 'a-despues' }
     ];
 
     var obstaculo = RS.world.obstaculos[0];
@@ -542,7 +544,7 @@
       { tipo: 'repetir_hasta', blockId: 'rh-skip', condicion: condicionSiempreVerdadera, cuerpo: [
         { tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'nunca-visto' }
       ] },
-      { tipo: 'accion', accion: 'led', valor: 1, blockId: 'despues-skip' }
+      { tipo: 'accion', accion: 'detener', valor: 1, blockId: 'despues-skip' }
     ];
     var walkerSkip = RS.runtime.interpreter.crear(arbolCondicionInicialVerdadera, RS.world, RS.robot.estado, null);
     var vistosSkip = [];
@@ -562,7 +564,7 @@
       { tipo: 'repetir_hasta', blockId: 'rh-acerca', condicion: condicionCerca, cuerpo: [
         { tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'paso-acerca' }
       ] },
-      { tipo: 'accion', accion: 'led', valor: 1, blockId: 'despues-acerca' }
+      { tipo: 'accion', accion: 'detener', valor: 1, blockId: 'despues-acerca' }
     ];
     var walkerAcerca = RS.runtime.interpreter.crear(arbolAcercamiento, RS.world, RS.robot.estado, null);
     var vistosAcerca = [];
@@ -587,7 +589,7 @@
     var condicionNuncaVerdadera = { op: '==', izq: { k: 'numero', v: 1 }, der: { k: 'numero', v: 2 } };
     var arbolCapVacio = [
       { tipo: 'repetir_hasta', blockId: 'rh-cap', condicion: condicionNuncaVerdadera, cuerpo: [] },
-      { tipo: 'accion', accion: 'led', valor: 1, blockId: 'despues-cap' }
+      { tipo: 'accion', accion: 'detener', valor: 1, blockId: 'despues-cap' }
     ];
     var walkerCap = RS.runtime.interpreter.crear(arbolCapVacio, RS.world, RS.robot.estado, null);
     var nCap = walkerCap.siguienteNodo();
@@ -599,7 +601,7 @@
     // --- condition never becomes true either: still bounded, still yields exactly MAX_ITER leaves ---
     var arbolCapConCuerpo = [
       { tipo: 'repetir_hasta', blockId: 'rh-cap2', condicion: condicionNuncaVerdadera, cuerpo: [
-        { tipo: 'accion', accion: 'led', valor: 1, blockId: 'iter-cap2' }
+        { tipo: 'accion', accion: 'detener', valor: 1, blockId: 'iter-cap2' }
       ] }
     ];
     var walkerCap2 = RS.runtime.interpreter.crear(arbolCapConCuerpo, RS.world, RS.robot.estado, null);
@@ -621,7 +623,7 @@
     var condicionNuncaVerdaderaSched = { op: '==', izq: { k: 'numero', v: 1 }, der: { k: 'numero', v: 2 } };
     var arbolSched = [
       { tipo: 'repetir_hasta', blockId: 'rh-sched', condicion: condicionNuncaVerdaderaSched, cuerpo: [] },
-      { tipo: 'accion', accion: 'led', valor: 1, blockId: 'despues-sched' }
+      { tipo: 'accion', accion: 'detener', valor: 1, blockId: 'despues-sched' }
     ];
     scheduler.iniciarConArbol(arbolSched);
     // A single tick is enough: the interpreter's own while-loop already
@@ -636,7 +638,7 @@
     document.body.removeChild(feedbackDivRH);
 
     // Confirm a normal (non-tripping) run still reports limiteSeguridad: null.
-    scheduler.iniciarConArbol([{ tipo: 'accion', accion: 'led', valor: 1, blockId: 'l-normal' }]);
+    scheduler.iniciarConArbol([{ tipo: 'accion', accion: 'detener', valor: 1, blockId: 'l-normal' }]);
     assertEquals(scheduler.obtenerMetricas().limiteSeguridad, null, 'una corrida sin repetir_hasta sigue reportando limiteSeguridad: null');
     scheduler.reiniciar();
   })();
@@ -686,7 +688,7 @@
     RS.ui.codePanel.init(fakeWorkspace, contenedor);
     var arbol = [
       { tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'a1' },
-      { tipo: 'accion', accion: 'led', valor: 1, blockId: 'l1' }
+      { tipo: 'accion', accion: 'detener', valor: 1, blockId: 'l1' }
     ];
     RS.ui.codePanel.render(arbol);
 
@@ -987,7 +989,7 @@
     RS.world.cargarMapa({});
 
     // Confirm iniciarConArbol() resets the counters for the next run.
-    scheduler.iniciarConArbol([{ tipo: 'accion', accion: 'led', valor: 1, blockId: 'l1' }]);
+    scheduler.iniciarConArbol([{ tipo: 'accion', accion: 'detener', valor: 1, blockId: 'l1' }]);
     var metricasNuevaCorrida = scheduler.obtenerMetricas();
     assertEquals(metricasNuevaCorrida, { evalsSensor: 0, limiteSeguridad: null }, 'iniciarConArbol() resetea evalsSensor/limiteSeguridad al comenzar una nueva corrida');
     scheduler.reiniciar();

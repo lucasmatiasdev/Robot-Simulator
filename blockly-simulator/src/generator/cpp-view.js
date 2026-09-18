@@ -17,8 +17,14 @@
  * code-panel.js, interpreter.js, scheduler.js and program-tree.js require
  * NO changes at all.
  *
- * For `repetir`/`si` nodes, only the header line carries the blockId
- * (never the closing brace), matching the pre-existing highlighting rule.
+ * For `repetir`/`si`/`si_sino`/`repetir_hasta` nodes, only the header line
+ * carries the blockId (never the closing brace), matching the pre-existing
+ * highlighting rule.
+ *
+ * Sensor support: this hardware has a real HC-SR04 ultrasonic sensor wired
+ * to TRIG/ECHO (see RS.config.arduino). `si`/`si_sino`/`repetir_hasta` nodes
+ * translate into real, executable `if`/`if-else`/loop C++ — see
+ * emitirSensores() and renderNodo() below.
  */
 (function (global) {
   'use strict';
@@ -47,6 +53,30 @@
       if (node.tipo === 'repetir' && usaSensor(node.cuerpo)) return true;
     }
     return false;
+  }
+
+  /** Renders one {k, [v]} comparator operand (program-tree.js) as a C++ expression. */
+  function operandoATexto(operando) {
+    if (!operando) return '0';
+    if (operando.k === 'medirDistancia') return 'medirDistancia()';
+    if (operando.k === 'hayObstaculo') return 'hayObstaculo()';
+    if (operando.k === 'numero') return String(operando.v);
+    return '0';
+  }
+
+  /**
+   * Renders a `si`/`si_sino`/`repetir_hasta` node's condition (either the
+   * default `sensor:'hayObstaculo'` shape or the `condicion:{op,izq,der}`
+   * rs_comparar shape — see program-tree.js) into a C++ boolean expression,
+   * matching interpreter.js's evaluarCondicion()/evaluarSensor() semantics
+   * exactly (same operator set, same operand evaluation).
+   */
+  function condicionATexto(node) {
+    if (node.condicion) {
+      return operandoATexto(node.condicion.izq) + ' ' + node.condicion.op + ' ' + operandoATexto(node.condicion.der);
+    }
+    // Default shadow (no rs_comparar swapped in): bare hayObstaculo().
+    return 'hayObstaculo()';
   }
 
   RS.cppView = RS.cppView || {};
@@ -96,13 +126,14 @@
       addLinea(0, null, [tok('#define ENB ' + arduino.ENB, 'pre'), tok('   // PWM - velocidad motor 2 (derecho)', 'com')], 'cabecera');
       addLinea(0, null, [tok('#define IN3 ' + arduino.IN3, 'pre'), tok('   // Direccion motor 2 (derecho), terminal A', 'com')], 'cabecera');
       addLinea(0, null, [tok('#define IN4 ' + arduino.IN4, 'pre'), tok('  // Direccion motor 2 (derecho), terminal B', 'com')], 'cabecera');
-      addLinea(0, null, [tok('#define LED_PIN ' + arduino.LED_PIN, 'pre'), tok('  // LED integrado del Arduino UNO', 'com')], 'cabecera');
+      addLinea(0, null, [tok('#define TRIG ' + arduino.TRIG, 'pre'), tok('  // HC-SR04 - pulso de disparo (salida)', 'com')], 'cabecera');
+      addLinea(0, null, [tok('#define ECHO ' + arduino.ECHO, 'pre'), tok('  // HC-SR04 - pulso de retorno (entrada)', 'com')], 'cabecera');
       addLinea(0, null, [tok('const int VELOCIDAD = ' + velocidad + ';', 'tipo'), tok('  // 0-255', 'com')], 'cabecera');
       blanco('cabecera');
     }
 
     // ---------------------------------------------------------------
-    // Section: motores — real, callable motor + LED functions.
+    // Section: motores — real, callable motor functions.
     // detener() is emitted first so no forward declaration is needed.
     // Direction table (H-bridge, per example/control_PaperOne/README.md):
     //   avanzar     = IN1 H, IN2 L, IN3 H, IN4 L (both motors forward)
@@ -116,7 +147,6 @@
       var nRetroceder = nombreCpp.retroceder || 'retroceder';
       var nIzquierda = nombreCpp.izquierda || 'girarIzquierda';
       var nDerecha = nombreCpp.derecha || 'girarDerecha';
-      var nLed = nombreCpp.led || 'led';
 
       function pines(in1, in2, in3, in4) {
         addLinea(1, null, [tok('digitalWrite(IN1, ' + in1 + ');', 'punct')], 'motores');
@@ -177,36 +207,50 @@
       addLinea(1, null, [tok(nDetener + '();', 'call')], 'motores');
       addLinea(0, null, [tok('}', 'punct')], 'motores');
       blanco('motores');
-
-      // led(int estado)
-      addLinea(0, null, [tok('// Enciende o apaga el LED integrado (1 = encendido, 0 = apagado).', 'com')], 'motores');
-      addLinea(0, null, [tok('void ', 'tipo'), tok(nLed, 'fn'), tok('(', 'punct'), tok('int', 'tipo'), tok(' estado) {', 'punct')], 'motores');
-      addLinea(1, null, [tok('digitalWrite(LED_PIN, estado);', 'punct')], 'motores');
-      addLinea(0, null, [tok('}', 'punct')], 'motores');
-      blanco('motores');
     }
 
     // ---------------------------------------------------------------
-    // Section: sensores — ONLY emitted when the tree uses a `si` node.
-    // Honest stub: hayObstaculo() always returns false on this hardware.
-    // NEVER called from the guion — see renderNodo('si') below, which emits
-    // only a comment, never a real if(hayObstaculo()) call.
+    // Section: sensores — ONLY emitted when the tree actually uses a
+    // `si`/`si_sino`/`repetir_hasta` node (usaSensor(tree)), so a program
+    // that never reads the sensor doesn't get dead code. Real HC-SR04
+    // driver: medirDistancia() clamps a pulseIn() timeout (no echo, i.e.
+    // "nothing in range") and an out-of-range reading to RANGO_MAX, mirroring
+    // src/sim/sensors.js's own clamping exactly. hayObstaculo() is a thin
+    // wrapper, also mirroring sensors.js.
     // ---------------------------------------------------------------
     function emitirSensores() {
-      addLinea(0, null, [tok('// ATENCION: este robot (Arduino UNO) todavia no tiene sensor de distancia.', 'com')], 'sensores');
-      addLinea(0, null, [tok('// Estas funciones son un stub honesto: no se llaman desde el programa de', 'com')], 'sensores');
-      addLinea(0, null, [tok('// abajo. Para agregar un sensor real conecta un HC-SR04 (TRIG y ECHO', 'com')], 'sensores');
-      addLinea(0, null, [tok('// pueden usar los pines 2 y 3, libres a proposito) y reemplaza el cuerpo.', 'com')], 'sensores');
-      addLinea(0, null, [tok('bool ', 'tipo'), tok('hayObstaculo', 'fn'), tok('() { ', 'punct'), tok('return', 'kw'), tok(' false; }', 'punct')], 'sensores');
-      addLinea(0, null, [tok('int ', 'tipo'), tok('medirDistancia', 'fn'), tok('() { ', 'punct'), tok('return', 'kw'), tok(' 100; }', 'punct'), tok('  // cm, valor fijo sin sensor', 'com')], 'sensores');
+      var rangoMax = (typeof cfg.RANGO_MAX === 'number') ? cfg.RANGO_MAX : 100;
+      var umbral = (typeof cfg.UMBRAL_OBSTACULO === 'number') ? cfg.UMBRAL_OBSTACULO : 20;
+      addLinea(0, null, [tok('#define RANGO_MAX ' + rangoMax, 'pre'), tok('  // cm, "nada en rango" (timeout o eco fuera de rango)', 'com')], 'sensores');
+      addLinea(0, null, [tok('#define UMBRAL_OBSTACULO ' + umbral, 'pre'), tok('  // cm', 'com')], 'sensores');
+      addLinea(0, null, [tok('// Sensor de distancia HC-SR04 (TRIG/ECHO). Formula estandar:', 'com')], 'sensores');
+      addLinea(0, null, [tok('// distancia_cm = duracion_us * 0.0343 / 2 (velocidad del sonido, ida y vuelta).', 'com')], 'sensores');
+      addLinea(0, null, [tok('// Timeout de pulseIn en 30000us: cubre holgadamente el ida-y-vuelta de', 'com')], 'sensores');
+      addLinea(0, null, [tok('// RANGO_MAX (~5831us a 100cm) con margen para no cortar un eco limite.', 'com')], 'sensores');
+      addLinea(0, null, [tok('int ', 'tipo'), tok('medirDistancia', 'fn'), tok('() {', 'punct')], 'sensores');
+      addLinea(1, null, [tok('digitalWrite(TRIG, LOW);', 'punct')], 'sensores');
+      addLinea(1, null, [tok('delayMicroseconds(2);', 'punct')], 'sensores');
+      addLinea(1, null, [tok('digitalWrite(TRIG, HIGH);', 'punct')], 'sensores');
+      addLinea(1, null, [tok('delayMicroseconds(10);', 'punct')], 'sensores');
+      addLinea(1, null, [tok('digitalWrite(TRIG, LOW);', 'punct')], 'sensores');
+      addLinea(1, null, [tok('unsigned long duracion = pulseIn(ECHO, HIGH, 30000UL);', 'tipo')], 'sensores');
+      addLinea(1, null, [tok('if (duracion == 0) ', 'kw'), tok('return', 'kw'), tok(' RANGO_MAX;', 'punct'), tok('  // timeout: el eco nunca volvio', 'com')], 'sensores');
+      addLinea(1, null, [tok('long distanciaCm = (long)(duracion * 0.0343 / 2);', 'tipo')], 'sensores');
+      addLinea(1, null, [tok('if (distanciaCm > RANGO_MAX) ', 'kw'), tok('return', 'kw'), tok(' RANGO_MAX;', 'punct')], 'sensores');
+      addLinea(1, null, [tok('return', 'kw'), tok(' (int)distanciaCm;', 'punct')], 'sensores');
+      addLinea(0, null, [tok('}', 'punct')], 'sensores');
+      blanco('sensores');
+      addLinea(0, null, [tok('bool ', 'tipo'), tok('hayObstaculo', 'fn'), tok('() { ', 'punct'), tok('return', 'kw'), tok(' medirDistancia() <= UMBRAL_OBSTACULO; }', 'punct')], 'sensores');
       blanco('sensores');
     }
 
     // ---------------------------------------------------------------
     // Section: guion (inside setup) — the student's program, walked from
     // the exact same tree the simulator interpreter walks. `repetir`
-    // unrolls into a real `for` loop (compilable); `si` never becomes
-    // executable code — see the Unsupported Sensor Blocks contract.
+    // unrolls into a real `for` loop (compilable). `si`/`si_sino`/
+    // `repetir_hasta` unroll into real `if`/`if-else`/loop C++ using the
+    // real hayObstaculo()/medirDistancia() from emitirSensores() above —
+    // see condicionATexto() and renderNodo() below.
     // ---------------------------------------------------------------
     function accionTokens(node) {
       if (node.accion === 'esperar') {
@@ -224,8 +268,8 @@
       if (node.accion === 'detener') {
         return [tok(nombre, 'call'), tok('(', 'punct'), tok(')', 'punct'), tok(';', 'punct')];
       }
-      // avanzar / retroceder / izquierda / derecha / led — all take one
-      // numeric argument (ms, or 0/1 for led's `int estado`).
+      // avanzar / retroceder / izquierda / derecha — all take one numeric
+      // argument (ms).
       return [
         tok(nombre, 'call'), tok('(', 'punct'), tok(String(node.valor), 'num'),
         tok(')', 'punct'), tok(';', 'punct')
@@ -255,42 +299,46 @@
         return;
       }
       if (node.tipo === 'si') {
-        // Per the "Unsupported Sensor Blocks" contract: this hardware has no
-        // real sensor. We do NOT emit `if (hayObstaculo())` and we do NOT
-        // fabricate a call to it — only a comment at this exact position.
-        // The body is intentionally not translated into executable code.
+        var condSi = condicionATexto(node);
         addLinea(indent, node.blockId, [
-          tok('// ATENCION: bloque "si hay obstaculo" sin sensor real en este hardware;', 'com')
+          tok('if', 'kw'), tok(' (' + condSi + ') {', 'punct')
         ], 'guion');
-        addLinea(indent, null, [
-          tok('// no se ejecuta (ver hayObstaculo() en la seccion de sensores arriba).', 'com')
-        ], 'guion');
+        renderCuerpo(node.cuerpo, indent + 1, depth + 1);
+        addLinea(indent, null, [tok('}', 'punct')], 'guion');
         return;
       }
       if (node.tipo === 'si_sino') {
-        // Same honest-stub rule as 'si' above: this hardware has no real
-        // sensor, so neither the DO nor the ELSE branch is translated into
-        // executable code — only a comment at this exact position.
+        var condSiSino = condicionATexto(node);
         addLinea(indent, node.blockId, [
-          tok('// ATENCION: bloque "si / si no" (con sensor) sin sensor real en este hardware;', 'com')
+          tok('if', 'kw'), tok(' (' + condSiSino + ') {', 'punct')
         ], 'guion');
-        addLinea(indent, null, [
-          tok('// ninguna de las dos ramas se ejecuta (ver hayObstaculo() en sensores arriba).', 'com')
-        ], 'guion');
+        renderCuerpo(node.cuerpo, indent + 1, depth + 1);
+        addLinea(indent, null, [tok('} ', 'punct'), tok('else', 'kw'), tok(' {', 'punct')], 'guion');
+        renderCuerpo(node.sino, indent + 1, depth + 1);
+        addLinea(indent, null, [tok('}', 'punct')], 'guion');
         return;
       }
       if (node.tipo === 'repetir_hasta') {
-        // Same honest-stub rule: this hardware has no real sensor, and the
-        // loop's exit condition may depend on one, so the body is never
-        // translated into executable code (unlike `repetir`'s real `for`
-        // loop above, whose count is known at compile time) — only a
-        // comment at this exact position.
+        // Pre-test ("while not") loop, per interpreter.js: the body runs
+        // while the condition is still false, re-checked before each pass.
+        // Mirrors the interpreter's own MAX_ITER_REPETIR_HASTA safety cap
+        // (an uncapped `while (!(cond)) {...}` could spin real hardware
+        // forever if the sensor condition never becomes true) with a
+        // counter-guarded `for`, same contadorNombre(depth) scheme `repetir`
+        // uses above so nested loops at different depths don't collide.
+        var condHasta = condicionATexto(node);
+        var vHasta = contadorNombre(depth);
+        var maxIter = (cfg.MAX_ITER_REPETIR_HASTA) || 1000;
         addLinea(indent, node.blockId, [
-          tok('// ATENCION: bloque "repetir hasta" (con sensor) sin sensor real en este hardware;', 'com')
+          tok('for', 'kw'), tok(' (', 'punct'), tok('int', 'tipo'), tok(' ' + vHasta + ' = ', 'punct'),
+          tok('0', 'num'), tok('; ' + vHasta + ' < ', 'punct'), tok(String(maxIter), 'num'),
+          tok(' && !(' + condHasta + '); ' + vHasta + '++) {', 'punct')
         ], 'guion');
-        addLinea(indent, null, [
-          tok('// el cuerpo no se ejecuta (ver hayObstaculo() en la seccion de sensores arriba).', 'com')
+        addLinea(indent + 1, null, [
+          tok('// tope de seguridad ' + maxIter + ' iteraciones, igual al del simulador (MAX_ITER_REPETIR_HASTA)', 'com')
         ], 'guion');
+        renderCuerpo(node.cuerpo, indent + 1, depth + 1);
+        addLinea(indent, null, [tok('}', 'punct')], 'guion');
         return;
       }
     }
@@ -309,7 +357,8 @@
       addLinea(1, null, [tok('pinMode(ENB, OUTPUT);', 'punct')], 'setup');
       addLinea(1, null, [tok('pinMode(IN3, OUTPUT);', 'punct')], 'setup');
       addLinea(1, null, [tok('pinMode(IN4, OUTPUT);', 'punct')], 'setup');
-      addLinea(1, null, [tok('pinMode(LED_PIN, OUTPUT);', 'punct')], 'setup');
+      addLinea(1, null, [tok('pinMode(TRIG, OUTPUT);', 'punct')], 'setup');
+      addLinea(1, null, [tok('pinMode(ECHO, INPUT);', 'punct')], 'setup');
       addLinea(1, null, [tok(nDetener + '();', 'call')], 'setup');
       blanco('setup');
       addLinea(1, null, [tok('// ---- Tu programa ----', 'com')], 'setup');

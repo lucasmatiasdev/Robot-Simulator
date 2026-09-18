@@ -23,7 +23,6 @@
     rs_izquierda: 'izquierda',
     rs_derecha: 'derecha',
     rs_detener: 'detener',
-    rs_led: 'led',
     // 'esperar' is simulator/sketch-only: it is NOT part of RS.config.ACCIONES
     // (the firmware's mqtt_handler.h vocabulary subset).
     rs_espera: 'esperar'
@@ -53,11 +52,6 @@
     return Number(val) || 0;
   }
 
-  function readEstado(block) {
-    var val = block.getFieldValue('ESTADO');
-    return Number(val);
-  }
-
   function walkChain(startBlock) {
     var nodos = [];
     var block = startBlock;
@@ -75,9 +69,7 @@
     if (ACCION_POR_TIPO[type]) {
       var accion = ACCION_POR_TIPO[type];
       var nodo = { tipo: 'accion', accion: accion, blockId: block.id };
-      if (type === 'rs_led') {
-        nodo.valor = readEstado(block);
-      } else if (type !== 'rs_detener') {
+      if (type !== 'rs_detener') {
         nodo.valor = readMs(block);
       }
       return nodo;
@@ -166,6 +158,30 @@
       arbol = arbol.concat(walkChain(block));
     }
     return arbol;
+  };
+
+  /**
+   * Pre-run gate for the UI "Ejecutar" flow (not the interpreter/scheduler
+   * API itself — iniciarConArbol/tests keep building trees directly).
+   * Requires exactly one statement-chain root and that root to be
+   * rs_inicio, matching the same getTopBlocks/outputConnection filter
+   * buildProgramTree uses to pick its roots.
+   */
+  RS.generator.validarPrograma = function (workspace) {
+    var topBlocks = workspace.getTopBlocks(true);
+    var raices = [];
+    for (var i = 0; i < topBlocks.length; i++) {
+      if (topBlocks[i].outputConnection) continue; // stray reporter block
+      raices.push(topBlocks[i]);
+    }
+
+    if (raices.length === 0) {
+      return { ok: false, mensaje: 'Falta el bloque "Inicio/evento". Agregalo desde la categoría Inicio para poder ejecutar.' };
+    }
+    if (raices.length > 1 || raices[0].type !== 'rs_inicio') {
+      return { ok: false, mensaje: 'El programa debe empezar con el bloque "Inicio/evento" y todos los demás bloques deben estar conectados a él.' };
+    }
+    return { ok: true };
   };
 
   RS.protocol = RS.protocol || {};

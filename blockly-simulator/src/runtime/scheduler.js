@@ -74,12 +74,6 @@
         return;
       }
 
-      if (accion === 'led') {
-        RS.robot.setLed(currentNode.valor);
-        avanzarSiguienteNodo();
-        return;
-      }
-
       var duracion = currentNode.valor || 0;
       var restante = Math.max(0, duracion - elapsedNode);
       var dtAplicado = Math.min(dt, restante);
@@ -133,6 +127,17 @@
 
       if (estado === 'running') {
         procesarFrame(dt);
+      }
+
+      if (RS.ui && RS.ui.sensorReadout) {
+        if (estado === 'running') {
+          RS.ui.sensorReadout.actualizar(
+            RS.sensors.medirDistancia(RS.world, RS.robot.estado),
+            RS.sensors.hayObstaculo(RS.world, RS.robot.estado)
+          );
+        } else {
+          RS.ui.sensorReadout.reset();
+        }
       }
 
       if (ctx) {

@@ -27,7 +27,7 @@
   }
 
   /**
-   * dibujarRobot(ctx, robot, opts) — chassis + 2 wheels + heading nose + LED,
+   * dibujarRobot(ctx, robot, opts) — chassis + 2 wheels + heading nose,
    * drawn entirely inside the caller's already-translated/rotated frame.
    * Invariant (do not violate): every painted vertex satisfies
    * |x| <= 20 && |y| <= 20, so the visual never overlaps an obstacle that
@@ -65,21 +65,6 @@
     ctx.lineTo(9, 7);
     ctx.closePath();
     ctx.fill();
-
-    // LED dot: circle (6,0) r=4, glows amber when active
-    ctx.beginPath();
-    ctx.arc(6, 0, 4, 0, Math.PI * 2);
-    if (robot.led) {
-      ctx.save();
-      ctx.shadowColor = paleta.ledOn || '#ffd54a';
-      ctx.shadowBlur = 8;
-      ctx.fillStyle = paleta.ledOn || '#ffd54a';
-      ctx.fill();
-      ctx.restore();
-    } else {
-      ctx.fillStyle = paleta.ledOff || '#4a5766';
-      ctx.fill();
-    }
   }
 
   /**
@@ -208,7 +193,7 @@
         ctx.setLineDash([]);
       }
 
-      // Robot — chassis + wheels + nose + LED, all within |x|<=20 && |y|<=20
+      // Robot — chassis + wheels + nose, all within |x|<=20 && |y|<=20
       // (same 40x40 AABB as before; this only changes what is painted).
       ctx.save();
       ctx.translate(robot.x, robot.y);

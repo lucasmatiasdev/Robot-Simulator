@@ -34,6 +34,13 @@
         contenedor.classList.add('feedback-error');
       },
 
+      /** Generic pre-run validation error (e.g. missing/misplaced Inicio). */
+      mostrarError: function (mensaje) {
+        if (!contenedor) return;
+        contenedor.textContent = mensaje;
+        contenedor.classList.add('feedback-error');
+      },
+
       limpiar: function () {
         if (!contenedor) return;
         contenedor.textContent = '';

@@ -86,6 +86,15 @@ var idxPinModeIn4 = texto.indexOf('pinMode(IN4, OUTPUT)');
 var idxAvanzarCall = texto.indexOf('avanzar(1000);'); // inside setup's guion
 assert(idxAvanzarCall > idxPinModeEna, 'pinMode ocurre antes de la primera llamada a avanzar()');
 
+// 3b. TRIG/ECHO pin defines (cabecera) and pinMode calls (setup), always
+//     emitted (fixed hardware wiring), matching RS.config.arduino.
+assert(texto.indexOf('#define TRIG 2') !== -1, 'se define TRIG en la cabecera con el pin de RS.config.arduino.TRIG');
+assert(texto.indexOf('#define ECHO 3') !== -1, 'se define ECHO en la cabecera con el pin de RS.config.arduino.ECHO');
+var idxPinModeTrig = texto.indexOf('pinMode(TRIG, OUTPUT)');
+var idxPinModeEcho = texto.indexOf('pinMode(ECHO, INPUT)');
+assert(idxPinModeTrig !== -1 && idxPinModeTrig > idxSetup, 'pinMode(TRIG, OUTPUT) esta presente dentro de setup()');
+assert(idxPinModeEcho !== -1 && idxPinModeEcho > idxSetup, 'pinMode(ECHO, INPUT) esta presente dentro de setup()');
+
 // 4. izquierda function writes the correct pin pattern
 //    girarIzquierda = motor1 (izq) atras (IN1 LOW, IN2 HIGH), motor2 (der) adelante (IN3 HIGH, IN4 LOW)
 var idxIzq = texto.indexOf('void girarIzquierda');
@@ -116,22 +125,24 @@ assert(/IN1, LOW\);[\s\S]*IN2, LOW\);[\s\S]*IN3, LOW\);[\s\S]*IN4, LOW\);/.test(
 assert(/analogWrite\(ENA, 0\);/.test(cuerpoDet) && /analogWrite\(ENB, 0\);/.test(cuerpoDet), 'detener: ambos PWM a 0');
 assert(idxDet < idxSetup, 'detener() se define primero (antes de setup()), sin necesidad de forward declaration');
 
-// 5. the "si" node generates the non-simulable-sensor comment and does NOT
-//    generate a real call to hayObstaculo() in the guion (setup's script).
+// 5. the "si" node generates a REAL if (hayObstaculo()) { ... } and DOES
+//    translate its body into executable code in the guion (setup's script).
 var lineaSi = resultado.lineas.filter(function (l) { return l.blockId === 's1'; })[0];
 assert(!!lineaSi, 'el nodo si mapea su blockId a una linea del sketch');
-assert(lineaSi.texto.indexOf('ATENCION') !== -1, 'la linea del nodo si contiene el comentario ATENCION');
+assertEquals(lineaSi.texto, 'if (hayObstaculo()) {', 'la linea del nodo si emite un if (hayObstaculo()) real');
 assert(lineaSi.seccion === 'guion', 'la linea del nodo si vive en la seccion guion (dentro de setup)');
 
 var lineasGuion = resultado.lineas.filter(function (l) { return l.seccion === 'guion'; });
 var hayLlamadaRealAHayObstaculo = lineasGuion.some(function (l) {
   return /(^|[^/])hayObstaculo\(\)/.test(l.texto) && l.texto.indexOf('//') !== 0;
 });
-assert(!hayLlamadaRealAHayObstaculo, 'ninguna linea del guion contiene una llamada REAL a hayObstaculo() (solo el comentario)');
-assert(resultado.lineas.filter(function (l) { return l.blockId === 'p1'; }).length === 0, 'el cuerpo del si (detener) no se tradujo a codigo ejecutable en el guion');
+assert(hayLlamadaRealAHayObstaculo, 'una linea del guion contiene una llamada REAL a hayObstaculo()');
+assert(resultado.lineas.filter(function (l) { return l.blockId === 'p1'; }).length === 1, 'el cuerpo del si (detener) SI se tradujo a codigo ejecutable en el guion');
 
-// The stub itself IS defined (documentation only), never invoked from the guion.
-assert(texto.indexOf('bool hayObstaculo() { return false; }') !== -1, 'se emite el stub honesto hayObstaculo() porque el arbol usa un nodo si');
+// The real HC-SR04 driver is emitted (medirDistancia() reads pulseIn, hayObstaculo() wraps it).
+assert(texto.indexOf('int medirDistancia() {') !== -1, 'se emite el driver real medirDistancia() porque el arbol usa un nodo si');
+assert(texto.indexOf('pulseIn(ECHO, HIGH, 30000UL)') !== -1, 'medirDistancia() usa pulseIn() con timeout sobre ECHO');
+assert(texto.indexOf('bool hayObstaculo() { return medirDistancia() <= UMBRAL_OBSTACULO; }') !== -1, 'hayObstaculo() delega en medirDistancia() y UMBRAL_OBSTACULO');
 
 // 6. loop() calls no movement function
 var idxLoop = texto.indexOf('void loop()');
@@ -151,8 +162,8 @@ if (fs.existsSync(mqttHandlerPath)) {
   assertEquals(antes, despues, 'example/control_PaperOne/mqtt_handler.h no fue modificado por la generacion');
 }
 
-// ---- rs_si_sino (if/else): honest-stub emission, never fabricates a real ----
-// ---- hayObstaculo() call in the emitted sketch; sketch remains compilable ----
+// ---- rs_si_sino (if/else): real if/else emission, both branches translated ----
+// ---- into executable code; sketch remains compilable ----
 var arbolSiSino = [
   { tipo: 'accion', accion: 'avanzar', valor: 1200, blockId: 'av1' },
   { tipo: 'si_sino', sensor: 'hayObstaculo', blockId: 'ss1',
@@ -167,24 +178,25 @@ assertEquals((textoSiSino.match(/void loop\(\)/g) || []).length, 1, 'si_sino: co
 
 var lineaSiSino = resultadoSiSino.lineas.filter(function (l) { return l.blockId === 'ss1'; })[0];
 assert(!!lineaSiSino, 'si_sino: el nodo mapea su blockId a una linea del sketch');
-assert(lineaSiSino.texto.indexOf('ATENCION') !== -1, 'si_sino: la linea contiene el comentario ATENCION');
+assertEquals(lineaSiSino.texto, 'if (hayObstaculo()) {', 'si_sino: la linea emite un if (hayObstaculo()) real');
 assert(lineaSiSino.seccion === 'guion', 'si_sino: la linea vive en la seccion guion (dentro de setup)');
+assert(textoSiSino.indexOf('} else {') !== -1, 'si_sino: emite un else real');
 
 var lineasGuionSiSino = resultadoSiSino.lineas.filter(function (l) { return l.seccion === 'guion'; });
 var hayLlamadaRealSiSino = lineasGuionSiSino.some(function (l) {
   return /(^|[^/])hayObstaculo\(\)/.test(l.texto) && l.texto.indexOf('//') !== 0;
 });
-assert(!hayLlamadaRealSiSino, 'si_sino: ninguna linea del guion contiene una llamada REAL a hayObstaculo() (solo el comentario)');
-assert(resultadoSiSino.lineas.filter(function (l) { return l.blockId === 'ssd1'; }).length === 0, 'si_sino: la rama DO (derecha) no se tradujo a codigo ejecutable');
-assert(resultadoSiSino.lineas.filter(function (l) { return l.blockId === 'sse1'; }).length === 0, 'si_sino: la rama ELSE (avanzar) no se tradujo a codigo ejecutable');
-assert(textoSiSino.indexOf('bool hayObstaculo() { return false; }') !== -1, 'si_sino: se emite el stub honesto hayObstaculo() porque el arbol usa un nodo si_sino');
+assert(hayLlamadaRealSiSino, 'si_sino: una linea del guion contiene una llamada REAL a hayObstaculo()');
+assert(resultadoSiSino.lineas.filter(function (l) { return l.blockId === 'ssd1'; }).length === 1, 'si_sino: la rama DO (derecha) SI se tradujo a codigo ejecutable');
+assert(resultadoSiSino.lineas.filter(function (l) { return l.blockId === 'sse1'; }).length === 1, 'si_sino: la rama ELSE (avanzar) SI se tradujo a codigo ejecutable');
+assert(textoSiSino.indexOf('int medirDistancia() {') !== -1, 'si_sino: se emite el driver real medirDistancia() porque el arbol usa un nodo si_sino');
 
 var idxLoopSiSino = textoSiSino.indexOf('void loop()');
 var cuerpoLoopSiSino = textoSiSino.substring(idxLoopSiSino);
 assert(!/\bavanzar\(\d|\bretroceder\(\d|\bgirarIzquierda\(\d|\bgirarDerecha\(\d/.test(cuerpoLoopSiSino), 'si_sino: loop() no llama a ninguna funcion de movimiento');
 
-// ---- rs_repetir_hasta: honest-stub emission, never fabricates a real ----
-// ---- hayObstaculo() call, body never translated into executable code ----
+// ---- rs_repetir_hasta: real counter-guarded for loop (pre-test "while not" ----
+// ---- semantics + MAX_ITER_REPETIR_HASTA safety cap), body translated ----
 var arbolRepetirHasta = [
   { tipo: 'repetir_hasta', sensor: 'hayObstaculo', blockId: 'rh1',
     cuerpo: [{ tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'rhd1' }] },
@@ -198,7 +210,7 @@ assertEquals((textoRepetirHasta.match(/void loop\(\)/g) || []).length, 1, 'repet
 
 var lineaRepetirHasta = resultadoRepetirHasta.lineas.filter(function (l) { return l.blockId === 'rh1'; })[0];
 assert(!!lineaRepetirHasta, 'repetir_hasta: el nodo mapea su blockId a una linea del sketch');
-assert(lineaRepetirHasta.texto.indexOf('ATENCION') !== -1, 'repetir_hasta: la linea contiene el comentario ATENCION');
+assertEquals(lineaRepetirHasta.texto, 'for (int i = 0; i < 1000 && !(hayObstaculo()); i++) {', 'repetir_hasta: emite un for real con tope de seguridad y condicion negada');
 assert(lineaRepetirHasta.seccion === 'guion', 'repetir_hasta: la linea vive en la seccion guion (dentro de setup)');
 assertEquals(resultadoRepetirHasta.lineasPorBloque.rh1.length, 1, 'repetir_hasta: el blockId mapea solo a su(s) linea(s) de cabecera, no a una linea de cierre separada');
 
@@ -206,9 +218,10 @@ var lineasGuionRepetirHasta = resultadoRepetirHasta.lineas.filter(function (l) {
 var hayLlamadaRealRepetirHasta = lineasGuionRepetirHasta.some(function (l) {
   return /(^|[^/])hayObstaculo\(\)/.test(l.texto) && l.texto.indexOf('//') !== 0;
 });
-assert(!hayLlamadaRealRepetirHasta, 'repetir_hasta: ninguna linea del guion contiene una llamada REAL a hayObstaculo() (solo el comentario)');
-assert(resultadoRepetirHasta.lineas.filter(function (l) { return l.blockId === 'rhd1'; }).length === 0, 'repetir_hasta: el cuerpo (avanzar) NO se tradujo a codigo ejecutable en el guion');
-assert(textoRepetirHasta.indexOf('bool hayObstaculo() { return false; }') !== -1, 'repetir_hasta: se emite el stub honesto hayObstaculo() porque el arbol usa un nodo repetir_hasta');
+assert(hayLlamadaRealRepetirHasta, 'repetir_hasta: una linea del guion contiene una llamada REAL a hayObstaculo()');
+assert(resultadoRepetirHasta.lineas.filter(function (l) { return l.blockId === 'rhd1'; }).length === 1, 'repetir_hasta: el cuerpo (avanzar) SI se tradujo a codigo ejecutable en el guion');
+assert(textoRepetirHasta.indexOf('int medirDistancia() {') !== -1, 'repetir_hasta: se emite el driver real medirDistancia() porque el arbol usa un nodo repetir_hasta');
+assert(textoRepetirHasta.indexOf('1000 iteraciones, igual al del simulador') !== -1, 'repetir_hasta: el comentario documenta el tope de seguridad compartido con el simulador');
 assert(resultadoRepetirHasta.lineas.filter(function (l) { return l.blockId === 'despues1'; }).length === 1, 'repetir_hasta: el resto del programa (despues del loop) SI se traduce a codigo ejecutable');
 
 var idxLoopRepetirHasta = textoRepetirHasta.indexOf('void loop()');
@@ -222,6 +235,28 @@ var arbolEspera = [
 var textoEspera = RS.cppView.renderTexto(arbolEspera);
 assert(textoEspera.indexOf('delay(750);') !== -1, 'esperar(750) genera delay(750); en el sketch');
 assert(textoEspera.indexOf('void esperar') === -1, 'esperar() no genera una funcion custom (usa el delay() nativo)');
+
+// ---- rs_comparar condition-to-C++ translation (si / si_sino / repetir_hasta ----
+// ---- with a swapped-in comparator instead of the default hayObstaculo() shadow) ----
+var arbolComparar = [
+  { tipo: 'si', condicion: { op: '<', izq: { k: 'medirDistancia' }, der: { k: 'numero', v: 20 } }, blockId: 'cmp1',
+    cuerpo: [{ tipo: 'accion', accion: 'detener', blockId: 'cmp1d' }] },
+  { tipo: 'si_sino', condicion: { op: '==', izq: { k: 'hayObstaculo' }, der: { k: 'numero', v: 1 } }, blockId: 'cmp2',
+    cuerpo: [{ tipo: 'accion', accion: 'detener', blockId: 'cmp2d' }],
+    sino: [{ tipo: 'accion', accion: 'avanzar', valor: 200, blockId: 'cmp2e' }] },
+  { tipo: 'repetir_hasta', condicion: { op: '>=', izq: { k: 'medirDistancia' }, der: { k: 'numero', v: 50 } }, blockId: 'cmp3',
+    cuerpo: [{ tipo: 'accion', accion: 'derecha', valor: 100, blockId: 'cmp3d' }] }
+];
+var resultadoComparar = RS.cppView.render(arbolComparar);
+
+var lineaCmp1 = resultadoComparar.lineas.filter(function (l) { return l.blockId === 'cmp1'; })[0];
+assertEquals(lineaCmp1.texto, 'if (medirDistancia() < 20) {', 'rs_comparar: si con medirDistancia() < 20 se traduce literalmente');
+
+var lineaCmp2 = resultadoComparar.lineas.filter(function (l) { return l.blockId === 'cmp2'; })[0];
+assertEquals(lineaCmp2.texto, 'if (hayObstaculo() == 1) {', 'rs_comparar: si_sino con hayObstaculo() == 1 (comparado contra numero) se traduce literalmente');
+
+var lineaCmp3 = resultadoComparar.lineas.filter(function (l) { return l.blockId === 'cmp3'; })[0];
+assertEquals(lineaCmp3.texto, 'for (int i = 0; i < 1000 && !(medirDistancia() >= 50); i++) {', 'rs_comparar: repetir_hasta con medirDistancia() >= 50 se traduce literalmente (condicion negada en el for)');
 
 console.log('\n' + (fallidos === 0 ? 'TODOS LOS TESTS PASARON' : (fallidos + ' TEST(S) FALLARON')) + ' (' + (total - fallidos) + '/' + total + ')');
 process.exit(fallidos === 0 ? 0 : 1);

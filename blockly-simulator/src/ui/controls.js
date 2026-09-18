@@ -31,6 +31,12 @@
     });
 
     btnEjecutar.addEventListener('click', function () {
+      var validacion = RS.generator.validarPrograma(workspace);
+      if (!validacion.ok) {
+        if (RS.ui.feedback) RS.ui.feedback.mostrarError(validacion.mensaje);
+        return;
+      }
+      if (RS.ui.feedback) RS.ui.feedback.limpiar();
       if (RS.ui.codePanel) RS.ui.codePanel.snapshot();
       scheduler.iniciar(workspace);
     });

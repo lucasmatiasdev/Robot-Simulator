@@ -1,6 +1,6 @@
 /**
- * RS block definitions: the 6 action blocks (avanzar, retroceder, izquierda,
- * derecha, detener, led) plus hayObstaculo()/medirDistancia() sensor blocks,
+ * RS block definitions: the 5 action blocks (avanzar, retroceder, izquierda,
+ * derecha, detener) plus hayObstaculo()/medirDistancia() sensor blocks,
  * the repeat-N-times block, the repeat-until block (pre-test, "while not",
  * with a mandatory safety-iteration cap), the "si" decision block, and
  * "si/si no" (fixed two-slot if/else, no mutator). Also: rs_inicio (hat, no
@@ -16,7 +16,6 @@
   var Blockly = global.Blockly;
 
   var COLOR_MOVIMIENTO = 210;
-  var COLOR_ACTUADORES = 40;
   var COLOR_SENSORES = 290;
   var COLOR_REPETICION = 20;
   var COLOR_INICIO = 0;
@@ -50,23 +49,6 @@
       this.setNextStatement(true, null);
       this.setColour(COLOR_MOVIMIENTO);
       this.setTooltip('detener(): detiene el robot inmediatamente.');
-    }
-  };
-
-  // --- Actuadores ---
-  Blockly.Blocks['rs_led'] = {
-    init: function () {
-      this.appendDummyInput()
-        .appendField('led(')
-        .appendField(new Blockly.FieldDropdown([
-          ['encendido (1)', '1'],
-          ['apagado (0)', '0']
-        ]), 'ESTADO')
-        .appendField(')');
-      this.setPreviousStatement(true, null);
-      this.setNextStatement(true, null);
-      this.setColour(COLOR_ACTUADORES);
-      this.setTooltip('led(1/0): enciende o apaga el LED.');
     }
   };
 
@@ -227,7 +209,6 @@
   RS.blocks = {
     INICIO_TYPES: ['rs_inicio'],
     MOVIMIENTO_TYPES: ['rs_avanzar', 'rs_retroceder', 'rs_izquierda', 'rs_derecha', 'rs_detener', 'rs_espera'],
-    ACTUADOR_TYPES: ['rs_led'],
     SENSOR_TYPES: ['rs_hay_obstaculo', 'rs_medir_distancia', 'rs_si_obstaculo', 'rs_si_sino', 'rs_comparar'],
     REPETICION_TYPES: ['rs_repetir', 'rs_repetir_hasta']
   };

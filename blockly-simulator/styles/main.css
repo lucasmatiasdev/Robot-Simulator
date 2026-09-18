@@ -8,7 +8,7 @@
   --a-500: #4f6ef7; --a-600: #3d59d8;      /* primary  */
   --ok-500: #16a34a; --ok-600: #12833c;    /* Ejecutar */
   --dg-500: #dc2626; --dg-600: #b91c1c;    /* Detener  */
-  --amber: #f5c518;                         /* active line / LED */
+  --amber: #f5c518;                         /* active line */
   /* type */
   --ff-ui: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --ff-code: ui-monospace, 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
@@ -273,6 +273,14 @@ html, body {
 #feedback-linea.feedback-error {
   color: #ff9a8b;
   font-weight: 600;
+}
+
+#sensor-readout {
+  display: flex;
+  gap: var(--sp-3);
+  margin-left: auto;
+  font-size: var(--fs-sm);
+  color: var(--n-400);
 }
 
 /* ---- Panels: titled cards, auto/1fr internal grid ---- */

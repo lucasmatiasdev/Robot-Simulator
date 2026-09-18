@@ -56,6 +56,12 @@
 
     RS.ui.initHighlight(workspace);
     RS.ui.feedback.init(feedbackDiv);
+    if (RS.ui.sensorReadout) {
+      RS.ui.sensorReadout.init(
+        document.getElementById('sensor-distancia'),
+        document.getElementById('sensor-obstaculo')
+      );
+    }
     RS.ui.codePanel.init(workspace, codigoDiv);
     RS.ui.initControls(workspace, {
       ejecutar: document.getElementById('btn-ejecutar'),
@@ -172,6 +178,7 @@
       RS.world.cargarMapa(leccion ? leccion.mapa : {});
       RS.robot.reset();
       workspace.clear();
+      if (RS.toolbox.paraLeccion) workspace.updateToolbox(RS.toolbox.paraLeccion(leccionId));
       if (leccionId === 1) precargarProgramaLeccion1(workspace);
       RS.lessons.panel.mostrarLeccion(leccionId);
       // The map editor is sandbox-only: never active during a graded lesson.
@@ -205,6 +212,7 @@
           }
           RS.robot.reset();
           workspace.clear();
+          workspace.updateToolbox(RS.toolbox);
           RS.lessons.panel.mostrarSandbox();
           salirDeModoEdicion();
           if (editorMapaEl) editorMapaEl.hidden = false;

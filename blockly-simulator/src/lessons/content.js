@@ -127,113 +127,89 @@
   };
   var MAPA_LECCION_2 = RS.gridAdapter.aPixeles(GRID_LECCION_2);
   var GRID_LECCION_3 = {
-    // Genuine two-turn zigzag (east → south → east), both required: wall A
-    // (x280-360,y160-320) blocks the direct east path at the travel row,
-    // forcing a turn before x=260; wall B (x240-400,y400-440) blocks
-    // southward overshoot, forcing the second turn before continuing east.
-    // Third obstacle is purely decorative (far corner, off-path).
-    // Empirically verified (Node harness): avanzar(1333)+derecha(542)+
-    // avanzar(542)+izquierda(542)+avanzar(2834) reaches x≈551.48,
-    // y≈364.47 — inside the goal; going straight with no turn collides
-    // against wall A at x≈259.68.
+    // Bounded east-west corridor (rows5-9) walled off top and bottom, so the
+    // map reads as an actual hallway rather than floating blocks. Two
+    // turn-forcing piers sit inside it, offset top/bottom: pier 1 (col7-8)
+    // blocks only the top half of the corridor, forcing a detour through
+    // the bottom half; pier 2 (col13-14) blocks only the bottom half,
+    // forcing a second detour back through the top half before reaching
+    // the goal — a genuine two-turn zigzag, matching design's "más de un
+    // giro" requirement.
     version: 1, cols: 20, rows: 15,
     muros: [
-      { col: 7, row: 4, colSpan: 2, rowSpan: 4 },
-      { col: 6, row: 10, colSpan: 4, rowSpan: 1 },
-      { col: 15, row: 1, rowSpan: 2 }
+      { col: 0, row: 0, colSpan: 20, rowSpan: 5 },
+      { col: 0, row: 10, colSpan: 20, rowSpan: 5 },
+      { col: 7, row: 5, colSpan: 2, rowSpan: 3 },
+      { col: 13, row: 7, colSpan: 2, rowSpan: 3 }
     ],
     inicio: { col: 1, row: 7, angulo: 0 },
-    meta: { col: 13, row: 8, colSpan: 2, rowSpan: 2 }
+    meta: { col: 16, row: 6, colSpan: 2, rowSpan: 2 }
   };
   var MAPA_LECCION_3 = RS.gridAdapter.aPixeles(GRID_LECCION_3);
   var GRID_LECCION_4 = {
-    // Load-bearing wall at col10-11 (x400-480,y200-400) sits far enough
-    // out that `hayObstaculo()` (<=20cm = 80px) trips comfortably before
-    // the collision boundary (x>=380). Two decorative strips (rows1/12)
-    // stay clear of the travel band.
-    // Empirically verified: avanzar(2333)+si hayObstaculo(){detener()}
-    // stops at x≈339.96, sensor consulted once — inside the goal;
-    // avanzar(4000) with no sensor check collides at x≈378.72.
+    // Bounded corridor (rows5-9), walled top and bottom, dead-ending at a
+    // full-height wall (col10-11) that spans the whole corridor — there is
+    // no way around it, only a sensor-timed stop before it. `hayObstaculo()`
+    // (<=20cm = 80px) trips comfortably before the collision boundary.
     version: 1, cols: 20, rows: 15,
     muros: [
-      { col: 10, row: 5, colSpan: 2, rowSpan: 5 },
-      { col: 2, row: 1, colSpan: 7, rowSpan: 1 },
-      { col: 2, row: 12, colSpan: 7, rowSpan: 1 }
+      { col: 0, row: 0, colSpan: 20, rowSpan: 5 },
+      { col: 0, row: 10, colSpan: 20, rowSpan: 5 },
+      { col: 10, row: 5, colSpan: 2, rowSpan: 5 }
     ],
     inicio: { col: 1, row: 7, angulo: 0 },
     meta: { col: 7, row: 6, colSpan: 2, rowSpan: 2 }
   };
   var MAPA_LECCION_4 = RS.gridAdapter.aPixeles(GRID_LECCION_4);
   var GRID_LECCION_5 = {
-    // Load-bearing wall at col9-10 (x360-440,y200-400) sits astride the
-    // travel row; the goal is south of it, reached purely by the post-turn
-    // southward leg (the wall's column range never overlaps the south
-    // path, so no second collision risk once turned). Two decorative
-    // pieces add visual richness without touching the intended path.
-    // Empirically verified: avanzar(2000)+si_sino(hayObstaculo){derecha
-    // (500)}sino{}+avanzar(1167) reaches x=300, y≈440.04, sensor consulted
-    // once — inside the goal; never turning collides at x≈338.4.
+    // Cross-shaped hallway: a main east-west corridor (rows5-9) walled off
+    // above, with a full-height wall (col10-11) blocking it dead ahead —
+    // the only way through is a branch corridor (cols6-9) dropping south
+    // into a lower room that holds the goal. `si / si no` decides whether
+    // to take that branch once the sensor trips.
     version: 1, cols: 20, rows: 15,
     muros: [
-      { col: 9, row: 5, colSpan: 2, rowSpan: 5 },
-      { col: 15, row: 1, rowSpan: 3 },
-      { col: 2, row: 12, colSpan: 4, rowSpan: 1 }
+      { col: 0, row: 0, colSpan: 20, rowSpan: 5 },
+      { col: 0, row: 10, colSpan: 6, rowSpan: 5 },
+      { col: 10, row: 5, colSpan: 2, rowSpan: 5 },
+      { col: 10, row: 10, colSpan: 10, rowSpan: 5 }
     ],
     inicio: { col: 1, row: 7, angulo: 0 },
-    meta: { col: 6, row: 10, colSpan: 2, rowSpan: 2 }
+    meta: { col: 7, row: 11, colSpan: 2, rowSpan: 2 }
   };
   var MAPA_LECCION_5 = RS.gridAdapter.aPixeles(GRID_LECCION_5);
   var GRID_LECCION_6 = {
-    // Load-bearing wall at col11-12 (x440-520,y200-400) is pushed further
-    // out than Lessons 2/4 for a longer, more visible loop (more
-    // repetitions). Two decorative strips (rows1/12) stay clear of the
-    // travel band.
-    // Empirically verified: "repetir hasta hayObstaculo() { avanzar(100) }"
-    // exits at x=360, y=300, evalsSensor=26, limiteSeguridad=null —
-    // inside the goal; a straight avanzar with no loop reaches x=300
-    // without colliding, but evalsSensor stays 0 (<2), correctly failing
-    // the criterio (the student must actually use the loop's sensor).
+    // Bounded corridor (rows5-9), walled top and bottom, dead-ending at a
+    // full-height wall (col11-12) pushed further out than Lessons 2/4 for a
+    // longer, more visible loop (more repetitions before `hayObstaculo()`
+    // trips). Same dead-end shape as Lesson 4 — the student must actually
+    // use the loop's sensor, not just guess a fixed distance.
     version: 1, cols: 20, rows: 15,
     muros: [
-      { col: 11, row: 5, colSpan: 2, rowSpan: 5 },
-      { col: 2, row: 1, colSpan: 8, rowSpan: 1 },
-      { col: 2, row: 12, colSpan: 8, rowSpan: 1 }
+      { col: 0, row: 0, colSpan: 20, rowSpan: 5 },
+      { col: 0, row: 10, colSpan: 20, rowSpan: 5 },
+      { col: 11, row: 5, colSpan: 2, rowSpan: 5 }
     ],
     inicio: { col: 1, row: 7, angulo: 0 },
     meta: { col: 8, row: 6, colSpan: 2, rowSpan: 2 }
   };
   var MAPA_LECCION_6 = RS.gridAdapter.aPixeles(GRID_LECCION_6);
   var GRID_LECCION_7 = {
-    // Capstone: wall1 (x280-360,y200-320) forces an early south detour;
-    // wall2+wall3 (x560-640, y120-320 and y400-600) form a full vertical
-    // barrier across columns 14-15 with a single 2-cell (80px) gap at
-    // y320-400 — a genuine precision pinch corridor (design D3's
-    // "deliberate Nivel 3 precision segment") that every east-bound route
-    // must thread through correctly aligned. The post-detour cruising
-    // altitude (y=360) clears wall1's bottom edge (y>=340 needed) AND
-    // sits inside the pinch's safe band (y in [340,380]) simultaneously —
-    // both obstacle encounters are resolved by the same single detour.
-    // Fourth obstacle is decorative (far south, off the route). The wide
-    // goal spans 4 columns x 11 rows (x640-800,y80-520), preserving the
-    // original capstone's large landing zone.
-    // Empirically verified (Node harness, real scheduler):
-    //   repetir_hasta{avanzar(100)}→si_sino{derecha(500)}sino{}→
-    //   avanzar(500)→izquierda(500)→avanzar(4134) reaches x≈700.08,
-    //   y=360, evalsSensor=14, limiteSeguridad=null — inside the goal.
-    //   Barreling straight east with no detour at all collides against
-    //   wall1 at x≈259.68 — no solution leak.
-    // Deviation from design D4's table: this slice ships ONE verified
-    // detour (2 turns) around wall1, not the "4+ turns / 2 independent
-    // detours" the difficulty-curve table sketches. The wall2/wall3 pinch
-    // still forces a second, distinct precision constraint (correct
-    // cruising altitude) without adding unverified extra turns — see this
-    // batch's apply-progress/report for the explicit call-out.
+    // Capstone maze: a tall bounded corridor (rows2-12), walled top and
+    // bottom, with two obstacles to solve in sequence. Pier 1 (col7-8)
+    // forces an early detour (only its top or bottom half is open). Piers
+    // 2+3 (col14-15) form a near-full vertical barrier with a single
+    // 2-row gap (rows8-9) — a genuine precision pinch corridor every
+    // east-bound route must thread through correctly aligned. The goal is
+    // a wide room on the right (4 cols x 11 rows), preserving the original
+    // capstone's large landing zone.
     version: 1, cols: 20, rows: 15,
     muros: [
+      { col: 0, row: 0, colSpan: 20, rowSpan: 2 },
+      { col: 0, row: 13, colSpan: 20, rowSpan: 2 },
       { col: 7, row: 5, colSpan: 2, rowSpan: 3 },
       { col: 14, row: 3, colSpan: 2, rowSpan: 5 },
-      { col: 14, row: 10, colSpan: 2, rowSpan: 5 },
-      { col: 2, row: 13, colSpan: 5, rowSpan: 1 }
+      { col: 14, row: 10, colSpan: 2, rowSpan: 3 }
     ],
     inicio: { col: 1, row: 7, angulo: 0 },
     meta: { col: 16, row: 2, colSpan: 4, rowSpan: 11 }
