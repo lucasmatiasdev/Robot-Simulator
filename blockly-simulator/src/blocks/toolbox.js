@@ -72,7 +72,8 @@
       kind: 'block',
       type: 'rs_repetir_hasta',
       inputs: { COND: { shadow: { type: 'rs_hay_obstaculo' } } }
-    }
+    },
+    { kind: 'block', type: 'rs_por_siempre' }
   ];
 
   function construirCategoria(nombre, colour, contenidos) {
@@ -100,6 +101,10 @@
   // (that is lesson 5's new concept per content.js's `concepto`/`bloques`).
   var SENSOR_TYPES_LECCION_4 = ['rs_hay_obstaculo', 'rs_medir_distancia', 'rs_comparar', 'rs_si_obstaculo'];
 
+  // Lesson 6 introduces repetir/repetir_hasta but NOT rs_por_siempre (it
+  // unlocks in lesson 7 and the sandbox, which get the full toolbox).
+  var REPETICION_TYPES_LECCION_6 = ['rs_repetir', 'rs_repetir_hasta'];
+
   RS.toolbox.paraLeccion = function (leccionId) {
     if (leccionId >= 7) return RS.toolbox; // full, unrestricted
 
@@ -114,7 +119,7 @@
     }
 
     if (leccionId >= 6) {
-      categorias.push(construirCategoria('Repetición', '20', REPETICION_CONTENTS));
+      categorias.push(construirCategoria('Repetición', '20', filtrarContenidos(REPETICION_CONTENTS, REPETICION_TYPES_LECCION_6)));
     }
 
     return { kind: 'categoryToolbox', contents: categorias };

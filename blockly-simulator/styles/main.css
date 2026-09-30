@@ -38,7 +38,8 @@ html, body {
 #home[hidden],
 #app[hidden],
 #editor-mapa[hidden],
-#editor-mapa-herramientas[hidden] {
+#editor-mapa-herramientas[hidden],
+#autor-mapas[hidden] {
   display: none;
 }
 
@@ -591,3 +592,57 @@ html, body {
 .tipo { color: #569cd6; }
 .fn { color: #dcdcaa; }
 .com { color: #6a8759; font-style: italic; }
+
+/* ---- Hidden lesson-map authoring tool (#editor-mapas): re-skins #app in
+   place so #sim-canvas never moves and the normal render loop keeps drawing. ---- */
+#app.autor-mapas {
+  grid-template-columns: 320px 1fr;
+  grid-template-rows: 1fr;
+  grid-template-areas: "autor sim";
+}
+#app.autor-mapas #barra,
+#app.autor-mapas #leccion,
+#app.autor-mapas #editor,
+#app.autor-mapas #codigo,
+#app.autor-mapas .gutter {
+  display: none;
+}
+#autor-mapas { grid-area: autor; }
+#autor-mapas-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  overflow: auto;
+  background: var(--n-700);
+}
+#autor-mapas-body button,
+#autor-mapas-body select {
+  height: 32px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--n-600);
+  background: var(--n-800);
+  color: var(--n-100);
+  font-family: var(--ff-ui);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+#autor-mapas-body button:hover { border-color: var(--n-400); }
+#autor-mapas-body button.herramienta-activa { border-color: var(--a-500); color: var(--a-500); }
+#autor-herramientas, #autor-acciones { display: flex; gap: var(--sp-1); flex-wrap: wrap; }
+#autor-salida {
+  flex: 1;
+  min-height: 160px;
+  resize: none;
+  padding: var(--sp-2);
+  border: 1px solid var(--n-600);
+  border-radius: var(--r-sm);
+  background: var(--n-900);
+  color: var(--n-100);
+  font-family: var(--ff-code);
+  font-size: var(--fs-code);
+  line-height: 1.5;
+}
+#autor-estado { font-size: var(--fs-sm); color: var(--n-200); min-height: 1.5em; }

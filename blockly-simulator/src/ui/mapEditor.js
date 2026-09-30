@@ -120,25 +120,25 @@
     }
   }
 
+  /** Converts a click/pointer event into a grid cell using getBoundingClientRect()
+   * ratios — NOT offsetX/offsetY, because the canvas backing store is
+   * devicePixelRatio-scaled and the element itself is CSS-scaled by the
+   * responsive layout (design D5). Shared with RS.ui.lessonMapEditor. */
+  function celdaDesdeEvento(canvasEl, evt) {
+    var rect = canvasEl.getBoundingClientRect();
+    var cfg = RS.config;
+    var escalaX = cfg.WORLD_WIDTH / rect.width;
+    var escalaY = cfg.WORLD_HEIGHT / rect.height;
+    var worldX = (evt.clientX - rect.left) * escalaX;
+    var worldY = (evt.clientY - rect.top) * escalaY;
+    return RS.gridAdapter.celdaDesdePixel(worldX, worldY);
+  }
+
   function crearEditor() {
     var canvas = null;
     var mapaActual = null;
     var herramienta = 'muro'; // 'muro' | 'borrar' | 'inicio' | 'meta'
     var modoEdicion = false;
-
-    /** Converts a click/pointer event into a grid cell using getBoundingClientRect()
-     * ratios — NOT offsetX/offsetY, because the canvas backing store is
-     * devicePixelRatio-scaled and the element itself is CSS-scaled by the
-     * responsive layout (design D5). */
-    function celdaDesdeEvento(evt) {
-      var rect = canvas.getBoundingClientRect();
-      var cfg = RS.config;
-      var escalaX = cfg.WORLD_WIDTH / rect.width;
-      var escalaY = cfg.WORLD_HEIGHT / rect.height;
-      var worldX = (evt.clientX - rect.left) * escalaX;
-      var worldY = (evt.clientY - rect.top) * escalaY;
-      return RS.gridAdapter.celdaDesdePixel(worldX, worldY);
-    }
 
     function celdaDentroDeLimites(celda) {
       return celda.col >= 0 && celda.col < mapaActual.cols &&
@@ -158,7 +158,7 @@
       // whenever the toolbar's "edit map" mode is off.
       if (!modoEdicion || !mapaActual || corriendoAhora()) return;
 
-      var celda = celdaDesdeEvento(evt);
+      var celda = celdaDesdeEvento(canvas, evt);
       if (!celdaDentroDeLimites(celda)) return;
 
       if (herramienta === 'muro') colocarMuro(mapaActual, celda);
@@ -199,6 +199,8 @@
         if (RS.renderer) RS.renderer.mostrarGrilla = modoEdicion;
       },
       enModoEdicion: function () { return modoEdicion; },
+
+      celdaDesdeEvento: celdaDesdeEvento,
 
       obtenerMapa: function () { return mapaActual; },
       reiniciarGuardado: function () {

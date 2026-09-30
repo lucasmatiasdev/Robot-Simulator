@@ -50,6 +50,25 @@
     </div>
   </div>
   <div id="gutter-editor-sim" class="gutter gutter-v" role="separator" aria-orientation="vertical" aria-label="Redimensionar editor de bloques" tabindex="0"></div>
+  <div id="autor-mapas" class="panel" hidden>
+    <header class="panel-cab">Editor de mapas de lección</header>
+    <div class="panel-body" id="autor-mapas-body">
+      <label for="autor-leccion">Lección</label>
+      <select id="autor-leccion"></select>
+      <div id="autor-herramientas">
+        <button type="button" data-herramienta="muro" class="herramienta-activa">Muro</button>
+        <button type="button" data-herramienta="borrar">Borrar</button>
+        <button type="button" data-herramienta="inicio">Inicio</button>
+        <button type="button" data-herramienta="meta">Meta</button>
+      </div>
+      <textarea id="autor-salida" readonly spellcheck="false" aria-label="Código del mapa"></textarea>
+      <div id="autor-acciones">
+        <button type="button" id="autor-copiar">Copiar código</button>
+        <button type="button" id="autor-salir">Salir</button>
+      </div>
+      <span id="autor-estado" role="status" aria-live="polite"></span>
+    </div>
+  </div>
   <div id="sim" class="panel">
     <header class="panel-cab">Simulador</header>
     <div class="panel-body" id="sim-body">
@@ -104,6 +123,7 @@
 <script src="src/lessons/panel.js"></script>
 <script src="src/lessons/home.js"></script>
 <script src="src/ui/panel-resize.js"></script>
+<script src="src/ui/lessonMapEditor.js"></script>
 <script src="src/main.js"></script>
 </body>
 </html>

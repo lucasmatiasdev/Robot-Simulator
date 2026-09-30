@@ -1,9 +1,10 @@
 /**
  * RS.runtime.interpreter — explicit-stack tree walker over the program tree.
- * Descends into `repetir`/`si`/`si_sino`/`repetir_hasta` bodies at runtime
- * (never pre-expanded); conditions and repetitions are evaluated live, one
- * leaf at a time. `repetir_hasta` (pre-test "while not" loop) is capped by
- * RS.config.MAX_ITER_REPETIR_HASTA — see the body-exhaustion handling below.
+ * Descends into `repetir`/`si`/`si_sino`/`repetir_hasta`/`por_siempre` bodies
+ * at runtime (never pre-expanded); conditions and repetitions are evaluated
+ * live, one leaf at a time. `repetir_hasta` (pre-test "while not" loop) is
+ * capped by RS.config.MAX_ITER_REPETIR_HASTA and `por_siempre` (forever loop)
+ * by RS.config.MAX_ITER_POR_SIEMPRE — see the body-exhaustion handling below.
  */
 (function (global) {
   'use strict';
@@ -104,6 +105,14 @@
             continue;
           }
 
+          if (node.tipo === 'por_siempre') {
+            // Unconditional loop: always pushes a frame. Only `detener`
+            // (handled by the scheduler) or the MAX_ITER_POR_SIEMPRE cap in
+            // the body-exhaustion handling below ends it.
+            stack.push({ tipo: 'por_siempre', cuerpo: node.cuerpo, index: 0, iter: 0, node: node });
+            continue;
+          }
+
           if (node.tipo === 'si_sino') {
             // Evaluated once, at encounter time (not re-evaluated per tick,
             // unlike a loop condition): pick DO or ELSE body and push a
@@ -159,6 +168,22 @@
           continue;
         }
 
+        if (top.tipo === 'por_siempre') {
+          // Same safety-cap rule as repetir_hasta above: an empty or
+          // leaf-less body would otherwise re-enter this branch forever
+          // inside this synchronous `while`. On a trip, record it, pop the
+          // frame and keep going with the block after the loop.
+          top.iter += 1;
+          var maxIterSiempre = (RS.config && RS.config.MAX_ITER_POR_SIEMPRE) || 1000;
+          if (top.iter >= maxIterSiempre) {
+            limiteSeguridadTrip = { blockId: top.node.blockId, iteraciones: top.iter };
+            stack.pop();
+            continue;
+          }
+          top.index = 0;
+          continue;
+        }
+
         stack.pop();
       }
       return null;
@@ -168,8 +193,8 @@
       siguienteNodo: siguienteNodo,
       terminado: function () { return stack.length === 0; },
       // limiteSeguridad() -> null, or {blockId, iteraciones} once a
-      // repetir_hasta loop has tripped MAX_ITER_REPETIR_HASTA during this
-      // walk. Read by the scheduler after each siguienteNodo() call.
+      // repetir_hasta or por_siempre loop has tripped its safety cap during
+      // this walk (the last trip wins). Read by the scheduler after each siguienteNodo() call.
       limiteSeguridad: function () { return limiteSeguridadTrip; }
     };
   }

@@ -17,9 +17,11 @@
  * code-panel.js, interpreter.js, scheduler.js and program-tree.js require
  * NO changes at all.
  *
- * For `repetir`/`si`/`si_sino`/`repetir_hasta` nodes, only the header line
- * carries the blockId (never the closing brace), matching the pre-existing
- * highlighting rule.
+ * For `repetir`/`si`/`si_sino`/`repetir_hasta`/`por_siempre` nodes, only the
+ * header line carries the blockId (never the closing brace), matching the
+ * pre-existing highlighting rule. A `detener` action emits `detener();`
+ * (with its blockId) followed by a blockId-less `return;`, except when it is
+ * the last top-level statement.
  *
  * Sensor support: this hardware has a real HC-SR04 ultrasonic sensor wired
  * to TRIG/ECHO (see RS.config.arduino). `si`/`si_sino`/`repetir_hasta` nodes
@@ -50,7 +52,7 @@
     for (var i = 0; i < cuerpo.length; i++) {
       var node = cuerpo[i];
       if (node.tipo === 'si' || node.tipo === 'si_sino' || node.tipo === 'repetir_hasta') return true;
-      if (node.tipo === 'repetir' && usaSensor(node.cuerpo)) return true;
+      if ((node.tipo === 'repetir' || node.tipo === 'por_siempre') && usaSensor(node.cuerpo)) return true;
     }
     return false;
   }
@@ -276,13 +278,35 @@
       ];
     }
 
-    function renderCuerpo(cuerpo, indent, depth) {
+    // `esRaiz` is true only for the top-level program body. A `detener` there
+    // that is also the last statement needs no `return;` (setup() ends anyway);
+    // everywhere else `detener();` is followed by a `return;` so the sketch
+    // really stops, mirroring the simulator's program exit. The `return;` line
+    // carries a null blockId, so each detener blockId still maps to one line.
+    function renderCuerpo(cuerpo, indent, depth, esRaiz) {
       for (var i = 0; i < cuerpo.length; i++) {
-        renderNodo(cuerpo[i], indent, depth);
+        var node = cuerpo[i];
+        renderNodo(node, indent, depth);
+        if (node.tipo === 'accion' && node.accion === 'detener' && !(esRaiz && i === cuerpo.length - 1)) {
+          addLinea(indent, null, [tok('return', 'kw'), tok(';', 'punct')], 'guion');
+        }
       }
     }
 
     function renderNodo(node, indent, depth) {
+      if (node.tipo === 'por_siempre') {
+        // Plain infinite loop: real firmware never stops on its own, so the
+        // simulator's MAX_ITER_POR_SIEMPRE cap is deliberately NOT emitted.
+        addLinea(indent, node.blockId, [
+          tok('while', 'kw'), tok(' (', 'punct'), tok('true', 'kw'), tok(') {', 'punct')
+        ], 'guion');
+        addLinea(indent + 1, null, [
+          tok('// sin tope en el Arduino; el simulador corta a las ' + ((cfg.MAX_ITER_POR_SIEMPRE) || 1000) + ' vueltas (MAX_ITER_POR_SIEMPRE)', 'com')
+        ], 'guion');
+        renderCuerpo(node.cuerpo, indent + 1, depth + 1);
+        addLinea(indent, null, [tok('}', 'punct')], 'guion');
+        return;
+      }
       if (node.tipo === 'accion') {
         addLinea(indent, node.blockId, accionTokens(node), 'guion');
         return;
@@ -362,7 +386,7 @@
       addLinea(1, null, [tok(nDetener + '();', 'call')], 'setup');
       blanco('setup');
       addLinea(1, null, [tok('// ---- Tu programa ----', 'com')], 'setup');
-      renderCuerpo(tree, 1, 0);
+      renderCuerpo(tree, 1, 0, true);
       blanco('setup');
       addLinea(1, null, [tok(nDetener + '();', 'call')], 'setup');
       addLinea(0, null, [tok('}', 'punct')], 'setup');
