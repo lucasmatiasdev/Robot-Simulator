@@ -24,14 +24,14 @@ sandbox.window.Blockly = {
   Blocks: {},
   FieldNumber: function () {},
   FieldDropdown: function () {},
-  FieldTextInput: function () {}
+  FieldTextInput: function (valor, validador) { this.valor = valor; this.validador = validador; }
 };
 
 function cargar(rel) {
   vm.runInContext(fs.readFileSync(path.join(ROOT, rel), 'utf8'), sandbox, { filename: rel });
 }
 ['config', 'sim/world', 'sim/gridAdapter', 'sim/robot', 'sim/sensors', 'runtime/interpreter',
-  'runtime/scheduler', 'generator/cpp-view'
+  'runtime/scheduler', 'blocks/definitions', 'generator/cpp-view', 'generator/program-tree'
 ].forEach(function (m) { cargar('src/' + m + '.js'); });
 
 var RS = sandbox.window.RS;
@@ -262,6 +262,182 @@ var viaAnidado = RS.cppView.renderTexto([repetir(2, [decl('dd', 'int', { k: 'med
 assert(viaAnidado.indexOf('int medirDistancia()') !== -1, 'usaSensor: detecta el sensor dentro de un repetir');
 var viaComparar = RS.cppView.renderTexto([decl('q', 'bool', { k: 'comparar', op: '<', izq: { k: 'medirDistancia' }, der: num(30) })]);
 assert(viaComparar.indexOf('int medirDistancia()') !== -1, 'usaSensor: detecta el sensor dentro de un comparar anidado');
+
+// ---------------------------------------------------------------------
+// Blocks: shapes and the NOMBRE normaliser
+// ---------------------------------------------------------------------
+function bloqueStub(tipo) {
+  var b = { campos: [], entradas: {}, checks: {}, salida: undefined, previo: false, siguiente: false };
+  function entrada(nombre) {
+    var e = {
+      setCheck: function (c) { b.checks[nombre] = c; return e; },
+      appendField: function () { return e; }
+    };
+    b.entradas[nombre] = e;
+    return e;
+  }
+  b.appendValueInput = entrada;
+  b.appendStatementInput = entrada;
+  b.appendDummyInput = function () {
+    var e = { appendField: function (campo, nombre) { if (nombre) b.campos.push(nombre); return e; } };
+    return e;
+  };
+  b.setInputsInline = function () {};
+  b.setPreviousStatement = function (v) { b.previo = v; };
+  b.setNextStatement = function (v) { b.siguiente = v; };
+  b.setOutput = function (v, c) { b.salida = c; };
+  b.setColour = function (c) { b.color = c; };
+  b.setTooltip = function () {};
+  sandbox.window.Blockly.Blocks[tipo].init.call(b);
+  return b;
+}
+
+RS.blocks.VARIABLES_TYPES.forEach(function (tipo) {
+  assert(typeof sandbox.window.Blockly.Blocks[tipo] === 'object', 'bloque ' + tipo + ' esta definido y en VARIABLES_TYPES');
+});
+assertEquals(RS.blocks.VARIABLES_TYPES.length, 5, 'VARIABLES_TYPES lista los 5 bloques de variables');
+
+var bDecl = bloqueStub('rs_declarar_variable');
+assertEquals(bDecl.checks.VALOR, ['Number', 'Boolean'], 'declarar acepta Number y Boolean en VALOR');
+assert(bDecl.previo === true && bDecl.siguiente === true && bDecl.color === 330, 'declarar es un bloque de sentencia encadenable color 330');
+var bObt = bloqueStub('rs_obtener_variable');
+assertEquals(bObt.salida, ['Number', 'Boolean'], 'obtener es un reporter Number/Boolean');
+assertEquals(bloqueStub('rs_booleano').salida, 'Boolean', 'booleano es un reporter Boolean');
+assertEquals(bloqueStub('rs_cambiar_variable').campos, ['NOMBRE', 'DELTA'], 'cambiar tiene campos NOMBRE y DELTA');
+assert(bloqueStub('rs_asignar_variable').entradas.VALOR !== undefined, 'asignar tiene entrada VALOR');
+
+var norm = RS.blocks.normalizarNombreVariable;
+assertEquals(norm('lados'), 'lados', 'normalizar deja un nombre valido intacto');
+assertEquals(norm('N\u00famero de lados'), 'Numero_de_lados', 'normalizar quita acentos y convierte espacios en _');
+assertEquals(norm('a-b!c'), 'abc', 'normalizar descarta caracteres invalidos');
+assertEquals(norm('1lado'), null, 'normalizar rechaza un nombre que empieza con digito');
+assertEquals(norm(''), null, 'normalizar rechaza el vacio');
+assertEquals(norm('   '), null, 'normalizar rechaza solo espacios');
+
+// ---------------------------------------------------------------------
+// Program tree: fake blocks -> nodes (same traversal API as Blockly)
+// ---------------------------------------------------------------------
+var idSeq = 0;
+function fb(tipo, campos, entradas, siguiente) {
+  idSeq += 1;
+  return {
+    type: tipo, id: 'fb' + idSeq, outputConnection: null,
+    getFieldValue: function (n) { return campos && campos[n]; },
+    getInputTargetBlock: function (n) { return (entradas && entradas[n]) || null; },
+    getNextBlock: function () { return siguiente || null; }
+  };
+}
+function reporter(tipo, campos) {
+  var b = fb(tipo, campos);
+  b.outputConnection = {};
+  return b;
+}
+function encadenar(bloques) {
+  // Re-creates each block linking to the next (fb() captures `siguiente` at creation).
+  var next = null;
+  for (var i = bloques.length - 1; i >= 0; i--) {
+    var b = bloques[i];
+    var campos = b._campos, entradas = b._entradas;
+    next = fb(b.tipo, campos, entradas, next);
+  }
+  return next;
+}
+function spec(tipo, campos, entradas) { return { tipo: tipo, _campos: campos, _entradas: entradas }; }
+function ws(raices) { return { getTopBlocks: function () { return raices; } }; }
+function programa(sentencias) {
+  return ws([encadenar([spec('rs_inicio')].concat(sentencias))]);
+}
+function nRep(n) { return reporter('rs_numero', { NUM: n }); }
+function vget(nombre) { return reporter('rs_obtener_variable', { NOMBRE: nombre }); }
+
+var comparador = fb('rs_comparar', { OP: '>=' }, { IZQ: vget('contador'), DER: nRep(3) });
+comparador.outputConnection = {};
+var cuerpoHasta = encadenar([spec('rs_cambiar_variable', { NOMBRE: 'contador', DELTA: 1 })]);
+var wsArbol = programa([
+  spec('rs_declarar_variable', { TIPO: 'int', NOMBRE: 'contador' }, { VALOR: nRep(0) }),
+  spec('rs_repetir_hasta', {}, { COND: comparador, DO: cuerpoHasta }),
+  spec('rs_avanzar', {}, { MS: vget('contador') })
+]);
+var arbolCons = RS.generator.buildProgramTree(wsArbol);
+assertEquals(arbolCons[0].tipo, 'declarar', 'arbol: declarar produce un nodo declarar');
+assertEquals([arbolCons[0].nombre, arbolCons[0].tipoDato, arbolCons[0].valor], ['contador', 'int', { k: 'numero', v: 0 }],
+  'arbol: declarar lleva nombre, tipoDato y valor inicial');
+assertEquals(arbolCons[1].condicion.izq, { k: 'variable', nombre: 'contador' }, 'arbol: un getter en IZQ del comparar produce {k:variable}');
+assertEquals(arbolCons[1].cuerpo[0], { tipo: 'cambiar', nombre: 'contador', delta: 1, blockId: arbolCons[1].cuerpo[0].blockId },
+  'arbol: cambiar produce un nodo cambiar dentro del cuerpo');
+assertEquals(arbolCons[2].valor, { k: 'variable', nombre: 'contador' }, 'arbol: un getter en MS resuelve en ejecucion, no en construccion');
+assertEquals(RS.generator.validarPrograma(wsArbol), { ok: true }, 'validarPrograma acepta un programa de variables valido');
+
+// Empty declarar VALOR defaults to the type's zero value.
+var arbolDefecto = RS.generator.buildProgramTree(programa([
+  spec('rs_declarar_variable', { TIPO: 'int', NOMBRE: 'a' }, {}),
+  spec('rs_declarar_variable', { TIPO: 'bool', NOMBRE: 'b' }, {}),
+  spec('rs_asignar_variable', { NOMBRE: 'a' }, {})
+]));
+assertEquals(arbolDefecto[0].valor, { k: 'numero', v: 0 }, 'arbol: declarar int sin valor vale 0');
+assertEquals(arbolDefecto[1].valor, { k: 'booleano', v: false }, 'arbol: declarar bool sin valor vale falso');
+assertEquals(arbolDefecto[2].valor, null, 'arbol: asignar sin valor queda en null para que la validacion lo rechace');
+
+// Bool getter / literal as COND; assign stays inside the si_sino branch.
+var arbolCond = RS.generator.buildProgramTree(programa([
+  spec('rs_declarar_variable', { TIPO: 'bool', NOMBRE: 'activo' }, { VALOR: reporter('rs_booleano', { BOOL: 'FALSE' }) }),
+  spec('rs_si_sino', {}, {
+    COND: vget('activo'),
+    DO: encadenar([spec('rs_asignar_variable', { NOMBRE: 'activo' }, { VALOR: reporter('rs_booleano', { BOOL: 'TRUE' }) })]),
+    ELSE: null
+  }),
+  spec('rs_si_obstaculo', {}, { COND: reporter('rs_booleano', { BOOL: 'TRUE' }), DO: null })
+]));
+assertEquals(arbolCond[1].condicion, { k: 'variable', nombre: 'activo' }, 'arbol: un getter como COND produce condicion {k:variable}');
+assertEquals(arbolCond[1].cuerpo[0].tipo, 'asignar', 'arbol: asignar queda como hijo del cuerpo del si_sino (no se eleva)');
+assertEquals(arbolCond[2].condicion, { k: 'booleano', v: true }, 'arbol: un literal booleano como COND produce condicion {k:booleano}');
+assert(!('sensor' in arbolCond[1]) && !('sensor' in arbolCond[2]), 'arbol: una condicion de variable no deja el campo sensor');
+
+// Default shadow still yields the legacy sensor shape.
+var arbolLegacy = RS.generator.buildProgramTree(programa([
+  spec('rs_si_obstaculo', {}, { COND: reporter('rs_hay_obstaculo'), DO: null })
+]));
+assertEquals(arbolLegacy[0].sensor, 'hayObstaculo', 'arbol: el shadow por defecto mantiene sensor:hayObstaculo');
+
+// 5.8 validarVariables: every error path.
+function validar(arbol) { return RS.generator.validarVariables(arbol); }
+function fallaCon(arbol, fragmento, mensaje) {
+  var r = validar(arbol);
+  assert(r.ok === false && r.mensaje.indexOf(fragmento) !== -1, mensaje + (r.ok ? ' (paso sin error)' : ' [' + r.mensaje + ']'));
+}
+assertEquals(validar([decl('x', 'int', num(1)), camb('x', 1), acc('avanzar', 'a', vr('x'))]), { ok: true }, 'validar: programa valido');
+assertEquals(validar([acc('avanzar', 'a', 100)]), { ok: true }, 'validar: un programa sin variables es valido');
+fallaCon([decl('1x', 'int', num(0))], 'no es válido', 'validar: identificador que empieza con digito');
+fallaCon([decl('mi var', 'int', num(0))], 'no es válido', 'validar: identificador con espacios');
+fallaCon([decl('', 'int', num(0))], 'no es válido', 'validar: identificador vacio');
+fallaCon([decl('i', 'int', num(0))], 'reservado', 'validar: nombre reservado i (contador de bucle)');
+fallaCon([decl('i7', 'int', num(0))], 'reservado', 'validar: nombre reservado i<profundidad>');
+fallaCon([decl('delay', 'int', num(0))], 'reservado', 'validar: nombre reservado de Arduino');
+fallaCon([decl('int', 'int', num(0))], 'reservado', 'validar: palabra clave de C++');
+fallaCon([decl('x', 'int', num(0)), decl('x', 'int', num(1), 'otro')], 'más de una vez', 'validar: declarar duplicado');
+fallaCon([decl('x', 'int', num(0)), repetir(2, [decl('x', 'int', num(1), 'otro')])], 'más de una vez', 'validar: declarar duplicado dentro de un bucle');
+fallaCon([acc('avanzar', 'a', vr('y'))], 'antes de declararla', 'validar: getter en MS sin declarar');
+fallaCon([asig('y', num(1))], 'antes de declararla', 'validar: asignar sin declarar');
+fallaCon([camb('y', 1)], 'antes de declararla', 'validar: cambiar sin declarar');
+fallaCon([asig('x', num(1)), decl('x', 'int', num(0))], 'antes de declararla', 'validar: usar antes de declarar en orden de documento');
+fallaCon([decl('x', 'int', vr('x'))], 'antes de declararla', 'validar: una variable no puede inicializarse consigo misma');
+fallaCon([decl('b', 'bool', num(3))], 'valor inicial', 'validar: declarar bool con valor int');
+fallaCon([decl('num1', 'int', bool(true))], 'valor inicial', 'validar: declarar int con valor bool');
+fallaCon([decl('num1', 'int', num(0)), asig('num1', bool(true))], 'No se puede asignar', 'validar: asignar bool a int');
+fallaCon([decl('b', 'bool', bool(true)), asig('b', num(1))], 'No se puede asignar', 'validar: asignar int a bool');
+fallaCon([decl('b', 'bool', bool(true)), camb('b', 1)], 'solo funciona con variables int', 'validar: cambiar sobre un bool');
+fallaCon([decl('num1', 'int', num(0)), siVar('num1', [])], 'es int', 'validar: variable int como condicion');
+fallaCon([decl('b', 'bool', bool(true)), acc('avanzar', 'a', vr('b'))], 'es bool', 'validar: variable bool como duracion');
+fallaCon([decl('b', 'bool', bool(true)),
+  { tipo: 'si', condicion: { op: '<', izq: vr('b'), der: num(2) }, cuerpo: [], blockId: 's' }], 'comparar', 'validar: variable bool dentro de un comparar');
+fallaCon([decl('num1', 'int', num(0)),
+  { tipo: 'si', condicion: { op: '<', izq: bool(true), der: vr('num1') }, cuerpo: [], blockId: 's' }], 'comparar', 'validar: literal bool dentro de un comparar');
+fallaCon([decl('b', 'bool', bool(false)), asig('b', null)], 'no tiene un valor', 'validar: asignar sin valor');
+
+// validarPrograma wires the variable check in, after the root check.
+assert(RS.generator.validarPrograma(programa([spec('rs_asignar_variable', { NOMBRE: 'zz' }, { VALOR: nRep(1) })])).ok === false,
+  'validarPrograma rechaza un programa con una variable sin declarar');
+assert(RS.generator.validarPrograma(ws([])).mensaje.indexOf('Inicio/evento') !== -1, 'validarPrograma sigue exigiendo el bloque Inicio/evento primero');
 
 // ---------------------------------------------------------------------
 console.log('\n' + (fallidos === 0 ? 'TODOS LOS TESTS PASARON' : fallidos + ' TESTS FALLARON') + ' (' + (total - fallidos) + '/' + total + ')');

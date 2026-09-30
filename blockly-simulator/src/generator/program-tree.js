@@ -7,6 +7,16 @@
  *   { tipo:'si_sino', sensor|condicion, cuerpo:[...], sino:[...], blockId }
  *   { tipo:'repetir_hasta', sensor|condicion, cuerpo:[...], blockId }
  *   { tipo:'por_siempre', cuerpo:[...], blockId }
+ *   { tipo:'declarar', nombre, tipoDato:'int'|'bool', valor:Expr, blockId }
+ *   { tipo:'asignar',  nombre, valor:Expr|null, blockId }
+ *   { tipo:'cambiar',  nombre, delta:int, blockId }
+ *
+ * Expr := {k:'numero',v} | {k:'booleano',v} | {k:'variable',nombre}
+ *       | {k:'medirDistancia'} | {k:'hayObstaculo'} | {k:'comparar',op,izq,der}
+ * An accion's `valor` stays a number unless its MS input holds a variable
+ * getter, in which case it is {k:'variable',nombre} (resolved at run time).
+ * A COND is `sensor:'hayObstaculo'` (default shadow), `condicion:{op,izq,der}`
+ * (rs_comparar), or `condicion:{k:'variable'|'booleano',...}`.
  *
  * RS.protocol.toMqttPayload(node) strips a leaf action node down to the
  * exact firmware payload shape { accion, valor } (no blockId, no metadata).
@@ -38,17 +48,56 @@
     return null;
   }
 
+  /**
+   * Generalises leerOperando to every value block: adds the variable getter,
+   * the boolean literal and a nested comparison. Existing operand outputs are
+   * unchanged (delegated to leerOperando).
+   */
+  function leerValor(block) {
+    if (!block) return null;
+    if (block.type === 'rs_obtener_variable') return { k: 'variable', nombre: String(block.getFieldValue('NOMBRE')) };
+    if (block.type === 'rs_booleano') return { k: 'booleano', v: block.getFieldValue('BOOL') === 'TRUE' };
+    if (block.type === 'rs_comparar') {
+      return {
+        k: 'comparar',
+        op: block.getFieldValue('OP'),
+        izq: leerValor(block.getInputTargetBlock('IZQ')),
+        der: leerValor(block.getInputTargetBlock('DER'))
+      };
+    }
+    return leerOperando(block);
+  }
+
   function leerComparador(block) {
     return {
       op: block.getFieldValue('OP'),
-      izq: leerOperando(block.getInputTargetBlock('IZQ')),
-      der: leerOperando(block.getInputTargetBlock('DER'))
+      izq: leerValor(block.getInputTargetBlock('IZQ')),
+      der: leerValor(block.getInputTargetBlock('DER'))
     };
+  }
+
+  /**
+   * Reads a COND value input into `nodo`: rs_comparar -> condicion:{op,izq,der};
+   * variable getter / boolean literal -> condicion:{k,...}; anything else
+   * (the default rs_hay_obstaculo shadow, or no target) -> the legacy
+   * sensor:'hayObstaculo' shape, keeping default output byte-identical.
+   */
+  function leerCond(block, nodo) {
+    var target = block.getInputTargetBlock('COND');
+    if (target && target.type === 'rs_comparar') {
+      nodo.condicion = leerComparador(target);
+    } else if (target && (target.type === 'rs_obtener_variable' || target.type === 'rs_booleano')) {
+      nodo.condicion = leerValor(target);
+    } else {
+      nodo.sensor = 'hayObstaculo';
+    }
+    return nodo;
   }
 
   function readMs(block) {
     var target = block.getInputTargetBlock('MS');
     if (!target) return 0;
+    if (target.type === 'rs_obtener_variable') return { k: 'variable', nombre: String(target.getFieldValue('NOMBRE')) };
     var val = target.getFieldValue('NUM');
     return Number(val) || 0;
   }
@@ -89,31 +138,15 @@
 
     if (type === 'rs_si_obstaculo') {
       var siCuerpoBlock = block.getInputTargetBlock('DO');
-      var nodoSi = { tipo: 'si', cuerpo: walkChain(siCuerpoBlock), blockId: block.id };
-      var condTarget = block.getInputTargetBlock('COND');
-      if (condTarget && condTarget.type === 'rs_comparar') {
-        nodoSi.condicion = leerComparador(condTarget);
-      } else {
-        // Default shadow (rs_hay_obstaculo) or no COND target at all: keep
-        // the exact pre-existing node shape, so the unmodified default case
-        // stays byte-identical to today's generator output.
-        nodoSi.sensor = 'hayObstaculo';
-      }
-      return nodoSi;
+      // Default shadow (rs_hay_obstaculo) or no COND target at all keeps the
+      // exact pre-existing node shape, so the unmodified default case stays
+      // byte-identical to today's generator output.
+      return leerCond(block, { tipo: 'si', cuerpo: walkChain(siCuerpoBlock), blockId: block.id });
     }
 
     if (type === 'rs_repetir_hasta') {
       var hastaCuerpoBlock = block.getInputTargetBlock('DO');
-      var nodoHasta = { tipo: 'repetir_hasta', cuerpo: walkChain(hastaCuerpoBlock), blockId: block.id };
-      var condTargetHasta = block.getInputTargetBlock('COND');
-      if (condTargetHasta && condTargetHasta.type === 'rs_comparar') {
-        nodoHasta.condicion = leerComparador(condTargetHasta);
-      } else {
-        // Default shadow (rs_hay_obstaculo) or no COND target: same rule as
-        // rs_si_obstaculo/rs_si_sino above.
-        nodoHasta.sensor = 'hayObstaculo';
-      }
-      return nodoHasta;
+      return leerCond(block, { tipo: 'repetir_hasta', cuerpo: walkChain(hastaCuerpoBlock), blockId: block.id });
     }
 
     if (type === 'rs_por_siempre') {
@@ -127,21 +160,44 @@
     if (type === 'rs_si_sino') {
       var doBlock = block.getInputTargetBlock('DO');
       var elseBlock = block.getInputTargetBlock('ELSE');
-      var nodoSiSino = {
+      return leerCond(block, {
         tipo: 'si_sino',
         cuerpo: walkChain(doBlock),
         sino: walkChain(elseBlock),
         blockId: block.id
+      });
+    }
+
+    if (type === 'rs_declarar_variable') {
+      var tipoDato = block.getFieldValue('TIPO') === 'bool' ? 'bool' : 'int';
+      // An empty VALOR defaults to the type's zero value.
+      var inicial = leerValor(block.getInputTargetBlock('VALOR')) ||
+        (tipoDato === 'bool' ? { k: 'booleano', v: false } : { k: 'numero', v: 0 });
+      return {
+        tipo: 'declarar',
+        nombre: String(block.getFieldValue('NOMBRE')),
+        tipoDato: tipoDato,
+        valor: inicial,
+        blockId: block.id
       };
-      var condTargetSiSino = block.getInputTargetBlock('COND');
-      if (condTargetSiSino && condTargetSiSino.type === 'rs_comparar') {
-        nodoSiSino.condicion = leerComparador(condTargetSiSino);
-      } else {
-        // Default shadow (rs_hay_obstaculo) or no COND target: same rule as
-        // rs_si_obstaculo above.
-        nodoSiSino.sensor = 'hayObstaculo';
-      }
-      return nodoSiSino;
+    }
+
+    if (type === 'rs_asignar_variable') {
+      return {
+        tipo: 'asignar',
+        nombre: String(block.getFieldValue('NOMBRE')),
+        valor: leerValor(block.getInputTargetBlock('VALOR')),
+        blockId: block.id
+      };
+    }
+
+    if (type === 'rs_cambiar_variable') {
+      return {
+        tipo: 'cambiar',
+        nombre: String(block.getFieldValue('NOMBRE')),
+        delta: Math.trunc(Number(block.getFieldValue('DELTA'))) || 0,
+        blockId: block.id
+      };
     }
 
     // rs_hay_obstaculo / rs_medir_distancia are value (reporter) blocks —
@@ -169,6 +225,132 @@
     return arbol;
   };
 
+  var IDENTIFICADOR = /^[A-Za-z][A-Za-z0-9_]*$/;
+
+  /**
+   * Static type of a value expression: 'int' | 'bool', or null when it cannot
+   * be told (unknown/undeclared variable, missing expr).
+   */
+  function tipoDeExpr(expr, declarados) {
+    if (!expr) return null;
+    if (expr.k === 'numero' || expr.k === 'medirDistancia') return 'int';
+    if (expr.k === 'booleano' || expr.k === 'hayObstaculo' || expr.k === 'comparar') return 'bool';
+    if (expr.k === 'variable') return declarados[expr.nombre] || null;
+    return null;
+  }
+
+  /**
+   * Pre-run variable checks over the program tree, in document order
+   * (pre-order): identifier validity, reserved names, duplicate declare
+   * blocks, use-before-declare, and int/bool type mismatches. Returns
+   * { ok:true } or { ok:false, mensaje } with the first problem found.
+   */
+  RS.generator.validarVariables = function (tree) {
+    var declarados = {}; // nombre -> 'int' | 'bool'
+    var error = null;
+
+    function falla(mensaje) {
+      if (!error) error = mensaje;
+    }
+
+    function existe(nombre) {
+      if (Object.prototype.hasOwnProperty.call(declarados, nombre)) return true;
+      falla('La variable "' + nombre + '" se usa antes de declararla. Agregá un bloque "declarar" para ella antes de usarla.');
+      return false;
+    }
+
+    // Checks every variable reference inside `expr` is already declared.
+    function revisarExpr(expr) {
+      if (!expr) return;
+      if (expr.k === 'variable') existe(expr.nombre);
+      if (expr.k === 'comparar') {
+        revisarOperando(expr.izq);
+        revisarOperando(expr.der);
+      }
+    }
+
+    // Comparison operands must be numbers: a bool variable or literal is not.
+    function revisarOperando(operando) {
+      revisarExpr(operando);
+      if (operando && tipoDeExpr(operando, declarados) === 'bool' && operando.k !== 'hayObstaculo' && operando.k !== 'comparar') {
+        falla('Un valor verdadero/falso no se puede comparar con un número' +
+          (operando.k === 'variable' ? ' (la variable "' + operando.nombre + '" es bool).' : '.'));
+      }
+    }
+
+    function revisarCondicion(node) {
+      var c = node.condicion;
+      if (!c) return;
+      if (c.k === 'variable') {
+        if (existe(c.nombre) && declarados[c.nombre] !== 'bool') {
+          falla('La variable "' + c.nombre + '" es int: una condición necesita un valor verdadero/falso (bool) o una comparación.');
+        }
+      } else if (c.k !== 'booleano') {
+        revisarOperando(c.izq);
+        revisarOperando(c.der);
+      }
+    }
+
+    function revisarDuracion(valor) {
+      if (!valor || typeof valor !== 'object') return;
+      if (existe(valor.nombre) && declarados[valor.nombre] !== 'int') {
+        falla('La variable "' + valor.nombre + '" es bool: la duración de una acción necesita un número (int).');
+      }
+    }
+
+    function recorrer(cuerpo) {
+      for (var i = 0; i < (cuerpo || []).length && !error; i++) {
+        var node = cuerpo[i];
+
+        if (node.tipo === 'declarar') {
+          var nombre = node.nombre;
+          if (!IDENTIFICADOR.test(nombre)) {
+            falla('El nombre de variable "' + nombre + '" no es válido: debe empezar con una letra y usar solo letras, números y guion bajo.');
+          } else if (RS.cppView && RS.cppView.esNombreReservado && RS.cppView.esNombreReservado(nombre)) {
+            falla('El nombre "' + nombre + '" está reservado (lo usa el código generado). Elegí otro nombre para la variable.');
+          } else if (Object.prototype.hasOwnProperty.call(declarados, nombre)) {
+            falla('La variable "' + nombre + '" se declara más de una vez. Declarala una sola vez y usá "asignar" o "cambiar" después.');
+          } else {
+            // The initial value is checked BEFORE the name exists, so a
+            // variable cannot initialise itself.
+            revisarExpr(node.valor);
+            var tInicial = tipoDeExpr(node.valor, declarados);
+            if (!error && tInicial && tInicial !== node.tipoDato) {
+              falla('La variable "' + nombre + '" es ' + node.tipoDato + ' pero su valor inicial es ' + tInicial + '.');
+            }
+            declarados[nombre] = node.tipoDato === 'bool' ? 'bool' : 'int';
+          }
+        } else if (node.tipo === 'asignar') {
+          if (existe(node.nombre)) {
+            if (!node.valor) {
+              falla('El bloque "asignar" de la variable "' + node.nombre + '" no tiene un valor. Conectale uno.');
+            } else {
+              revisarExpr(node.valor);
+              var tAsignado = tipoDeExpr(node.valor, declarados);
+              if (!error && tAsignado && tAsignado !== declarados[node.nombre]) {
+                falla('No se puede asignar un valor ' + tAsignado + ' a la variable "' + node.nombre + '" (' + declarados[node.nombre] + ').');
+              }
+            }
+          }
+        } else if (node.tipo === 'cambiar') {
+          if (existe(node.nombre) && declarados[node.nombre] !== 'int') {
+            falla('"cambiar" solo funciona con variables int, y "' + node.nombre + '" es bool.');
+          }
+        } else if (node.tipo === 'accion') {
+          revisarDuracion(node.valor);
+        } else if (node.tipo === 'si' || node.tipo === 'si_sino' || node.tipo === 'repetir_hasta') {
+          revisarCondicion(node);
+        }
+
+        if (node.cuerpo) recorrer(node.cuerpo);
+        if (node.sino) recorrer(node.sino);
+      }
+    }
+
+    recorrer(tree);
+    return error ? { ok: false, mensaje: error } : { ok: true };
+  };
+
   /**
    * Pre-run gate for the UI "Ejecutar" flow (not the interpreter/scheduler
    * API itself — iniciarConArbol/tests keep building trees directly).
@@ -190,7 +372,7 @@
     if (raices.length > 1 || raices[0].type !== 'rs_inicio') {
       return { ok: false, mensaje: 'El programa debe empezar con el bloque "Inicio/evento" y todos los demás bloques deben estar conectados a él.' };
     }
-    return { ok: true };
+    return RS.generator.validarVariables(RS.generator.buildProgramTree(workspace));
   };
 
   RS.protocol = RS.protocol || {};
