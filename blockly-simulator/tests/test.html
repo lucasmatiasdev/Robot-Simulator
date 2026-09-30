@@ -995,38 +995,41 @@
     scheduler.reiniciar();
   })();
 
-  // ================= Lesson 5: rs_si_sino + criterion (Slice B) =================
-  grupo('Lección 5: contenido, exactamente un bloque nuevo, criterio compuesto (evalsSensor + posición)');
+  // ================= Lesson 5: rs_si_sino + rs_repetir + criterion =================
+  grupo('Lección 5: contenido, dos bloques nuevos (si/si no y repetir N veces), criterio compuesto (evalsSensor + posición)');
   (function () {
     var leccion4b = RS.lessons.CONTENIDO.filter(function (l) { return l.id === 4; })[0];
     var leccion5 = RS.lessons.CONTENIDO.filter(function (l) { return l.id === 5; })[0];
     assert(!!leccion5 && !!leccion5.criterio, 'Lección 5 tiene un criterio.evaluar definido');
     assert(leccion5.bloques.indexOf('si no') !== -1, 'Lección 5 introduce el bloque "si / si no"');
     assert(leccion4b.bloques.indexOf('si no') === -1, 'Lección 4 no menciona "si no" (bloque introducido recién en Lección 5)');
+    assert(leccion5.bloques.indexOf('repetir N veces') !== -1, 'Lección 5 introduce el bloque "repetir N veces"');
+    assert(leccion4b.bloques.indexOf('repetir N veces') === -1, 'Lección 4 no menciona "repetir N veces" (bloque introducido recién en Lección 5)');
 
-    // --- Compound (v2 map): passes inside the goal zone with no collision, fails on collision even if position matches ---
+    // --- Compound: passes inside the goal zone (x:[400,560], y:[400,480], per GRID_LECCION_5's meta) with no collision, fails on collision even if position matches ---
     var pasaL5 = RS.lessons.check.evaluar(leccion5, {
-      estado: { x: 308, y: 396 }, resultadoRun: 'idle', metricas: { evalsSensor: 1, limiteSeguridad: null }
+      estado: { x: 480, y: 440 }, resultadoRun: 'idle', metricas: { evalsSensor: 1, limiteSeguridad: null }
     });
-    assert(pasaL5.ok === true, 'Lección 5: pose de referencia (x=308,y=396) con sensor consultado cumple el criterio');
+    assert(pasaL5.ok === true, 'Lección 5: pose de referencia (x=480,y=440) con sensor consultado cumple el criterio');
 
     var fallaColisionL5 = RS.lessons.check.evaluar(leccion5, {
-      estado: { x: 308, y: 396 }, resultadoRun: 'error', metricas: { evalsSensor: 1, limiteSeguridad: null }
+      estado: { x: 480, y: 440 }, resultadoRun: 'error', metricas: { evalsSensor: 1, limiteSeguridad: null }
     });
     assert(fallaColisionL5.ok === false, 'Lección 5: misma posición pero con colisión (resultadoRun=error) falla');
 
     var fallaSinSensorL5 = RS.lessons.check.evaluar(leccion5, {
-      estado: { x: 308, y: 396 }, resultadoRun: 'idle', metricas: { evalsSensor: 0, limiteSeguridad: null }
+      estado: { x: 480, y: 440 }, resultadoRun: 'idle', metricas: { evalsSensor: 0, limiteSeguridad: null }
     });
     assert(fallaSinSensorL5.ok === false, 'Lección 5: posición correcta SIN consultar el sensor falla');
     assert(fallaSinSensorL5.observado.toLowerCase().indexOf('bloque') === -1, 'Lección 5: el mensaje de falla no nombra un bloque');
 
+    // x=480,y=140 is the pose the "sin derecha(500)" variant actually reaches below (verified via headless run): same height as the start, outside the goal zone.
     var fallaSinAlejarseL5 = RS.lessons.check.evaluar(leccion5, {
-      estado: { x: 308, y: 300 }, resultadoRun: 'idle', metricas: { evalsSensor: 1, limiteSeguridad: null }
+      estado: { x: 480, y: 140 }, resultadoRun: 'idle', metricas: { evalsSensor: 1, limiteSeguridad: null }
     });
     assert(fallaSinAlejarseL5.ok === false, 'Lección 5: sensor consultado pero sin cambio de altura falla (rama tomada no cambió de dirección)');
 
-    // --- Lesson 5's own reference program satisfies its own criterion, run end-to-end ---
+    // --- Lesson 5's own reference program (repetir hasta + derecha + repetir 40 { si/si no }) satisfies its own criterion, run end-to-end ---
     var scheduler5 = RS.runtime.scheduler;
     var feedbackDiv5 = document.createElement('div');
     document.body.appendChild(feedbackDiv5);
@@ -1034,47 +1037,42 @@
     RS.world.cargarMapa(leccion5.mapa);
 
     var arbolL5 = [
-      { tipo: 'accion', accion: 'avanzar', valor: 1900, blockId: 'a1' },
-      { tipo: 'si_sino', sensor: 'hayObstaculo', blockId: 'ss1',
-        cuerpo: [{ tipo: 'accion', accion: 'derecha', valor: 500, blockId: 'd1' }],
-        sino: [] },
-      { tipo: 'accion', accion: 'avanzar', valor: 800, blockId: 'a2' }
+      { tipo: 'repetir_hasta', sensor: 'hayObstaculo', blockId: 'rh1', cuerpo: [
+        { tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'a1' }
+      ] },
+      { tipo: 'accion', accion: 'derecha', valor: 500, blockId: 'd1' },
+      { tipo: 'repetir', veces: 40, blockId: 'r1', cuerpo: [
+        { tipo: 'si_sino', sensor: 'hayObstaculo', blockId: 'ss1',
+          cuerpo: [{ tipo: 'accion', accion: 'detener', blockId: 'd2' }],
+          sino: [{ tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'a2' }] }
+      ] }
     ];
     scheduler5.iniciarConArbol(arbolL5);
-    for (var i = 0; i < 500 && scheduler5.obtenerEstado() === 'running'; i++) {
+    for (var i = 0; i < 2000 && scheduler5.obtenerEstado() === 'running'; i++) {
       scheduler5._procesarFrame(16);
     }
     assertEquals(scheduler5.obtenerEstado(), 'idle', 'Lección 5: el programa de referencia termina en idle (sin colisión)');
     var snapshotRealL5 = { estado: RS.robot.estado, resultadoRun: scheduler5.obtenerEstado(), metricas: scheduler5.obtenerMetricas() };
     var resultadoRealL5 = RS.lessons.check.evaluar(leccion5, snapshotRealL5);
-    assert(resultadoRealL5.ok === true, 'Lección 5: el programa de referencia (avanzar+si_sino+avanzar) cumple su propio criterio en una corrida real');
+    assert(resultadoRealL5.ok === true, 'Lección 5: el programa de referencia (repetir hasta + derecha + repetir 40 { si/si no }) cumple su propio criterio en una corrida real');
     scheduler5.reiniciar();
 
-    // Un primer tramo demasiado largo choca contra el obstáculo antes de llegar a la decisión.
+    // Sin el giro derecha(500), el primer "si/si no" del segundo bucle ya detecta la pared del fondo del primer pasillo y se detiene ahí mismo, a la misma altura que el inicio.
     scheduler5.iniciarConArbol([
-      { tipo: 'accion', accion: 'avanzar', valor: 2400, blockId: 'a1' },
-      { tipo: 'si_sino', sensor: 'hayObstaculo', blockId: 'ss1',
-        cuerpo: [{ tipo: 'accion', accion: 'derecha', valor: 500, blockId: 'd1' }], sino: [] },
-      { tipo: 'accion', accion: 'avanzar', valor: 800, blockId: 'a2' }
+      { tipo: 'repetir_hasta', sensor: 'hayObstaculo', blockId: 'rh1', cuerpo: [
+        { tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'a1' }
+      ] },
+      { tipo: 'repetir', veces: 40, blockId: 'r1', cuerpo: [
+        { tipo: 'si_sino', sensor: 'hayObstaculo', blockId: 'ss1',
+          cuerpo: [{ tipo: 'accion', accion: 'detener', blockId: 'd2' }],
+          sino: [{ tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'a2' }] }
+      ] }
     ]);
-    for (var i5l = 0; i5l < 500 && scheduler5.obtenerEstado() === 'running'; i5l++) {
+    for (var i5g = 0; i5g < 2000 && scheduler5.obtenerEstado() === 'running'; i5g++) {
       scheduler5._procesarFrame(16);
     }
-    assertEquals(scheduler5.obtenerEstado(), 'error', 'Lección 5: un primer tramo demasiado largo choca contra el obstáculo antes de la decisión');
-    scheduler5.reiniciar();
-
-    // Un segundo tramo corto (gira pero no llega a la zona de meta) falla.
-    scheduler5.iniciarConArbol([
-      { tipo: 'accion', accion: 'avanzar', valor: 1900, blockId: 'a1' },
-      { tipo: 'si_sino', sensor: 'hayObstaculo', blockId: 'ss1',
-        cuerpo: [{ tipo: 'accion', accion: 'derecha', valor: 500, blockId: 'd1' }], sino: [] },
-      { tipo: 'accion', accion: 'avanzar', valor: 200, blockId: 'a2' }
-    ]);
-    for (var i5c = 0; i5c < 500 && scheduler5.obtenerEstado() === 'running'; i5c++) {
-      scheduler5._procesarFrame(16);
-    }
-    var resultadoCortoL5 = RS.lessons.check.evaluar(leccion5, { estado: RS.robot.estado, resultadoRun: scheduler5.obtenerEstado(), metricas: scheduler5.obtenerMetricas() });
-    assert(resultadoCortoL5.ok === false, 'Lección 5: gira pero el segundo tramo es demasiado corto para llegar a la zona de meta');
+    var resultadoSinGiroL5 = RS.lessons.check.evaluar(leccion5, { estado: RS.robot.estado, resultadoRun: scheduler5.obtenerEstado(), metricas: scheduler5.obtenerMetricas() });
+    assert(resultadoSinGiroL5.ok === false, 'Lección 5: sin derecha(500) el robot se detiene a la misma altura del inicio, fuera de la zona de meta');
 
     scheduler5.reiniciar();
     document.body.removeChild(feedbackDiv5);
@@ -1105,14 +1103,16 @@
     assertEquals(RS.lessons.CONTENIDO.map(function (l) { return l.id; }), [1, 2, 3, 4, 5, 6, 7], 'RS.lessons.CONTENIDO expone Lecciones 1 a 7 en orden de id (Slice C2 agrega 6 y 7)');
   })();
 
-  // ================= Lesson 6: repetir_hasta + criterion (Slice C2) =================
-  grupo('Lección 6: contenido, exactamente un bloque nuevo, criterio distingue salida por condición vs. límite de seguridad');
+  // ================= Lesson 6: repetir_hasta recap + criterion =================
+  grupo('Lección 6: contenido, repaso de repetición, criterio distingue salida por condición vs. límite de seguridad');
   (function () {
-    var leccion5c = RS.lessons.CONTENIDO.filter(function (l) { return l.id === 5; })[0];
+    var leccion3c = RS.lessons.CONTENIDO.filter(function (l) { return l.id === 3; })[0];
+    var leccion4c = RS.lessons.CONTENIDO.filter(function (l) { return l.id === 4; })[0];
     var leccion6 = RS.lessons.CONTENIDO.filter(function (l) { return l.id === 6; })[0];
     assert(!!leccion6 && !!leccion6.criterio, 'Lección 6 tiene un criterio.evaluar definido');
-    assert(leccion6.bloques.indexOf('repetir hasta') !== -1, 'Lección 6 introduce el bloque "repetir hasta"');
-    assert(leccion5c.bloques.indexOf('repetir hasta') === -1, 'Lección 5 no menciona "repetir hasta" (bloque introducido recién en Lección 6)');
+    assert(leccion6.bloques.indexOf('repetir hasta') !== -1, 'Lección 6 conserva el bloque "repetir hasta" en su repaso');
+    assert(leccion4c.bloques.indexOf('repetir hasta') !== -1, 'Lección 4 introduce el bloque "repetir hasta"');
+    assert(leccion3c.bloques.indexOf('repetir hasta') === -1, 'Lección 3 no menciona "repetir hasta" (bloque introducido recién en Lección 4)');
 
     // --- Passes on the reference pose/metrics (v2: longer corridor, more repetitions) ---
     var pasaL6 = RS.lessons.check.evaluar(leccion6, {
