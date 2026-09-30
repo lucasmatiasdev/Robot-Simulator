@@ -1,12 +1,13 @@
 /**
  * RS.toolbox — toolbox definition with the categories: Inicio, Movimiento,
- * Sensores/Decisión, Repetición.
+ * Sensores/Decisión, Repetición, Variables.
  *
  * RS.toolbox.paraLeccion(leccionId) returns a filtered categoryToolbox that
  * only unlocks the block types each lesson has introduced so far (per
  * lessons/content.js's progression), built by filtering these same content
  * arrays against RS.blocks's *_TYPES groupings — no per-lesson hand-written
- * block lists. Lesson 7 and the sandbox get the full, unfiltered toolbox.
+ * block lists. Lesson 7 (Variables, which introduces the Variables category)
+ * and everything after it, plus the sandbox, get the full, unfiltered toolbox.
  */
 (function (global) {
   'use strict';
@@ -76,6 +77,36 @@
     { kind: 'block', type: 'rs_por_siempre' }
   ];
 
+  // Preset blocks: a counter (int) and a direction flag (bool), the two
+  // variables the Variables lesson teaches.
+  var VARIABLES_CONTENTS = [
+    {
+      kind: 'block',
+      type: 'rs_declarar_variable',
+      fields: { TIPO: 'int', NOMBRE: 'contador' },
+      inputs: { VALOR: { shadow: { type: 'rs_numero', fields: { NUM: 0 } } } }
+    },
+    {
+      kind: 'block',
+      type: 'rs_declarar_variable',
+      fields: { TIPO: 'bool', NOMBRE: 'bandera' },
+      inputs: { VALOR: { shadow: { type: 'rs_booleano', fields: { BOOL: 'TRUE' } } } }
+    },
+    {
+      kind: 'block',
+      type: 'rs_asignar_variable',
+      fields: { NOMBRE: 'bandera' },
+      inputs: { VALOR: { shadow: { type: 'rs_booleano', fields: { BOOL: 'FALSE' } } } }
+    },
+    {
+      kind: 'block',
+      type: 'rs_cambiar_variable',
+      fields: { NOMBRE: 'contador', DELTA: 1 }
+    },
+    { kind: 'block', type: 'rs_obtener_variable', fields: { NOMBRE: 'contador' } },
+    { kind: 'block', type: 'rs_booleano' }
+  ];
+
   function construirCategoria(nombre, colour, contenidos) {
     return { kind: 'category', name: nombre, colour: colour, contents: contenidos };
   }
@@ -93,7 +124,8 @@
       construirCategoria('Inicio', '0', INICIO_CONTENTS),
       construirCategoria('Movimiento', '210', MOVIMIENTO_CONTENTS),
       construirCategoria('Sensores/Decisión', '290', SENSOR_CONTENTS),
-      construirCategoria('Repetición', '20', REPETICION_CONTENTS)
+      construirCategoria('Repetición', '20', REPETICION_CONTENTS),
+      construirCategoria('Variables', '330', VARIABLES_CONTENTS)
     ]
   };
 
@@ -107,7 +139,9 @@
   var REPETICION_TYPES_LECCIONES_4_A_6 = ['rs_repetir', 'rs_repetir_hasta'];
 
   RS.toolbox.paraLeccion = function (leccionId) {
-    if (leccionId >= 7) return RS.toolbox; // full, unrestricted
+    // Lesson 7 (Variables) introduces the Variables category and rs_por_siempre
+    // together: from there on the toolbox is full and unrestricted.
+    if (leccionId >= 7) return RS.toolbox;
 
     var categorias = [
       construirCategoria('Inicio', '0', INICIO_CONTENTS),

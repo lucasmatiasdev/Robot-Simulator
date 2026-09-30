@@ -241,5 +241,18 @@ var sensorL5 = tiposSensor(RS.toolbox.paraLeccion(5));
 assert(sensorL5 !== null && sensorL5.indexOf('rs_si_obstaculo') !== -1 && sensorL5.indexOf('rs_si_sino') !== -1,
   'L5: la categoria Sensores/Decisión contiene rs_si_obstaculo y rs_si_sino');
 
+// Variables category gating: locked through L6, unlocked from L7 (and sandbox).
+[1, 2, 3, 4, 5, 6].forEach(function (n) {
+  assert(tiposCategoria(RS.toolbox.paraLeccion(n), 'Variables') === null, 'L' + n + ': no hay categoria Variables todavia');
+});
+var variablesL7 = tiposCategoria(RS.toolbox.paraLeccion(7), 'Variables');
+assert(variablesL7 !== null && variablesL7.indexOf('rs_declarar_variable') !== -1 && variablesL7.indexOf('rs_cambiar_variable') !== -1,
+  'L7: la categoria Variables existe con declarar y cambiar');
+assert(tiposCategoria(RS.toolbox.paraLeccion(8), 'Variables') !== null, 'L8: la categoria Variables sigue disponible');
+assert(tiposCategoria(RS.toolbox, 'Variables') !== null, 'RS.toolbox (sandbox) contiene la categoria Variables');
+var bloquesVariables = RS.blocks.VARIABLES_TYPES.slice().sort().join(',');
+var bloquesToolbox = (variablesL7 || []).filter(function (t, i, a) { return a.indexOf(t) === i; }).sort().join(',');
+assert(bloquesVariables === bloquesToolbox, 'L7: la categoria Variables ofrece los 5 tipos de RS.blocks.VARIABLES_TYPES');
+
 console.log('\n' + (fallidos === 0 ? 'TODOS LOS TESTS PASARON' : (fallidos + ' TEST(S) FALLARON')) + ' (' + (total - fallidos) + '/' + total + ')');
 process.exit(fallidos === 0 ? 0 : 1);
