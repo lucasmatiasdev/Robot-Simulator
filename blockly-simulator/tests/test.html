@@ -20,6 +20,7 @@
      the Blockly global and are exercised only through fake block/workspace
      stubs below, matching the minimal API program-tree.js actually calls. -->
 <script src="../src/config.js"></script>
+<script src="../src/sim/gridAdapter.js"></script>
 <script src="../src/lessons/content.js"></script>
 <script src="../src/lessons/progress.js"></script>
 <script src="../src/lessons/check.js"></script>
@@ -457,27 +458,43 @@
     RS.robot.reset();
     var arbol = [
       { tipo: 'repetir', veces: 3, blockId: 'r1', cuerpo: [
-        { tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'a1' }
+        { tipo: 'accion', accion: 'esperar', valor: 100, blockId: 'a1' }
       ] }
     ];
     var walker = RS.runtime.interpreter.crear(arbol, RS.world, RS.robot.estado);
     var pasos = 0;
+    var ticks = 0;
     var nodo = walker.siguienteNodo();
     var vistos = [];
     while (nodo !== null) {
-      vistos.push(nodo.blockId);
-      // Simulate the scheduler applying the full duration in one fixed-dt step.
-      var dist = RS.config.VEL * nodo.valor;
-      RS.robot.commitPosicion(RS.robot.estado.x + dist, RS.robot.estado.y);
-      pasos++;
+      if (nodo.tipo === 'tick') {
+        ticks++;
+      } else {
+        vistos.push(nodo.blockId);
+        pasos++;
+      }
       nodo = walker.siguienteNodo();
-      if (pasos > 10) break; // safety
+      if (pasos + ticks > 20) break; // safety
     }
     assertEquals(vistos, ['a1', 'a1', 'a1'], 'repetir(3) re-camina su cuerpo 3 veces en tiempo de ejecución (mismo blockId)');
     assertEquals(pasos, 3, 'exactamente 3 pasos ejecutados, no expandidos de antemano');
-    var esperadoX = RS.world.poseInicial.x + 3 * RS.config.VEL * 100;
-    assert(Math.abs(RS.robot.estado.x - esperadoX) < 0.001, 'posición final x coincide con 3 avances de 100ms');
-    RS.robot.reset();
+    assertEquals(ticks, 3, 'cada vuelta completada del bucle emite un tick implícito');
+
+    // Same tree through the scheduler: motors on during each Delay.
+    var scheduler = RS.runtime.scheduler;
+    scheduler.iniciarConArbol([
+      { tipo: 'accion', accion: 'avanzar', blockId: 'm1' },
+      { tipo: 'repetir', veces: 3, blockId: 'r1', cuerpo: [
+        { tipo: 'accion', accion: 'esperar', valor: 100, blockId: 'a1' }
+      ] },
+      { tipo: 'accion', accion: 'detener', blockId: 'd1' }
+    ]);
+    var xInicio = RS.robot.estado.x;
+    for (var f = 0; f < 100 && scheduler.obtenerEstado() === 'running'; f++) scheduler._procesarFrame(16);
+    // 3 Delays of 100 ms plus 3 loop ticks of 1 ms, all with motors on.
+    var esperadoX = xInicio + RS.config.VEL * 303;
+    assert(Math.abs(RS.robot.estado.x - esperadoX) < 0.001, 'posición final x coincide con 303 ms de motores encendidos');
+    scheduler.reiniciar();
   })();
 
   // ================= Interprete: condicion de comparador branchea =================
@@ -514,7 +531,7 @@
       { tipo: 'si_sino', blockId: 'ss1',
         condicion: { op: '<', izq: { k: 'medirDistancia' }, der: { k: 'numero', v: 15 } },
         cuerpo: [{ tipo: 'accion', accion: 'detener', blockId: 'do1' }],
-        sino: [{ tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'else1' }] },
+        sino: [{ tipo: 'accion', accion: 'esperar', valor: 100, blockId: 'else1' }] },
       { tipo: 'accion', accion: 'detener', valor: 1, blockId: 'a-despues' }
     ];
 
@@ -551,7 +568,7 @@
     var nSkip = walkerSkip.siguienteNodo();
     while (nSkip !== null) { vistosSkip.push(nSkip.blockId); nSkip = walkerSkip.siguienteNodo(); }
     assertEquals(vistosSkip, ['despues-skip'], 'repetir_hasta con condicion ya verdadera: cero iteraciones del cuerpo (pre-test)');
-    assertEquals(walkerSkip.limiteSeguridad(), null, 'repetir_hasta sin trip: limiteSeguridad() es null');
+    assertEquals(walkerSkip.limiteSeguridad, undefined, 'el intérprete ya no expone limiteSeguridad (sin topes de iteración)');
 
     // --- Condicion se vuelve verdadera tras N pasadas: exactamente N pasadas, re-evaluada entre pasadas ---
     // Usa el patron real: comparador sobre medirDistancia() con una pose que
@@ -562,7 +579,7 @@
     var condicionCerca = { op: '<', izq: { k: 'medirDistancia' }, der: { k: 'numero', v: 15 } };
     var arbolAcercamiento = [
       { tipo: 'repetir_hasta', blockId: 'rh-acerca', condicion: condicionCerca, cuerpo: [
-        { tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'paso-acerca' }
+        { tipo: 'accion', accion: 'esperar', valor: 100, blockId: 'paso-acerca' }
       ] },
       { tipo: 'accion', accion: 'detener', valor: 1, blockId: 'despues-acerca' }
     ];
@@ -571,7 +588,7 @@
     var nAcerca = walkerAcerca.siguienteNodo();
     var pasosAcerca = 0;
     while (nAcerca !== null && pasosAcerca < 50) {
-      vistosAcerca.push(nAcerca.blockId);
+      if (nAcerca.tipo !== 'tick') vistosAcerca.push(nAcerca.blockId);
       if (nAcerca.blockId === 'paso-acerca') {
         // Simula al scheduler avanzando al robot antes de re-evaluar la condicion.
         RS.robot.commitPosicion(RS.robot.estado.x + 20, RS.robot.estado.y);
@@ -582,64 +599,34 @@
     assert(vistosAcerca.length > 1, 'repetir_hasta (acercandose): el cuerpo se yieldea mas de una vez antes de que la condicion se cumpla');
     assertEquals(vistosAcerca[vistosAcerca.length - 1], 'despues-acerca', 'repetir_hasta (acercandose): al cumplirse la condicion, el programa continua tras el loop');
     assert(vistosAcerca.slice(0, -1).every(function (id) { return id === 'paso-acerca'; }), 'repetir_hasta (acercandose): solo hojas del cuerpo se yieldean mientras la condicion es falsa');
-    assertEquals(walkerAcerca.limiteSeguridad(), null, 'repetir_hasta (acercandose, salida normal por condicion): limiteSeguridad() es null');
     RS.robot.reset();
 
-    // --- Safety cap: empty body / never-true condition terminates at exactly MAX_ITER_REPETIR_HASTA ---
+    // --- No caps: a never-true condition with an empty body keeps yielding ticks, never hangs ---
     var condicionNuncaVerdadera = { op: '==', izq: { k: 'numero', v: 1 }, der: { k: 'numero', v: 2 } };
-    var arbolCapVacio = [
+    var walkerSinTope = RS.runtime.interpreter.crear([
       { tipo: 'repetir_hasta', blockId: 'rh-cap', condicion: condicionNuncaVerdadera, cuerpo: [] },
-      { tipo: 'accion', accion: 'detener', valor: 1, blockId: 'despues-cap' }
-    ];
-    var walkerCap = RS.runtime.interpreter.crear(arbolCapVacio, RS.world, RS.robot.estado, null);
-    var nCap = walkerCap.siguienteNodo();
-    assertEquals(nCap && nCap.blockId, 'despues-cap', 'repetir_hasta con cuerpo vacio y condicion que nunca se cumple: el interprete NO se cuelga, el programa continua tras el limite de seguridad');
-    assertEquals(walkerCap.limiteSeguridad(), { blockId: 'rh-cap', iteraciones: RS.config.MAX_ITER_REPETIR_HASTA },
-      'repetir_hasta: al disparar el limite, limiteSeguridad() = {blockId, iteraciones: MAX_ITER_REPETIR_HASTA}');
-
-    // --- Safety cap does not fire when the body has real leaf actions and the ---
-    // --- condition never becomes true either: still bounded, still yields exactly MAX_ITER leaves ---
-    var arbolCapConCuerpo = [
-      { tipo: 'repetir_hasta', blockId: 'rh-cap2', condicion: condicionNuncaVerdadera, cuerpo: [
-        { tipo: 'accion', accion: 'detener', valor: 1, blockId: 'iter-cap2' }
-      ] }
-    ];
-    var walkerCap2 = RS.runtime.interpreter.crear(arbolCapConCuerpo, RS.world, RS.robot.estado, null);
-    var pasosCap2 = 0;
-    var nodoCap2 = walkerCap2.siguienteNodo();
-    while (nodoCap2 !== null) { pasosCap2++; nodoCap2 = walkerCap2.siguienteNodo(); }
-    assertEquals(pasosCap2, RS.config.MAX_ITER_REPETIR_HASTA, 'repetir_hasta con cuerpo no vacio y condicion que nunca se cumple: se yieldean exactamente MAX_ITER_REPETIR_HASTA hojas antes de terminar');
-    assertEquals(walkerCap2.limiteSeguridad(), { blockId: 'rh-cap2', iteraciones: RS.config.MAX_ITER_REPETIR_HASTA }, 'repetir_hasta con cuerpo no vacio: tambien dispara limiteSeguridad al llegar al tope');
+      { tipo: 'accion', accion: 'detener', blockId: 'despues-cap' }
+    ], RS.world, RS.robot.estado, null);
+    var ticksSinTope = 0;
+    var nSinTope = walkerSinTope.siguienteNodo();
+    while (nSinTope !== null && nSinTope.tipo === 'tick' && ticksSinTope < 3000) { ticksSinTope++; nSinTope = walkerSinTope.siguienteNodo(); }
+    assertEquals(ticksSinTope, 3000, 'repetir_hasta vacío con condición que nunca se cumple: sigue emitiendo ticks mucho más allá de 1000 vueltas (sin tope)');
+    assertEquals(walkerSinTope.siguienteNodo() && 'seguia', 'seguia', 'repetir_hasta sin tope: el programa nunca continúa tras el bucle');
   })();
 
-  // ================= Scheduler: repetir_hasta wires the real limiteSeguridad metric =================
-  grupo('Scheduler: repetir_hasta con limite de seguridad termina en idle (nunca error/stopped) y expone la metrica');
+  // ================= Scheduler: repetir_hasta sin tope progresa por ticks =================
+  grupo('Scheduler: repetir_hasta vacío sin tope sigue running, avanza por ticks y reporta limiteSeguridad null');
   (function () {
-    var feedbackDivRH = document.createElement('div');
-    document.body.appendChild(feedbackDivRH);
-    RS.ui.feedback.init(feedbackDivRH);
-
     var scheduler = RS.runtime.scheduler;
     var condicionNuncaVerdaderaSched = { op: '==', izq: { k: 'numero', v: 1 }, der: { k: 'numero', v: 2 } };
-    var arbolSched = [
+    scheduler.iniciarConArbol([
       { tipo: 'repetir_hasta', blockId: 'rh-sched', condicion: condicionNuncaVerdaderaSched, cuerpo: [] },
-      { tipo: 'accion', accion: 'detener', valor: 1, blockId: 'despues-sched' }
-    ];
-    scheduler.iniciarConArbol(arbolSched);
-    // A single tick is enough: the interpreter's own while-loop already
-    // resolves the entire capped loop synchronously inside siguienteNodo().
+      { tipo: 'accion', accion: 'detener', blockId: 'despues-sched' }
+    ]);
     scheduler._procesarFrame(16);
-
-    assertEquals(scheduler.obtenerEstado(), 'idle', 'repetir_hasta con limite disparado: el run termina en idle, NUNCA en error (no es una colision) ni stopped (no fue detenido manualmente)');
-    var metricasRH = scheduler.obtenerMetricas();
-    assertEquals(metricasRH.limiteSeguridad, { blockId: 'rh-sched', iteraciones: RS.config.MAX_ITER_REPETIR_HASTA }, 'scheduler.obtenerMetricas().limiteSeguridad expone el trip real (ya no hardcodeado a null)');
-
-    scheduler.reiniciar();
-    document.body.removeChild(feedbackDivRH);
-
-    // Confirm a normal (non-tripping) run still reports limiteSeguridad: null.
-    scheduler.iniciarConArbol([{ tipo: 'accion', accion: 'detener', valor: 1, blockId: 'l-normal' }]);
-    assertEquals(scheduler.obtenerMetricas().limiteSeguridad, null, 'una corrida sin repetir_hasta sigue reportando limiteSeguridad: null');
+    assertEquals(scheduler.obtenerEstado(), 'running', 'el bucle sin tope sigue running (no hay trip ni error)');
+    assertEquals(scheduler._tiempoSim(), 16, 'el bucle vacío consume un tick por vuelta: el tiempo simulado avanza 16 ms en un frame de 16 ms');
+    assertEquals(scheduler.obtenerMetricas().limiteSeguridad, null, 'limiteSeguridad es siempre null');
     scheduler.reiniciar();
   })();
 
@@ -740,6 +727,66 @@
 
     scheduler.reiniciar();
     assertEquals(scheduler.obtenerEstado(), 'idle', 'reiniciar() vuelve a idle tras una colisión');
+    document.body.removeChild(feedbackDiv);
+  })();
+
+  // ================= Scheduler: modelo de motores (estado persistente) =================
+  grupo('Scheduler: motores persistentes; solo Delay y ticks consumen tiempo; fin con motores encendidos');
+  (function () {
+    var feedbackDiv = document.createElement('div');
+    document.body.appendChild(feedbackDiv);
+    RS.ui.feedback.init(feedbackDiv);
+    var scheduler = RS.runtime.scheduler;
+    function mot(accion, id) { return { tipo: 'accion', accion: accion, blockId: id }; }
+    function esp(ms, id) { return { tipo: 'accion', accion: 'esperar', valor: ms, blockId: id }; }
+    function correr(arbol, frames) {
+      scheduler.iniciarConArbol(arbol);
+      for (var i = 0; i < (frames || 2000) && scheduler.obtenerEstado() === 'running'; i++) scheduler._procesarFrame(16);
+    }
+
+    // Zero-time set: avanzar alone consumes no sim time and does not move the robot yet.
+    scheduler.iniciarConArbol([mot('avanzar', 'a'), esp(100, 'e'), mot('detener', 'd')]);
+    var x0 = RS.robot.estado.x;
+    scheduler._procesarFrame(0);
+    assertEquals(scheduler._tiempoSim(), 0, 'avanzar sin Delay: 0 ms de tiempo simulado');
+    assertEquals(RS.robot.estado.x, x0, 'avanzar sin Delay: el robot todavía no se movió');
+    assertEquals(RS.robot.motores, { izq: 1, der: 1 }, 'avanzar enciende ambos motores');
+    scheduler.reiniciar();
+
+    // State persists across Delays; Delay(500) turn = 90 deg; clean end is not an error.
+    correr([mot('avanzar', 'a'), esp(200, 'e1'), esp(300, 'e2'), mot('detener', 'd')]);
+    assertEquals(scheduler.obtenerEstado(), 'idle', 'avanzar, Delay, detener: termina en idle (no error)');
+    assert(Math.abs(RS.robot.estado.x - x0 - RS.config.VEL * 500) < 0.001, 'el estado de motores persiste durante dos Delay seguidos (500 ms)');
+    scheduler.reiniciar();
+    correr([mot('derecha', 'a'), esp(500, 'e'), mot('detener', 'd')]);
+    assert(Math.abs(RS.robot.estado.angulo - 90) < 0.001, 'girar derecha, Delay(500), detener: gira 90 grados');
+    scheduler.reiniciar();
+
+    // detener is non-terminal.
+    correr([mot('detener', 'd'), mot('avanzar', 'a'), esp(100, 'e'), mot('detener', 'd2')]);
+    assert(RS.robot.estado.x > x0 + 11, 'los bloques posteriores a detener se ejecutan');
+    scheduler.reiniciar();
+
+    // Program end with motors on: coasts into the wall -> error + finConMotores + wording.
+    correr([mot('avanzar', 'a')]);
+    assertEquals(scheduler.obtenerEstado(), 'error', 'avanzar como último bloque: el robot sigue hasta chocar y termina en error');
+    assertEquals(scheduler.obtenerMetricas().finConMotores, true, 'obtenerMetricas().finConMotores es true');
+    assert(feedbackDiv.textContent.indexOf('El programa terminó con los motores encendidos y el robot chocó contra') === 0, 'el mensaje explica el fin con motores encendidos');
+    scheduler.reiniciar();
+
+    // Rotation-only coast ends in error after COAST_GIRO_MAX_MS; avanzar coast still collides.
+    correr([mot('derecha', 'a')]);
+    assertEquals(scheduler.obtenerEstado(), 'error', 'solo girar hasta el fin del programa: error por tiempo de giro');
+    assert(scheduler._tiempoSim() >= RS.config.COAST_GIRO_MAX_MS && scheduler._tiempoSim() < RS.config.COAST_GIRO_MAX_MS + 16, 'el error de giro llega a los COAST_GIRO_MAX_MS (2000 ms)');
+    scheduler.reiniciar();
+
+    // Anti-tunneling through proponerPaso: one huge frame with the new model still collides.
+    var obstaculo = RS.world.obstaculos[0];
+    correr([mot('avanzar', 'a'), esp(4000, 'e'), mot('detener', 'd')], 0);
+    scheduler._procesarFrame(4000);
+    assertEquals(scheduler.obtenerEstado(), 'error', 'frame gigante con motores: detecta la colisión');
+    assert(RS.robot.estado.x < obstaculo.x + obstaculo.w, 'proponerPaso en subpasos: el robot no atraviesa el obstáculo');
+    scheduler.reiniciar();
     document.body.removeChild(feedbackDiv);
   })();
 
