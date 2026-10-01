@@ -9,7 +9,7 @@
  * nivel.
  *
  * `criterio` is null only for lessons with no run-derived success check.
- * Every lesson (1-7) now has a real, run-checkable `criterio` — Lesson 1's
+ * Every lesson (1-8) now has a real, run-checkable `criterio` — Lesson 1's
  * identification-focused text is paired with a pre-loaded program (see
  * main.js's irALeccion) so it still has a goal to run toward. Lesson 2's
  * `criterio.evaluar(snapshot)` checks `dentroDeMeta(...)` (see check.js for
@@ -832,10 +832,33 @@
     meta: { col: 13, row: 6, colSpan: 3, rowSpan: 3 }
   };
   var MAPA_LECCION_6 = RS.gridAdapter.aPixeles(GRID_LECCION_6);
+  // Serpentine: three east-west lanes (3 cells tall each, the minimum corridor
+  // width) stacked top to bottom, joined alternately at the east and west ends
+  // by a 4-cell gap in the wall between lanes. Start cell (2,2) = pixel
+  // (100,100), facing east in the top lane (wide enough for the ejemplo's
+  // small square). The meta pocket sits at the east end of the bottom lane.
+  // Lane centers are 160px apart, so one lane change is avanzar(1333).
+  var GRID_LECCION_7 = {
+    version: 1, cols: 20, rows: 15,
+    muros: [
+      { col: 0, row: 0, colSpan: 20 },
+      { col: 0, row: 12, colSpan: 20, rowSpan: 3 },
+      { col: 0, row: 1, rowSpan: 11 },
+      { col: 19, row: 1, rowSpan: 11 },
+      { col: 1, row: 4, colSpan: 13 },
+      { col: 18, row: 4 },
+      { col: 1, row: 8 },
+      { col: 6, row: 8, colSpan: 13 }
+    ],
+    inicio: { col: 2, row: 2, angulo: 0 },
+    meta: { col: 15, row: 9, colSpan: 3, rowSpan: 3 }
+  };
+  var MAPA_LECCION_7 = RS.gridAdapter.aPixeles(GRID_LECCION_7);
+
   // Start cell (2,2) = pixel (100,100): a single-route ring (upper corridor,
   // right channel down, bottom corridor, left channel up, inner corridor)
   // ending in the meta pocket, which is entered only from the inner corridor.
-  var GRID_LECCION_7 = {
+  var GRID_LECCION_8 = {
     version: 1, cols: 20, rows: 15,
     muros: [
       { col: 0, row: 0 },
@@ -956,7 +979,7 @@
     inicio: { col: 2, row: 2, angulo: 0 },
     meta: { col: 12, row: 8, colSpan: 3, rowSpan: 2 }
   };
-  var MAPA_LECCION_7 = RS.gridAdapter.aPixeles(GRID_LECCION_7);
+  var MAPA_LECCION_8 = RS.gridAdapter.aPixeles(GRID_LECCION_8);
 
   RS.lessons.CONTENIDO = [
     {
@@ -1176,6 +1199,53 @@
     {
       id: 7,
       nivel: 'Nivel 3 — Autonomía',
+      titulo: 'Variables',
+      objetivo: 'En esta lección aprenderás a guardar información en una variable — un contador y una bandera de dirección — y a usarla para que el robot decida cuántas veces repetir y hacia dónde girar en cada tramo de un recorrido en zigzag.',
+      concepto: 'Una variable es un nombre que guarda un valor mientras el programa se ejecuta. Se declara una sola vez indicando su tipo: "int" guarda números enteros (por ejemplo, un contador) y "bool" guarda verdadero o falso (por ejemplo, una bandera que indica hacia qué lado avanza el robot). Después se puede leer su valor, asignarle uno nuevo con "asignar" o sumarle un número con "cambiar". Como el valor se conserva entre una pasada del bucle y la siguiente, una variable permite que el programa recuerde lo que ya hizo: cuántas vueltas dio o en qué dirección iba. Si el bloque "declarar" queda dentro del bucle, la variable vuelve a su valor inicial en cada pasada, así que conviene declararla antes.',
+      ejemplo: 'INICIO → declarar int lados = 0 → repetir hasta (lados >= 4) { avanzar(300) → derecha(500) → cambiar lados en 1 } (el robot dibuja un cuadrado pequeño y cuenta cada lado con la variable).',
+      bloques: 'declarar (int / bool), asignar, cambiar, valor de variable, verdadero / falso, comparar (variable >= número), si / si no con variable, repetir hasta, avanzar(ms), derecha(ms), izquierda(ms)',
+      comoFunciona: 'El bloque "declarar int lados = 0" crea la variable con valor inicial 0. En cada pasada, "repetir hasta" compara lados con 4 antes de empezar: mientras sea menor, el robot avanza, gira, y "cambiar lados en 1" suma uno al contador. Al llegar a 4 el bucle termina, sin ejecutar una pasada más. La comparación usa solo la variable, no el sensor del robot. Una variable bool funciona igual pero guarda verdadero o falso, y se puede usar directamente como condición de un "si / si no".',
+      prueba: 'Arma el ejemplo (declarar int lados = 0 → repetir hasta lados >= 4 { avanzar(300) → derecha(500) → cambiar lados en 1 }) y presiona Ejecutar. Observa que el robot gira sobre un cuadrado pequeño y vuelve a su punto de partida: el bucle termina solo cuando el contador llega a 4, sin que el sensor intervenga.',
+      modificacion: 'Cambia el 4 de la comparación por otro número (por ejemplo 2) y vuelve a ejecutar. El robot da menos lados, porque el contador llega antes al valor de la condición.',
+      desafio: 'Programa al robot para que recorra el zigzag de tres pasillos: avanza por el primero hasta detectar la pared, baja al segundo pasillo y regresa por él, baja al tercero y avanza hasta la zona de meta. Usa una variable int para contar los tramos que faltan y una variable bool como bandera para recordar hacia qué lado giras en cada extremo.',
+      criterioTexto: 'El robot debe recorrer los tres pasillos y quedar detenido dentro de la zona de meta marcada al final del último pasillo, habiendo consultado el sensor al menos una vez, sin alcanzar el límite de seguridad de ningún bucle y habiendo modificado alguna variable al menos dos veces (con "asignar" o "cambiar").',
+      pista: 'Pista 1: declara antes del bucle el contador (int) y la bandera (bool); si los declaras dentro, vuelven a su valor inicial en cada pasada. Pista 2: dentro del bucle, primero avanza en pasos cortos hasta detectar la pared; luego gira, baja al siguiente pasillo y gira otra vez. Pista 3: usa "si / si no" con la bandera como condición: si es verdadera, los giros son hacia la derecha; si no, hacia la izquierda, y en cada rama asigna la bandera al valor contrario. Pista 4: no olvides "cambiar" el contador al final de cada pasada, o el bucle nunca llegará a su condición de salida.',
+      competencias: 'C7 — Variables y estado del programa',
+      resultados: 'RA7 — Uso de variables',
+      // Geometry/verification: see MAPA_LECCION_7 above.
+      grid: GRID_LECCION_7,
+      mapa: MAPA_LECCION_7,
+      criterio: {
+        evaluar: function (snapshot) {
+          if (!snapshot || !snapshot.estado || !snapshot.metricas) return false;
+          var m = snapshot.metricas;
+          if (m.evalsSensor < 1 || m.limiteSeguridad !== null || m.cambiosVariable < 2) return false;
+          return dentroDeMeta(MAPA_LECCION_7.meta, snapshot.estado.x, snapshot.estado.y);
+        },
+        describir: function (snapshot, ok) {
+          if (!snapshot || !snapshot.estado) return null;
+          var x = Math.round(snapshot.estado.x);
+          var y = Math.round(snapshot.estado.y);
+          var m = snapshot.metricas || { evalsSensor: 0, limiteSeguridad: null, cambiosVariable: 0 };
+          if (ok) {
+            return 'El robot recorrió los tres pasillos usando variables para recordar el tramo y la dirección, y llegó a la zona de meta (x=' + x + 'px, y=' + y + 'px).';
+          }
+          if (m.limiteSeguridad) {
+            return 'El robot alcanzó el límite de seguridad de un bucle: revisa que el contador cambie en cada pasada para que la condición llegue a cumplirse.';
+          }
+          if (!m.evalsSensor) {
+            return 'El robot terminó su ejecución sin haber consultado nunca su sensor para detectar el final de cada pasillo.';
+          }
+          if (!m.cambiosVariable || m.cambiosVariable < 2) {
+            return 'El programa casi no modificó ninguna variable: usa "cambiar" o "asignar" para que el contador y la bandera se actualicen durante el recorrido.';
+          }
+          return 'El robot no llegó a la zona de meta: se detuvo en x=' + x + 'px, y=' + y + 'px.';
+        }
+      }
+    },
+    {
+      id: 8,
+      nivel: 'Nivel 3 — Autonomía',
       titulo: 'Desafío integrado',
       objetivo: 'En esta lección vas a combinar todo lo aprendido — secuencias, sensores, "si / si no" y "repetir hasta" — para programar al robot de punta a punta, decidiendo tú mismo cómo recorrer un circuito con una sola ruta.',
       concepto: 'Un programa completo casi nunca usa una sola herramienta: combina una secuencia de pasos con decisiones ("si / si no") y repeticiones ("repetir hasta") que dependen de lo que el sensor va percibiendo en cada momento. No existe una única forma correcta de resolver un mismo problema: dos programas distintos, que usen bloques o combinaciones distintas, pueden lograr el mismo resultado si ambos hacen que el robot recorra el camino sin chocar.',
@@ -1187,17 +1257,17 @@
       desafio: 'Programa al robot para que recorra el circuito completo — el pasillo superior, la bajada por el lado derecho, el regreso por abajo, la subida por el lado izquierdo y el pasillo interior — usando el sensor para decidir dónde girar en cada esquina, y llegue a la zona de meta que se abre al final del pasillo interior, sin chocar en ningún momento.',
       criterioTexto: 'El robot debe recorrer el circuito completo y quedar detenido dentro de la zona de meta marcada al final del pasillo interior, habiendo consultado el sensor al menos una vez durante la ejecución, sin haber chocado y sin haber alcanzado el límite de seguridad de ningún bucle. El circuito tiene una sola ruta, pero no existe un único programa correcto: cualquier combinación de bloques que lo recorra sin chocar es válida.',
       pista: 'Pista 1: piensa el desafío como varios tramos encadenados: cada pasillo termina en una pared, y allí hay que girar. Pista 2: usa el sensor (con "si / si no" o "repetir hasta") para acercarte a cada pared, en vez de adivinar una distancia fija. Pista 3: el circuito gira siempre hacia el mismo lado, así que cada esquina se resuelve con el mismo tipo de giro; después de cada giro, vuelve a acercarte a la siguiente pared. Pista 4: los pasillos del circuito son angostos — si el robot se desvía o toca una pared, la ejecución se detiene.',
-      competencias: 'C7 — Integración de secuencias, sensores y control de flujo',
-      resultados: 'RA7 — Programa autónomo completo',
-      // Geometry/verification: see MAPA_LECCION_7 above.
-      grid: GRID_LECCION_7,
-      mapa: MAPA_LECCION_7,
+      competencias: 'C8 — Integración de secuencias, sensores y control de flujo',
+      resultados: 'RA8 — Programa autónomo completo',
+      // Geometry/verification: see MAPA_LECCION_8 above.
+      grid: GRID_LECCION_8,
+      mapa: MAPA_LECCION_8,
       criterio: {
         evaluar: function (snapshot) {
           if (!snapshot || !snapshot.estado || !snapshot.metricas) return false;
           var m = snapshot.metricas;
           if (m.evalsSensor < 1 || m.limiteSeguridad !== null) return false;
-          return dentroDeMeta(MAPA_LECCION_7.meta, snapshot.estado.x, snapshot.estado.y);
+          return dentroDeMeta(MAPA_LECCION_8.meta, snapshot.estado.x, snapshot.estado.y);
         },
         describir: function (snapshot, ok) {
           if (!snapshot || !snapshot.estado) return null;

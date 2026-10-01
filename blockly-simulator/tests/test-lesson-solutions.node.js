@@ -1,5 +1,5 @@
 /**
- * Headless Node regression test: every lesson L1-L7 has a reference solution
+ * Headless Node regression test: every lesson L1-L8 has a reference solution
  * that passes its criterio on its CURRENT map, driven through the real
  * scheduler (`iniciarConArbol` + fixed 16 ms `_procesarFrame` steps). Also
  * guards lesson text anchors, the shared L1 preload constant and neutral
@@ -47,6 +47,14 @@ function siHay(cuerpo) { return { tipo: 'si', sensor: 'hayObstaculo', cuerpo: cu
 function siSino(cuerpo, sino) { return { tipo: 'si_sino', sensor: 'hayObstaculo', cuerpo: cuerpo, sino: sino, blockId: 'b' }; }
 function hasta(cuerpo) { return { tipo: 'repetir_hasta', sensor: 'hayObstaculo', cuerpo: cuerpo, blockId: 'b' }; }
 function rep(veces, cuerpo) { return { tipo: 'repetir', veces: veces, cuerpo: cuerpo, blockId: 'b' }; }
+function num(v) { return { k: 'numero', v: v }; }
+function bool(v) { return { k: 'booleano', v: v }; }
+function vr(nombre) { return { k: 'variable', nombre: nombre }; }
+function decl(nombre, tipoDato, valor) { return { tipo: 'declarar', nombre: nombre, tipoDato: tipoDato, valor: valor, blockId: 'b' }; }
+function asig(nombre, valor) { return { tipo: 'asignar', nombre: nombre, valor: valor, blockId: 'b' }; }
+function camb(nombre, delta) { return { tipo: 'cambiar', nombre: nombre, delta: delta, blockId: 'b' }; }
+function hastaCond(condicion, cuerpo) { return { tipo: 'repetir_hasta', condicion: condicion, cuerpo: cuerpo, blockId: 'b' }; }
+function siSinoVar(nombre, cuerpo, sino) { return { tipo: 'si_sino', condicion: vr(nombre), cuerpo: cuerpo, sino: sino, blockId: 'b' }; }
 
 /** Runs `arbol` on lesson `n`'s real map; returns the snapshot panel.js would build. */
 function correr(n, arbol, conInicial) {
@@ -73,10 +81,30 @@ function cerca(snap, x, y) {
   return Math.abs(snap.estado.x - x) <= 0.5 && Math.abs(snap.estado.y - y) <= 0.5;
 }
 
-// The 7 reference solutions (design geometry; ms = round(px / 0.12)).
+// The 8 reference solutions (design geometry; ms = round(px / 0.12)).
 var MS1 = RS.lessons.MS_PRECARGA_LECCION_1;
-var pasoL7 = [hasta([av(125)]), der(500)];
-var refL7 = pasoL7.concat(pasoL7, pasoL7, pasoL7, pasoL7, [hasta([av(125)])]);
+var pasoL8 = [hasta([av(125)]), der(500)];
+var refL8 = pasoL8.concat(pasoL8, pasoL8, pasoL8, pasoL8, [hasta([av(125)])]);
+// L7 (Variables): serpentine, three lanes; `filas` counts the two lane changes
+// and `haciaDerecha` flips the turn direction at each end. One lane change =
+// avanzar(1333) (lane centers are 160px apart).
+var refL7 = [
+  decl('filas', 'int', num(0)),
+  decl('haciaDerecha', 'bool', bool(true)),
+  hastaCond({ op: '>=', izq: vr('filas'), der: num(2) }, [
+    hasta([av(100)]),
+    siSinoVar('haciaDerecha',
+      [der(500), av(1333), der(500), asig('haciaDerecha', bool(false))],
+      [izq(500), av(1333), izq(500), asig('haciaDerecha', bool(true))]),
+    camb('filas', 1)
+  ]),
+  hasta([av(100)])
+];
+// The L7 ejemplo: a small square counted with a variable.
+var ejemploL7 = [
+  decl('lados', 'int', num(0)),
+  hastaCond({ op: '>=', izq: vr('lados'), der: num(4) }, [av(300), der(500), camb('lados', 1)])
+];
 var refL5 = [hasta([av(100)]), der(500), rep(40, [siSino([det()], [av(100)])])];
 var referencias = [
   { n: 1, arbol: [av(MS1), det()], x: 60 + MS1 * 0.12, y: 300 },
@@ -85,7 +113,8 @@ var referencias = [
   { n: 4, arbol: [hasta([av(100)])], x: 600, y: 300, sensor: true },
   { n: 5, arbol: refL5, x: 480, y: 404, sensor: true },
   { n: 6, arbol: [hasta([av(100)])], x: 600, y: 300, sensor: true },
-  { n: 7, arbol: refL7, x: 520, y: 325, sensor: true }
+  { n: 7, arbol: refL7, x: 688, y: 420, sensor: true },
+  { n: 8, arbol: refL8, x: 520, y: 325, sensor: true }
 ];
 
 referencias.forEach(function (r) {
@@ -114,8 +143,16 @@ var refL5SinGiro = [hasta([av(100)]), rep(40, [siSino([det()], [av(100)])])];
 var n5 = correr(5, refL5SinGiro);
 assert(!n5.ok.ok && n5.resultadoRun !== 'error' && cerca(n5, 480, 140) && /misma altura/.test(n5.ok.observado),
   'L5 variant without derecha(500) ends at (480,140) with "misma altura" feedback; got ' + n5.pose + ' / ' + n5.ok.observado);
-var n7 = correr(7, [hasta([av(100)]), der(500)]);
-assert(!n7.ok.ok && n7.resultadoRun !== 'error', 'L7 ejemplo does not pass and does not collide; got ' + n7.pose);
+var n8 = correr(8, [hasta([av(100)]), der(500)]);
+assert(!n8.ok.ok && n8.resultadoRun !== 'error', 'L8 ejemplo does not pass and does not collide; got ' + n8.pose);
+var n7 = correr(7, ejemploL7);
+assert(!n7.ok.ok && n7.resultadoRun !== 'error' && n7.metricas.cambiosVariable === 4,
+  'L7 ejemplo does not pass, does not collide and changes the counter 4 times; got ' + n7.pose + ', cambiosVariable=' + n7.metricas.cambiosVariable);
+// L7 criterio requires variable changes: the same route with no variables reaches the meta but fails.
+var sinVariablesL7 = correr(7, [hasta([av(100)]), der(500), av(1333), der(500), hasta([av(100)]), izq(500), av(1333), izq(500), hasta([av(100)])]);
+assert(sinVariablesL7.resultadoRun !== 'error' && cerca(sinVariablesL7, 688, 420) && !sinVariablesL7.ok.ok && sinVariablesL7.metricas.cambiosVariable === 0,
+  'L7 route without variables reaches the meta but does not pass (cambiosVariable=' + sinVariablesL7.metricas.cambiosVariable + '); got ' + sinVariablesL7.pose);
+assert(/variable/.test(sinVariablesL7.ok.observado), 'L7 describir explains the missing variable use: ' + sinVariablesL7.ok.observado);
 var sinInicial = null;
 try { sinInicial = correr(5, refL5SinGiro, false); } catch (e) { sinInicial = e; }
 assert(sinInicial && !(sinInicial instanceof Error), 'L5 describir does not throw without snapshot.inicial');
@@ -137,7 +174,7 @@ assert(typeof sinIni === 'string', 'L5 describir without inicial returns a strin
   var texto = JSON.stringify(lecciones[n - 1]);
   assert(!/1167|1833/.test(texto), 'L' + n + ' text has no stale 1167/1833 ms');
 });
-assert(!/dos obst/i.test(lecciones[6].criterioTexto + lecciones[6].desafio), 'L7 text does not mention two obstacles');
+assert(!/dos obst/i.test(lecciones[7].criterioTexto + lecciones[7].desafio), 'L8 text does not mention two obstacles');
 
 // L1 drift guard: main.js preload must equal the value quoted in the L1 ejemplo.
 var literalMain = /MS_PRECARGA_LECCION_1\s*=\s*(\d+)/.exec(mainFuente);
