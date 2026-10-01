@@ -205,9 +205,17 @@ assert(RS.blocks.REPETICION_TYPES.indexOf('rs_por_siempre') !== -1, 'rs_por_siem
 // ---------------------------------------------------------------------------
 // Toolbox gating
 // ---------------------------------------------------------------------------
-function tiposRepeticion(toolbox) {
-  var cat = toolbox.contents.filter(function (c) { return c.name === 'Repetición'; })[0];
+function tiposCategoria(toolbox, nombre) {
+  var cat = toolbox.contents.filter(function (c) { return c.name === nombre; })[0];
   return cat ? cat.contents.map(function (b) { return b.type; }) : null;
+}
+
+function tiposRepeticion(toolbox) {
+  return tiposCategoria(toolbox, 'Repetición');
+}
+
+function tiposSensor(toolbox) {
+  return tiposCategoria(toolbox, 'Sensores/Decisión');
 }
 
 var l6 = tiposRepeticion(RS.toolbox.paraLeccion(6));
@@ -215,7 +223,23 @@ assert(l6 !== null && l6.indexOf('rs_por_siempre') === -1, 'L6: la categoria Rep
 assert(l6 !== null && l6.indexOf('rs_repetir') !== -1 && l6.indexOf('rs_repetir_hasta') !== -1, 'L6: conserva rs_repetir y rs_repetir_hasta');
 assert(tiposRepeticion(RS.toolbox.paraLeccion(7)).indexOf('rs_por_siempre') !== -1, 'L7: la categoria Repeticion contiene rs_por_siempre');
 assert(tiposRepeticion(RS.toolbox).indexOf('rs_por_siempre') !== -1, 'RS.toolbox (sandbox) contiene rs_por_siempre');
-assert(tiposRepeticion(RS.toolbox.paraLeccion(5)) === null, 'L5: no hay categoria Repeticion todavia');
+
+[4, 5, 6].forEach(function (n) {
+  var tipos = tiposRepeticion(RS.toolbox.paraLeccion(n));
+  assert(tipos !== null, 'L' + n + ': la categoria Repeticion existe');
+  assert(tipos !== null && tipos.indexOf('rs_repetir') !== -1 && tipos.indexOf('rs_repetir_hasta') !== -1,
+    'L' + n + ': la categoria Repeticion contiene rs_repetir y rs_repetir_hasta');
+  assert(tipos !== null && tipos.indexOf('rs_por_siempre') === -1, 'L' + n + ': la categoria Repeticion NO contiene rs_por_siempre todavia');
+});
+
+assert(tiposRepeticion(RS.toolbox.paraLeccion(3)) === null, 'L3: no hay categoria Repeticion todavia');
+
+var sensorL4 = tiposSensor(RS.toolbox.paraLeccion(4));
+assert(sensorL4 !== null && sensorL4.indexOf('rs_si_obstaculo') === -1 && sensorL4.indexOf('rs_si_sino') === -1,
+  'L4: la categoria Sensores/Decisión NO contiene rs_si_obstaculo ni rs_si_sino');
+var sensorL5 = tiposSensor(RS.toolbox.paraLeccion(5));
+assert(sensorL5 !== null && sensorL5.indexOf('rs_si_obstaculo') !== -1 && sensorL5.indexOf('rs_si_sino') !== -1,
+  'L5: la categoria Sensores/Decisión contiene rs_si_obstaculo y rs_si_sino');
 
 console.log('\n' + (fallidos === 0 ? 'TODOS LOS TESTS PASARON' : (fallidos + ' TEST(S) FALLARON')) + ' (' + (total - fallidos) + '/' + total + ')');
 process.exit(fallidos === 0 ? 0 : 1);

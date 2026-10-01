@@ -46,6 +46,7 @@ function det() { return { tipo: 'accion', accion: 'detener', valor: 0, blockId: 
 function siHay(cuerpo) { return { tipo: 'si', sensor: 'hayObstaculo', cuerpo: cuerpo, blockId: 'b' }; }
 function siSino(cuerpo, sino) { return { tipo: 'si_sino', sensor: 'hayObstaculo', cuerpo: cuerpo, sino: sino, blockId: 'b' }; }
 function hasta(cuerpo) { return { tipo: 'repetir_hasta', sensor: 'hayObstaculo', cuerpo: cuerpo, blockId: 'b' }; }
+function rep(veces, cuerpo) { return { tipo: 'repetir', veces: veces, cuerpo: cuerpo, blockId: 'b' }; }
 
 /** Runs `arbol` on lesson `n`'s real map; returns the snapshot panel.js would build. */
 function correr(n, arbol, conInicial) {
@@ -76,12 +77,13 @@ function cerca(snap, x, y) {
 var MS1 = RS.lessons.MS_PRECARGA_LECCION_1;
 var pasoL7 = [hasta([av(125)]), der(500)];
 var refL7 = pasoL7.concat(pasoL7, pasoL7, pasoL7, pasoL7, [hasta([av(125)])]);
+var refL5 = [hasta([av(100)]), der(500), rep(40, [siSino([det()], [av(100)])])];
 var referencias = [
   { n: 1, arbol: [av(MS1), det()], x: 60 + MS1 * 0.12, y: 300 },
   { n: 2, arbol: [av(2500), det()], x: 360, y: 300 },
   { n: 3, arbol: [av(1250), der(500), av(500), izq(500), av(1900), izq(500), av(917), der(500), av(2000)], x: 678, y: 249.96 },
-  { n: 4, arbol: [av(4650), siHay([det()])], x: 618, y: 300, sensor: true },
-  { n: 5, arbol: [av(3750), siSino([der(500)], []), av(2400)], x: 510, y: 428, sensor: true },
+  { n: 4, arbol: [hasta([av(100)])], x: 600, y: 300, sensor: true },
+  { n: 5, arbol: refL5, x: 480, y: 404, sensor: true },
   { n: 6, arbol: [hasta([av(100)])], x: 600, y: 300, sensor: true },
   { n: 7, arbol: refL7, x: 520, y: 325, sensor: true }
 ];
@@ -108,13 +110,14 @@ var n3 = correr(3, [av(1250), der(500), av(500)]);
 assert(!n3.ok.ok && n3.resultadoRun !== 'error' && cerca(n3, 210, 360), 'L3 ejemplo ends at (210,360) without passing; got ' + n3.pose);
 var m3 = correr(3, [av(1250), av(500), der(500)]);
 assert(m3.resultadoRun === 'error' && !m3.ok.ok, 'L3 modificacion (swapped last two blocks) hits pillar 1; got ' + m3.resultadoRun + ' at ' + m3.pose);
-var n5 = correr(5,[av(1000), siSino([der(500)], []), av(2400)]);
-assert(!n5.ok.ok && n5.resultadoRun !== 'error' && cerca(n5, 468, 140) && /misma altura/.test(n5.ok.observado),
-  'L5 av1000 variant ends at (468,140) with "misma altura" feedback; got ' + n5.pose + ' / ' + n5.ok.observado);
+var refL5SinGiro = [hasta([av(100)]), rep(40, [siSino([det()], [av(100)])])];
+var n5 = correr(5, refL5SinGiro);
+assert(!n5.ok.ok && n5.resultadoRun !== 'error' && cerca(n5, 480, 140) && /misma altura/.test(n5.ok.observado),
+  'L5 variant without derecha(500) ends at (480,140) with "misma altura" feedback; got ' + n5.pose + ' / ' + n5.ok.observado);
 var n7 = correr(7, [hasta([av(100)]), der(500)]);
 assert(!n7.ok.ok && n7.resultadoRun !== 'error', 'L7 ejemplo does not pass and does not collide; got ' + n7.pose);
 var sinInicial = null;
-try { sinInicial = correr(5, [av(1000), siSino([der(500)], []), av(2400)], false); } catch (e) { sinInicial = e; }
+try { sinInicial = correr(5, refL5SinGiro, false); } catch (e) { sinInicial = e; }
 assert(sinInicial && !(sinInicial instanceof Error), 'L5 describir does not throw without snapshot.inicial');
 
 // L5 describir compares against snapshot.inicial.y (140), never a hard-coded 300.
@@ -126,7 +129,7 @@ try { sinIni = descL5({ estado: { x: 300, y: 300 }, metricas: { evalsSensor: 1 }
 assert(typeof sinIni === 'string', 'L5 describir without inicial returns a string instead of throwing');
 
 // Text anchors: each ejemplo quotes its reference ms; stale L1/L2 values are gone.
-[[1, 'avanzar(' + MS1 + ')'], [2, 'avanzar(2500)'], [3, 'avanzar(1250)'], [4, 'avanzar(4650)'], [5, 'avanzar(3750)']]
+[[1, 'avanzar(' + MS1 + ')'], [2, 'avanzar(2500)'], [3, 'avanzar(1250)'], [4, 'repetir hasta hayObstaculo() { avanzar(100) }'], [5, 'repetir 40 veces']]
   .forEach(function (a) {
     assert(lecciones[a[0] - 1].ejemplo.indexOf(a[1]) !== -1, 'L' + a[0] + ' ejemplo contains ' + a[1]);
   });
