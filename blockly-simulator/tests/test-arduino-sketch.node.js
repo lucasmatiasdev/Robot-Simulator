@@ -258,5 +258,80 @@ assertEquals(lineaCmp2.texto, 'if (hayObstaculo() == 1) {', 'rs_comparar: si_sin
 var lineaCmp3 = resultadoComparar.lineas.filter(function (l) { return l.blockId === 'cmp3'; })[0];
 assertEquals(lineaCmp3.texto, 'for (int i = 0; i < 1000 && !(medirDistancia() >= 50); i++) {', 'rs_comparar: repetir_hasta con medirDistancia() >= 50 se traduce literalmente (condicion negada en el for)');
 
+// ---- por_siempre: plain `while (true)` (no simulator cap), header-only blockId ----
+var arbolSiempre = [
+  { tipo: 'por_siempre', blockId: 'ps1', cuerpo: [
+    { tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'psa1' }
+  ] }
+];
+var resultadoSiempre = RS.cppView.render(arbolSiempre);
+var lineaSiempre = resultadoSiempre.lineas.filter(function (l) { return l.blockId === 'ps1'; })[0];
+assertEquals(lineaSiempre.texto, 'while (true) {', 'por_siempre: emite while (true) { mapeado al blockId');
+assertEquals(resultadoSiempre.lineasPorBloque.ps1.length, 1, 'por_siempre: exactamente una linea lleva el blockId (solo la cabecera)');
+assert(resultadoSiempre.lineas.filter(function (l) { return l.blockId === 'psa1'; }).length === 1, 'por_siempre: el cuerpo (avanzar) se traduce a codigo ejecutable');
+assert(RS.cppView.renderTexto(arbolSiempre).indexOf('int medirDistancia() {') === -1, 'por_siempre sin sensores: no se emite el driver del sensor');
+
+// ---- sensor detection recurses into por_siempre ----
+var arbolSiempreSensor = [
+  { tipo: 'por_siempre', blockId: 'pss1', cuerpo: [
+    { tipo: 'si', sensor: 'hayObstaculo', blockId: 'pss2', cuerpo: [
+      { tipo: 'accion', accion: 'detener', blockId: 'pss3' }
+    ] }
+  ] }
+];
+var textoSiempreSensor = RS.cppView.renderTexto(arbolSiempreSensor);
+assert(textoSiempreSensor.indexOf('int medirDistancia() {') !== -1, 'por_siempre { si }: la deteccion de sensor recurre dentro de por_siempre y emite el driver');
+
+// ---- detener: `return;` (null blockId) after nested detener, omitted when last top-level ----
+var arbolDetener = [
+  { tipo: 'si', sensor: 'hayObstaculo', blockId: 'ds1', cuerpo: [
+    { tipo: 'accion', accion: 'detener', blockId: 'dd1' }
+  ] },
+  { tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'da1' }
+];
+var resultadoDetener = RS.cppView.render(arbolDetener);
+var guionDetener = resultadoDetener.lineas.filter(function (l) { return l.seccion === 'guion'; });
+var idxDet1 = guionDetener.map(function (l) { return l.blockId; }).indexOf('dd1');
+assertEquals(guionDetener[idxDet1].texto, 'detener();', 'detener anidado: emite detener(); con su blockId');
+assertEquals(guionDetener[idxDet1 + 1].texto, 'return;', 'detener anidado: la linea siguiente es return;');
+assertEquals(guionDetener[idxDet1 + 1].blockId, null, 'detener anidado: el return; tiene blockId null');
+assertEquals(guionDetener[idxDet1 + 1].indent, guionDetener[idxDet1].indent, 'detener anidado: el return; queda dentro del si (misma indentacion)');
+assertEquals(resultadoDetener.lineasPorBloque.dd1.length, 1, 'detener anidado: su blockId mapea exactamente a una linea');
+
+var arbolDetenerFinal = [
+  { tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'fa1' },
+  { tipo: 'accion', accion: 'detener', blockId: 'fd1' }
+];
+var resultadoDetenerFinal = RS.cppView.render(arbolDetenerFinal);
+var guionFinal = resultadoDetenerFinal.lineas.filter(function (l) { return l.seccion === 'guion'; });
+assert(guionFinal.every(function (l) { return l.texto !== 'return;'; }), 'detener como ultimo bloque de nivel superior: no se emite return;');
+assertEquals(resultadoDetenerFinal.lineasPorBloque.fd1.length, 1, 'detener final: su blockId mapea exactamente a una linea');
+
+// ---- detener as last statement of a por_siempre body still needs `return;` (not top-level) ----
+var arbolSiempreDetener = [
+  { tipo: 'por_siempre', blockId: 'psd1', cuerpo: [
+    { tipo: 'accion', accion: 'detener', blockId: 'psd2' }
+  ] }
+];
+var guionSiempreDetener = RS.cppView.render(arbolSiempreDetener).lineas.filter(function (l) { return l.seccion === 'guion'; });
+assert(guionSiempreDetener.some(function (l) { return l.texto === 'return;' && l.blockId === null; }), 'detener al final del cuerpo de por_siempre: si emite return;');
+
+// ---- line-count invariant: every blockId maps to exactly one line ----
+var arbolMixto = [
+  { tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'm1' },
+  { tipo: 'por_siempre', blockId: 'm2', cuerpo: [
+    { tipo: 'accion', accion: 'derecha', valor: 200, blockId: 'm3' },
+    { tipo: 'si', sensor: 'hayObstaculo', blockId: 'm4', cuerpo: [
+      { tipo: 'accion', accion: 'detener', blockId: 'm5' }
+    ] }
+  ] },
+  { tipo: 'accion', accion: 'detener', blockId: 'm6' }
+];
+var resultadoMixto = RS.cppView.render(arbolMixto);
+var todosUnaLinea = Object.keys(resultadoMixto.lineasPorBloque).every(function (id) { return resultadoMixto.lineasPorBloque[id].length === 1; });
+assert(todosUnaLinea, 'programa mixto detener + por_siempre: cada blockId mapea a exactamente una linea');
+assertEquals(Object.keys(resultadoMixto.lineasPorBloque).sort(), ['m1', 'm2', 'm3', 'm4', 'm5', 'm6'], 'programa mixto: todos los blockId del arbol tienen su linea');
+assert(resultadoMixto.lineas.filter(function (l) { return l.texto === 'return;'; }).every(function (l) { return l.blockId === null; }), 'programa mixto: toda linea return; tiene blockId null');
+
 console.log('\n' + (fallidos === 0 ? 'TODOS LOS TESTS PASARON' : (fallidos + ' TEST(S) FALLARON')) + ' (' + (total - fallidos) + '/' + total + ')');
 process.exit(fallidos === 0 ? 0 : 1);

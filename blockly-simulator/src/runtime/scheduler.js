@@ -70,7 +70,12 @@
       var accion = currentNode.accion;
 
       if (accion === 'detener') {
-        avanzarSiguienteNodo();
+        // Program exit: end the run here and never ask the interpreter for
+        // another node, so nothing after detener (or later loop passes) runs.
+        currentNode = null;
+        estado = 'idle';
+        if (RS.ui && RS.ui.resaltar) RS.ui.resaltar(null);
+        notificar();
         return;
       }
 
@@ -194,8 +199,8 @@
       /**
        * obtenerMetricas() — observed-behavior counters used by lesson
        * criteria (see lessons/check.js). `limiteSeguridad` is null unless a
-       * `repetir_hasta` loop tripped its MAX_ITER_REPETIR_HASTA safety cap
-       * during this run, in which case it is {blockId, iteraciones}.
+       * `repetir_hasta` or `por_siempre` loop tripped its safety cap
+       * (MAX_ITER_REPETIR_HASTA / MAX_ITER_POR_SIEMPRE) during this run, in which case it is {blockId, iteraciones}.
        */
       obtenerMetricas: function () {
         return { evalsSensor: evalsSensor, limiteSeguridad: limiteSeguridad };

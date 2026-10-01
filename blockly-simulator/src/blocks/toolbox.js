@@ -72,7 +72,8 @@
       kind: 'block',
       type: 'rs_repetir_hasta',
       inputs: { COND: { shadow: { type: 'rs_hay_obstaculo' } } }
-    }
+    },
+    { kind: 'block', type: 'rs_por_siempre' }
   ];
 
   function construirCategoria(nombre, colour, contenidos) {
@@ -96,9 +97,14 @@
     ]
   };
 
-  // Lesson 4 introduces si_obstaculo/comparar/sensors but NOT rs_si_sino yet
-  // (that is lesson 5's new concept per content.js's `concepto`/`bloques`).
-  var SENSOR_TYPES_LECCION_4 = ['rs_hay_obstaculo', 'rs_medir_distancia', 'rs_comparar', 'rs_si_obstaculo'];
+  // Lesson 4 introduces hay_obstaculo/medir_distancia/comparar but NOT the
+  // conditional blocks yet (rs_si_obstaculo/rs_si_sino are lesson 5's new
+  // concept per content.js's `concepto`/`bloques`).
+  var SENSOR_TYPES_LECCION_4 = ['rs_hay_obstaculo', 'rs_medir_distancia', 'rs_comparar'];
+
+  // Lessons 4-6 introduce repetir/repetir_hasta but NOT rs_por_siempre (it
+  // unlocks in lesson 7 and the sandbox, which get the full toolbox).
+  var REPETICION_TYPES_LECCIONES_4_A_6 = ['rs_repetir', 'rs_repetir_hasta'];
 
   RS.toolbox.paraLeccion = function (leccionId) {
     if (leccionId >= 7) return RS.toolbox; // full, unrestricted
@@ -113,8 +119,8 @@
       categorias.push(construirCategoria('Sensores/Decisión', '290', filtrarContenidos(SENSOR_CONTENTS, tiposSensor)));
     }
 
-    if (leccionId >= 6) {
-      categorias.push(construirCategoria('Repetición', '20', REPETICION_CONTENTS));
+    if (leccionId >= 4) {
+      categorias.push(construirCategoria('Repetición', '20', filtrarContenidos(REPETICION_CONTENTS, REPETICION_TYPES_LECCIONES_4_A_6)));
     }
 
     return { kind: 'categoryToolbox', contents: categorias };

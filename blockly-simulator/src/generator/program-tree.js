@@ -6,6 +6,7 @@
  *   { tipo:'si',      sensor:'hayObstaculo', cuerpo:[...], blockId }
  *   { tipo:'si_sino', sensor|condicion, cuerpo:[...], sino:[...], blockId }
  *   { tipo:'repetir_hasta', sensor|condicion, cuerpo:[...], blockId }
+ *   { tipo:'por_siempre', cuerpo:[...], blockId }
  *
  * RS.protocol.toMqttPayload(node) strips a leaf action node down to the
  * exact firmware payload shape { accion, valor } (no blockId, no metadata).
@@ -113,6 +114,14 @@
         nodoHasta.sensor = 'hayObstaculo';
       }
       return nodoHasta;
+    }
+
+    if (type === 'rs_por_siempre') {
+      return {
+        tipo: 'por_siempre',
+        cuerpo: walkChain(block.getInputTargetBlock('DO')),
+        blockId: block.id
+      };
     }
 
     if (type === 'rs_si_sino') {

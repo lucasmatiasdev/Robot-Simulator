@@ -2,7 +2,8 @@
  * RS block definitions: the 5 action blocks (avanzar, retroceder, izquierda,
  * derecha, detener) plus hayObstaculo()/medirDistancia() sensor blocks,
  * the repeat-N-times block, the repeat-until block (pre-test, "while not",
- * with a mandatory safety-iteration cap), the "si" decision block, and
+ * with a mandatory safety-iteration cap), the "por siempre" forever loop
+ * (also capped), the "si" decision block, and
  * "si/si no" (fixed two-slot if/else, no mutator). Also: rs_inicio (hat, no
  * code), rs_espera (simulator/sketch-only wait), and rs_comparar (usable
  * inside any COND value input).
@@ -46,9 +47,10 @@
     init: function () {
       this.appendDummyInput().appendField('detener()');
       this.setPreviousStatement(true, null);
-      this.setNextStatement(true, null);
+      // Terminal block: it ends the program, so nothing can follow it.
+      this.setNextStatement(false);
       this.setColour(COLOR_MOVIMIENTO);
-      this.setTooltip('detener(): detiene el robot inmediatamente.');
+      this.setTooltip('detener(): termina el programa.');
     }
   };
 
@@ -196,6 +198,20 @@
     }
   };
 
+  // rs_por_siempre — forever loop. Chainable (has a next connection), so it
+  // does not have to be the last block. Maps to the 'por_siempre' program-tree
+  // node; the interpreter bounds it with RS.config.MAX_ITER_POR_SIEMPRE.
+  Blockly.Blocks['rs_por_siempre'] = {
+    init: function () {
+      this.appendDummyInput().appendField('por siempre');
+      this.appendStatementInput('DO').setCheck(null);
+      this.setPreviousStatement(true, null);
+      this.setNextStatement(true, null);
+      this.setColour(COLOR_REPETICION);
+      this.setTooltip('Repite el cuerpo sin parar, hasta que se ejecute detener().');
+    }
+  };
+
   // Numeric literal used as the MS input's default shadow block.
   Blockly.Blocks['rs_numero'] = {
     init: function () {
@@ -210,6 +226,6 @@
     INICIO_TYPES: ['rs_inicio'],
     MOVIMIENTO_TYPES: ['rs_avanzar', 'rs_retroceder', 'rs_izquierda', 'rs_derecha', 'rs_detener', 'rs_espera'],
     SENSOR_TYPES: ['rs_hay_obstaculo', 'rs_medir_distancia', 'rs_si_obstaculo', 'rs_si_sino', 'rs_comparar'],
-    REPETICION_TYPES: ['rs_repetir', 'rs_repetir_hasta']
+    REPETICION_TYPES: ['rs_repetir', 'rs_repetir_hasta', 'rs_por_siempre']
   };
 })(typeof window !== 'undefined' ? window : this);

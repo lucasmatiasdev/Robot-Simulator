@@ -136,15 +136,13 @@
     }
 
     // Lesson 1 is pure identification (no block-building required), but it
-    // now has a real goal too: this hardcodes INICIO -> avanzar(1167) ->
-    // detener() straight into the live Blockly workspace so the student
-    // presses Ejecutar and watches the robot reach it. 1167 is the exact ms
-    // value verified against the real scheduler for Lesson 1's meta/geometry
-    // (see src/lessons/content.js's GRID_LECCION_1 comment) — it MUST stay in
-    // sync with that map's meta region and with content.js's `ejemplo` text.
-    // Deliberately hardcoded/lesson-1-specific rather than a generic
-    // "preloaded program" mechanism: no other lesson needs one.
-    var MS_PRECARGA_LECCION_1 = 1167;
+    // still has a real goal: this preloads INICIO -> avanzar(ms) -> detener()
+    // into the live Blockly workspace so the student presses Ejecutar and
+    // watches the robot reach the meta. The ms value lives in content.js
+    // (RS.lessons.MS_PRECARGA_LECCION_1), the single source shared with the
+    // Lesson 1 `ejemplo` text. Deliberately lesson-1-specific rather than a
+    // generic "preloaded program" mechanism: no other lesson needs one.
+    var MS_PRECARGA_LECCION_1 = RS.lessons.MS_PRECARGA_LECCION_1;
 
     function precargarProgramaLeccion1(ws) {
       var inicio = ws.newBlock('rs_inicio');
@@ -249,6 +247,54 @@
       });
     }
 
+    // Hidden lesson-map authoring tool. Reachable only via the URL hash
+    // (never from student-visible UI): it re-skins #app in place (class
+    // `autor-mapas`), so #sim-canvas stays put and the normal render loop
+    // draws the working map.
+    var RUTA_AUTOR = '#editor-mapas';
+    var autor = RS.ui.lessonMapEditor;
+
+    function entrarAutor() {
+      if (!autor || autor.estaActivo()) return;
+      salirDeModoEdicion();
+      RS.runtime.scheduler.detener();
+      homeEl.hidden = true;
+      homeEl.classList.remove('home-saliendo');
+      appEl.classList.add('autor-mapas');
+      appEl.hidden = false;
+      RS.renderer.mostrarGrilla = true;
+      autor.abrir();
+      resize();
+    }
+
+    function salirAutor() {
+      if (!autor || !autor.estaActivo()) return;
+      autor.cerrar();
+      appEl.classList.remove('autor-mapas');
+      RS.renderer.mostrarGrilla = false;
+      mostrarHome();
+      resize();
+    }
+
+    function aplicarRuta() {
+      if (global.location.hash === RUTA_AUTOR) entrarAutor();
+      else salirAutor();
+    }
+
+    if (autor && document.getElementById('autor-mapas')) {
+      autor.init({
+        canvas: canvas,
+        panel: document.getElementById('autor-mapas'),
+        select: document.getElementById('autor-leccion'),
+        herramientas: document.getElementById('autor-herramientas'),
+        salida: document.getElementById('autor-salida'),
+        btnCopiar: document.getElementById('autor-copiar'),
+        estado: document.getElementById('autor-estado'),
+        btnSalir: document.getElementById('autor-salir')
+      });
+      global.addEventListener('hashchange', aplicarRuta);
+    }
+
     global.addEventListener('resize', resize);
 
     if (typeof ResizeObserver !== 'undefined') {
@@ -262,6 +308,7 @@
     }
 
     resize();
+    aplicarRuta();
   }
 
   if (document.readyState === 'loading') {
