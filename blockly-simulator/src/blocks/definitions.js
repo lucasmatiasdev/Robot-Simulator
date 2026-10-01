@@ -6,7 +6,10 @@
  * (also capped), the "si" decision block, and
  * "si/si no" (fixed two-slot if/else, no mutator). Also: rs_inicio (hat, no
  * code), rs_espera (simulator/sketch-only wait), and rs_comparar (usable
- * inside any COND value input).
+ * inside any COND value input). Variables (COLOR_VARIABLES): rs_declarar_variable,
+ * rs_asignar_variable, rs_cambiar_variable, rs_obtener_variable and the
+ * rs_booleano literal — a custom (non-native-Blockly) int/bool variable model
+ * carried entirely in the program tree (see program-tree.js/interpreter.js).
  *
  * bailar() MUST NOT appear here — no block, field, or dropdown entry.
  */
@@ -20,6 +23,7 @@
   var COLOR_SENSORES = 290;
   var COLOR_REPETICION = 20;
   var COLOR_INICIO = 0;
+  var COLOR_VARIABLES = 330;
 
   function movementBlock(type, label) {
     Blockly.Blocks[type] = {
@@ -222,10 +226,102 @@
     }
   };
 
+  // --- Variables ---
+  // Custom (non-native) int/bool variables: the NOMBRE text field is the
+  // single source of truth, and the declare block itself is the lesson
+  // (`int lados = 0;`). Names are checked at tree level (validarVariables in
+  // program-tree.js). The fields are built inside init() only, so a headless
+  // Blockly stub that never calls init() still loads this file.
+  var VARIABLES_TYPES = ['rs_declarar_variable', 'rs_asignar_variable', 'rs_cambiar_variable', 'rs_obtener_variable', 'rs_booleano'];
+
+  /**
+   * Pure NOMBRE validator/normaliser: strips accents (NFD), turns spaces into
+   * `_`, drops every character outside [A-Za-z0-9_], and returns null when the
+   * result is not a valid C++ identifier start (`^[A-Za-z]`).
+   */
+  function normalizarNombreVariable(texto) {
+    var limpio = String(texto == null ? '' : texto)
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, '_')
+      .replace(/[^A-Za-z0-9_]/g, '');
+    return /^[A-Za-z]/.test(limpio) ? limpio : null;
+  }
+
+  function campoNombre(valorInicial) {
+    return new Blockly.FieldTextInput(valorInicial, normalizarNombreVariable);
+  }
+
+  Blockly.Blocks['rs_declarar_variable'] = {
+    init: function () {
+      this.appendValueInput('VALOR')
+        .setCheck(['Number', 'Boolean'])
+        .appendField('declarar')
+        .appendField(new Blockly.FieldDropdown([['int', 'int'], ['bool', 'bool']]), 'TIPO')
+        .appendField(campoNombre('contador'), 'NOMBRE')
+        .appendField('=');
+      this.setInputsInline(true);
+      this.setPreviousStatement(true, null);
+      this.setNextStatement(true, null);
+      this.setColour(COLOR_VARIABLES);
+      this.setTooltip('declarar: crea una variable int (número entero) o bool (verdadero/falso) con un valor inicial. Si el bloque se repite, la variable vuelve a su valor inicial.');
+    }
+  };
+
+  Blockly.Blocks['rs_asignar_variable'] = {
+    init: function () {
+      this.appendValueInput('VALOR')
+        .setCheck(['Number', 'Boolean'])
+        .appendField('asignar')
+        .appendField(campoNombre('contador'), 'NOMBRE')
+        .appendField('=');
+      this.setInputsInline(true);
+      this.setPreviousStatement(true, null);
+      this.setNextStatement(true, null);
+      this.setColour(COLOR_VARIABLES);
+      this.setTooltip('asignar: guarda un nuevo valor en una variable ya declarada.');
+    }
+  };
+
+  Blockly.Blocks['rs_cambiar_variable'] = {
+    init: function () {
+      this.appendDummyInput()
+        .appendField('cambiar')
+        .appendField(campoNombre('contador'), 'NOMBRE')
+        .appendField('en')
+        .appendField(new Blockly.FieldNumber(1, -1000, 1000, 1), 'DELTA');
+      this.setInputsInline(true);
+      this.setPreviousStatement(true, null);
+      this.setNextStatement(true, null);
+      this.setColour(COLOR_VARIABLES);
+      this.setTooltip('cambiar: suma (o resta, si es negativo) un número entero a una variable int.');
+    }
+  };
+
+  Blockly.Blocks['rs_obtener_variable'] = {
+    init: function () {
+      this.appendDummyInput().appendField(campoNombre('contador'), 'NOMBRE');
+      this.setOutput(true, ['Number', 'Boolean']);
+      this.setColour(COLOR_VARIABLES);
+      this.setTooltip('Valor actual de la variable.');
+    }
+  };
+
+  Blockly.Blocks['rs_booleano'] = {
+    init: function () {
+      this.appendDummyInput().appendField(new Blockly.FieldDropdown([['verdadero', 'TRUE'], ['falso', 'FALSE']]), 'BOOL');
+      this.setOutput(true, 'Boolean');
+      this.setColour(COLOR_VARIABLES);
+      this.setTooltip('Valor booleano: verdadero o falso.');
+    }
+  };
+
   RS.blocks = {
     INICIO_TYPES: ['rs_inicio'],
     MOVIMIENTO_TYPES: ['rs_avanzar', 'rs_retroceder', 'rs_izquierda', 'rs_derecha', 'rs_detener', 'rs_espera'],
     SENSOR_TYPES: ['rs_hay_obstaculo', 'rs_medir_distancia', 'rs_si_obstaculo', 'rs_si_sino', 'rs_comparar'],
-    REPETICION_TYPES: ['rs_repetir', 'rs_repetir_hasta', 'rs_por_siempre']
+    REPETICION_TYPES: ['rs_repetir', 'rs_repetir_hasta', 'rs_por_siempre'],
+    VARIABLES_TYPES: VARIABLES_TYPES,
+    normalizarNombreVariable: normalizarNombreVariable
   };
 })(typeof window !== 'undefined' ? window : this);

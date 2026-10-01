@@ -5,6 +5,12 @@
  * live, one leaf at a time. `repetir_hasta` (pre-test "while not" loop) is
  * capped by RS.config.MAX_ITER_REPETIR_HASTA and `por_siempre` (forever loop)
  * by RS.config.MAX_ITER_POR_SIEMPRE — see the body-exhaustion handling below.
+ *
+ * Variables: `declarar`/`asignar`/`cambiar` nodes resolve inline (non-leaf,
+ * like `si`) against ONE flat `entorno` per crear() call. Every declared name
+ * is pre-seeded with its zero value (int 0 / bool false), mirroring the
+ * zero-initialised globals the C++ view emits; re-executing a `declarar`
+ * (e.g. inside a loop body) resets the variable to its initial value.
  */
 (function (global) {
   'use strict';
@@ -21,9 +27,37 @@
    *                       or null when the program is finished
    *   terminado() -> boolean
    */
+  /** Collects {nombre: 'int'|'bool'} from every declarar node (first declaration wins). */
+  function recolectarDeclaraciones(cuerpo, tipos) {
+    tipos = tipos || {};
+    for (var i = 0; i < (cuerpo || []).length; i++) {
+      var node = cuerpo[i];
+      if (node.tipo === 'declarar' && !Object.prototype.hasOwnProperty.call(tipos, node.nombre)) {
+        tipos[node.nombre] = node.tipoDato === 'bool' ? 'bool' : 'int';
+      }
+      if (node.cuerpo) recolectarDeclaraciones(node.cuerpo, tipos);
+      if (node.sino) recolectarDeclaraciones(node.sino, tipos);
+    }
+    return tipos;
+  }
+
   function crear(tree, world, robotEstado, onSensorEval) {
     var stack = [{ tipo: 'root', cuerpo: tree || [], index: 0 }];
     var limiteSeguridadTrip = null;
+    var cambiosVariable = 0;
+
+    var tipos = recolectarDeclaraciones(tree);
+    var entorno = {};
+    for (var nombreVar in tipos) {
+      if (Object.prototype.hasOwnProperty.call(tipos, nombreVar)) {
+        entorno[nombreVar] = tipos[nombreVar] === 'int' ? 0 : false;
+      }
+    }
+
+    /** Stores `v` into variable `n`, coerced to its declared type. */
+    function guardar(n, v) {
+      entorno[n] = tipos[n] === 'bool' ? Boolean(v) : (Math.trunc(Number(v)) || 0);
+    }
 
     function evaluarSensor(nombre) {
       var resultado;
@@ -36,17 +70,42 @@
       return resultado;
     }
 
-    /** Evaluates one comparator operand ({k, [v]}) into a number. */
-    function evaluarOperando(operando) {
-      if (!operando) return 0;
-      if (operando.k === 'medirDistancia') return RS.sensors.medirDistancia(world, robotEstado);
-      if (operando.k === 'hayObstaculo') return RS.sensors.hayObstaculo(world, robotEstado) ? 1 : 0;
-      if (operando.k === 'numero') return operando.v;
+    /**
+     * Evaluates any value expression into its raw value: numbers stay
+     * numbers, booleans stay booleans (hayObstaculo, booleano, comparar),
+     * variables read the flat environment. A missing expr is 0.
+     */
+    function evaluarValor(expr) {
+      if (!expr) return 0;
+      if (expr.k === 'numero' || expr.k === 'booleano') return expr.v;
+      if (expr.k === 'variable') return Object.prototype.hasOwnProperty.call(entorno, expr.nombre) ? entorno[expr.nombre] : 0;
+      if (expr.k === 'medirDistancia') return RS.sensors.medirDistancia(world, robotEstado);
+      if (expr.k === 'hayObstaculo') return RS.sensors.hayObstaculo(world, robotEstado);
+      if (expr.k === 'comparar') return evaluarCondicion(expr);
       return 0;
     }
 
-    /** Evaluates a {op, izq, der} condicion node (rs_comparar) into a boolean. */
+    /** Evaluates one comparator operand ({k, [v]}) into a number. */
+    function evaluarOperando(operando) {
+      return Number(evaluarValor(operando)) || 0;
+    }
+
+    function esSensor(operando) {
+      return !!operando && (operando.k === 'medirDistancia' || operando.k === 'hayObstaculo');
+    }
+
+    function esVariable(operando) {
+      return !!operando && operando.k === 'variable';
+    }
+
+    /**
+     * Evaluates a condicion node into a boolean: a bare boolean variable or
+     * literal ({k:'variable'|'booleano'}), or a {op, izq, der} comparison.
+     */
     function evaluarCondicion(condicion) {
+      if (condicion.k === 'variable' || condicion.k === 'booleano') {
+        return Boolean(evaluarValor(condicion));
+      }
       var izq = evaluarOperando(condicion.izq);
       var der = evaluarOperando(condicion.der);
       var resultado;
@@ -58,7 +117,11 @@
         case '==': resultado = izq === der; break;
         default: resultado = false;
       }
-      if (typeof onSensorEval === 'function') onSensorEval('comparar', resultado);
+      // A comparison that reads a variable but no sensor (e.g. lados >= 4) is
+      // not a sensor reading: it must not count as one nor flash the ray.
+      var soloVariables = (esVariable(condicion.izq) || esVariable(condicion.der)) &&
+        !esSensor(condicion.izq) && !esSensor(condicion.der);
+      if (!soloVariables && typeof onSensorEval === 'function') onSensorEval('comparar', resultado);
       return resultado;
     }
 
@@ -70,7 +133,29 @@
           var node = top.cuerpo[top.index];
           top.index += 1;
 
+          if (node.tipo === 'declarar' || node.tipo === 'asignar') {
+            guardar(node.nombre, evaluarValor(node.valor));
+            if (node.tipo === 'asignar') cambiosVariable += 1;
+            continue;
+          }
+
+          if (node.tipo === 'cambiar') {
+            guardar(node.nombre, entorno[node.nombre] + node.delta);
+            cambiosVariable += 1;
+            continue;
+          }
+
           if (node.tipo === 'accion') {
+            // A variable-driven duration resolves now, clamped at 0 (a
+            // negative ms would otherwise hang delay() on the Arduino).
+            if (node.valor && typeof node.valor === 'object') {
+              return {
+                tipo: 'accion',
+                accion: node.accion,
+                valor: Math.max(0, Number(evaluarValor(node.valor)) || 0),
+                blockId: node.blockId
+              };
+            }
             return node;
           }
 
@@ -195,7 +280,9 @@
       // limiteSeguridad() -> null, or {blockId, iteraciones} once a
       // repetir_hasta or por_siempre loop has tripped its safety cap during
       // this walk (the last trip wins). Read by the scheduler after each siguienteNodo() call.
-      limiteSeguridad: function () { return limiteSeguridadTrip; }
+      limiteSeguridad: function () { return limiteSeguridadTrip; },
+      // cambiosVariable() -> count of asignar/cambiar executions so far.
+      cambiosVariable: function () { return cambiosVariable; }
     };
   }
 

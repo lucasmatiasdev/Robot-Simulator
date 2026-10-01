@@ -8,12 +8,15 @@
  * re-walks a different tree than the interpreter/simulator use.
  *
  * Returns { lineas, lineasPorBloque, bloquePorLinea }. Each `linea` also
- * carries a `seccion`: 'cabecera' | 'motores' | 'sensores' | 'setup' | 'guion' | 'loop'.
+ * carries a `seccion`: 'cabecera' | 'variables' | 'motores' | 'sensores' | 'setup' | 'guion' | 'loop'.
  * Only `seccion === 'guion'` lines (the student's own program, unrolled
  * inside setup()) ever carry a blockId — addLinea() only registers
  * lineasPorBloque/bloquePorLinea when blockId is truthy, so every
  * scaffolding line (headers, motor/sensor function bodies, pin config,
- * loop()) is simply absent from both maps. This is why highlight.js,
+ * loop()) is simply absent from both maps. The 'variables' section (one
+ * zero-initialised global per declared variable) is scaffolding too, so its
+ * lines carry a null blockId; the `x = init;` assignment at each declarar
+ * node's tree position is part of 'guion' and does carry the blockId. This is why highlight.js,
  * code-panel.js, interpreter.js, scheduler.js and program-tree.js require
  * NO changes at all.
  *
@@ -47,23 +50,91 @@
     return CONTADORES[depth] || ('i' + depth);
   }
 
-  /** True iff the tree contains any `si`/`si_sino`/`repetir_hasta` (sensor-dependent) node, at any depth. */
+  /** True iff a value expression (program-tree.js Expr) reads the sensor, at any depth. */
+  function exprUsaSensor(expr) {
+    if (!expr || typeof expr !== 'object') return false;
+    if (expr.k === 'medirDistancia' || expr.k === 'hayObstaculo') return true;
+    if (expr.k === 'comparar') return exprUsaSensor(expr.izq) || exprUsaSensor(expr.der);
+    return false;
+  }
+
+  /**
+   * True iff the tree contains any `si`/`si_sino`/`repetir_hasta`
+   * (sensor-dependent) node, or any value expression that reads the sensor
+   * (e.g. `declarar d = medirDistancia()` with no `si` at all), at any depth.
+   */
   function usaSensor(cuerpo) {
     for (var i = 0; i < cuerpo.length; i++) {
       var node = cuerpo[i];
       if (node.tipo === 'si' || node.tipo === 'si_sino' || node.tipo === 'repetir_hasta') return true;
+      if ((node.tipo === 'declarar' || node.tipo === 'asignar' || node.tipo === 'accion') && exprUsaSensor(node.valor)) return true;
       if ((node.tipo === 'repetir' || node.tipo === 'por_siempre') && usaSensor(node.cuerpo)) return true;
     }
     return false;
   }
 
+  /** Collects {nombre, tipoDato} per declared variable, pre-order, first declaration wins. */
+  function recolectarVariables(cuerpo, acc) {
+    acc = acc || [];
+    for (var i = 0; i < (cuerpo || []).length; i++) {
+      var node = cuerpo[i];
+      if (node.tipo === 'declarar' && !acc.some(function (v) { return v.nombre === node.nombre; })) {
+        acc.push({ nombre: node.nombre, tipoDato: node.tipoDato === 'bool' ? 'bool' : 'int' });
+      }
+      if (node.cuerpo) recolectarVariables(node.cuerpo, acc);
+      if (node.sino) recolectarVariables(node.sino, acc);
+    }
+    return acc;
+  }
+
+  // Names a student variable must never take: they would collide with (or be
+  // shadowed by) identifiers the generated sketch already uses. Case-sensitive.
+  var MACROS_Y_PINES = ['ENA', 'IN1', 'IN2', 'IN3', 'IN4', 'ENB', 'TRIG', 'ECHO',
+    'VELOCIDAD', 'RANGO_MAX', 'UMBRAL_OBSTACULO', 'HIGH', 'LOW', 'INPUT', 'OUTPUT'];
+  var FUNCIONES_SKETCH = ['setup', 'loop', 'delay', 'delayMicroseconds', 'max', 'min', 'abs',
+    'pinMode', 'digitalWrite', 'analogWrite', 'pulseIn', 'medirDistancia', 'hayObstaculo',
+    'duracion', 'distanciaCm'];
+  var PALABRAS_CPP = ['int', 'bool', 'void', 'long', 'short', 'unsigned', 'signed', 'char', 'float',
+    'double', 'byte', 'boolean', 'const', 'static', 'volatile', 'auto', 'true', 'false', 'if', 'else',
+    'for', 'while', 'do', 'switch', 'case', 'default', 'break', 'continue', 'return', 'goto', 'new',
+    'delete', 'class', 'struct', 'enum', 'union', 'typedef', 'namespace', 'using', 'template', 'this',
+    'public', 'private', 'protected', 'virtual', 'friend', 'inline', 'operator', 'sizeof', 'try',
+    'catch', 'throw', 'nullptr', 'NULL', 'and', 'or', 'not', 'xor', 'register', 'extern', 'mutable',
+    'explicit', 'typename', 'asm', 'main'];
+
+  RS.cppView = RS.cppView || {};
+
+  /** True iff `n` cannot be used as a variable name (see validarVariables in program-tree.js). */
+  RS.cppView.esNombreReservado = function (n) {
+    if (CONTADORES.indexOf(n) !== -1) return true;
+    if (/^i\d+$/.test(n)) return true;
+    var nombreCpp = (RS.config && RS.config.nombreCpp) || {};
+    var nombres = ['avanzar', 'retroceder', 'girarIzquierda', 'girarDerecha', 'detener'];
+    for (var clave in nombreCpp) {
+      if (Object.prototype.hasOwnProperty.call(nombreCpp, clave)) nombres.push(nombreCpp[clave]);
+    }
+    return nombres.indexOf(n) !== -1 ||
+      MACROS_Y_PINES.indexOf(n) !== -1 ||
+      FUNCIONES_SKETCH.indexOf(n) !== -1 ||
+      PALABRAS_CPP.indexOf(n) !== -1;
+  };
+
+  /** Renders a value expression (program-tree.js Expr) as a C++ expression. */
+  function valorATexto(expr) {
+    if (!expr) return '0';
+    if (expr.k === 'numero') return String(expr.v);
+    if (expr.k === 'booleano') return expr.v ? 'true' : 'false';
+    if (expr.k === 'variable') return expr.nombre;
+    if (expr.k === 'medirDistancia') return 'medirDistancia()';
+    if (expr.k === 'hayObstaculo') return 'hayObstaculo()';
+    if (expr.k === 'comparar') return '(' + valorATexto(expr.izq) + ' ' + expr.op + ' ' + valorATexto(expr.der) + ')';
+    return '0';
+  }
+
   /** Renders one {k, [v]} comparator operand (program-tree.js) as a C++ expression. */
   function operandoATexto(operando) {
     if (!operando) return '0';
-    if (operando.k === 'medirDistancia') return 'medirDistancia()';
-    if (operando.k === 'hayObstaculo') return 'hayObstaculo()';
-    if (operando.k === 'numero') return String(operando.v);
-    return '0';
+    return valorATexto(operando);
   }
 
   /**
@@ -75,13 +146,13 @@
    */
   function condicionATexto(node) {
     if (node.condicion) {
+      // Bare boolean variable / literal used directly as the condition.
+      if (node.condicion.k === 'variable' || node.condicion.k === 'booleano') return valorATexto(node.condicion);
       return operandoATexto(node.condicion.izq) + ' ' + node.condicion.op + ' ' + operandoATexto(node.condicion.der);
     }
     // Default shadow (no rs_comparar swapped in): bare hayObstaculo().
     return 'hayObstaculo()';
   }
-
-  RS.cppView = RS.cppView || {};
 
   RS.cppView.render = function (tree, opts) {
     var cfg = RS.config || {};
@@ -132,6 +203,22 @@
       addLinea(0, null, [tok('#define ECHO ' + arduino.ECHO, 'pre'), tok('  // HC-SR04 - pulso de retorno (entrada)', 'com')], 'cabecera');
       addLinea(0, null, [tok('const int VELOCIDAD = ' + velocidad + ';', 'tipo'), tok('  // 0-255', 'com')], 'cabecera');
       blanco('cabecera');
+    }
+
+    // ---------------------------------------------------------------
+    // Section: variables — ONLY emitted when the program declares any.
+    // One global per name (globals are zero-initialised in C++, like the
+    // interpreter's pre-seeded environment); the declarar node's tree
+    // position emits the `x = init;` assignment inside setup().
+    // ---------------------------------------------------------------
+    function emitirVariables() {
+      var variables = recolectarVariables(tree);
+      if (variables.length === 0) return;
+      addLinea(0, null, [tok('// Variables del programa (globales, arrancan en cero).', 'com')], 'variables');
+      variables.forEach(function (v) {
+        addLinea(0, null, [tok(v.tipoDato, 'tipo'), tok(' ' + v.nombre + ';', 'punct')], 'variables');
+      });
+      blanco('variables');
     }
 
     // ---------------------------------------------------------------
@@ -255,14 +342,17 @@
     // see condicionATexto() and renderNodo() below.
     // ---------------------------------------------------------------
     function accionTokens(node) {
+      // A variable-driven duration is clamped, matching the interpreter:
+      // Arduino delay() with a negative int would wait for ~49 days.
+      var valorTokens = (node.valor && typeof node.valor === 'object')
+        ? [tok('max', 'call'), tok('(0, ' + valorATexto(node.valor) + ')', 'punct')]
+        : [tok(String(node.valor), 'num')];
+
       if (node.accion === 'esperar') {
         // 'esperar' is simulator/sketch-only (not part of RS.config.ACCIONES);
         // it maps directly to Arduino's built-in delay(ms), no custom
         // function scaffold needed.
-        return [
-          tok('delay', 'call'), tok('(', 'punct'), tok(String(node.valor), 'num'),
-          tok(')', 'punct'), tok(';', 'punct')
-        ];
+        return [tok('delay', 'call'), tok('(', 'punct')].concat(valorTokens, [tok(')', 'punct'), tok(';', 'punct')]);
       }
 
       var nombre = nombreCpp[node.accion] || node.accion;
@@ -272,10 +362,7 @@
       }
       // avanzar / retroceder / izquierda / derecha — all take one numeric
       // argument (ms).
-      return [
-        tok(nombre, 'call'), tok('(', 'punct'), tok(String(node.valor), 'num'),
-        tok(')', 'punct'), tok(';', 'punct')
-      ];
+      return [tok(nombre, 'call'), tok('(', 'punct')].concat(valorTokens, [tok(')', 'punct'), tok(';', 'punct')]);
     }
 
     // `esRaiz` is true only for the top-level program body. A `detener` there
@@ -309,6 +396,22 @@
       }
       if (node.tipo === 'accion') {
         addLinea(indent, node.blockId, accionTokens(node), 'guion');
+        return;
+      }
+      if (node.tipo === 'declarar' || node.tipo === 'asignar') {
+        var valorInicial = node.valor || { k: node.tipoDato === 'bool' ? 'booleano' : 'numero', v: node.tipoDato === 'bool' ? false : 0 };
+        addLinea(indent, node.blockId, [
+          tok(node.nombre, 'punct'), tok(' = ', 'punct'),
+          tok(valorATexto(valorInicial), valorInicial.k === 'numero' ? 'num' : (valorInicial.k === 'booleano' ? 'kw' : 'punct')),
+          tok(';', 'punct')
+        ], 'guion');
+        return;
+      }
+      if (node.tipo === 'cambiar') {
+        var delta = Number(node.delta) || 0;
+        addLinea(indent, node.blockId, [
+          tok(node.nombre, 'punct'), tok(delta < 0 ? ' -= ' : ' += ', 'punct'), tok(String(Math.abs(delta)), 'num'), tok(';', 'punct')
+        ], 'guion');
         return;
       }
       if (node.tipo === 'repetir') {
@@ -406,6 +509,7 @@
     }
 
     emitirCabecera();
+    emitirVariables();
     emitirMotores();
     if (usaSensor(tree)) emitirSensores();
     emitirSetup();

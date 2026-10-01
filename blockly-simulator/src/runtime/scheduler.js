@@ -23,6 +23,7 @@
     var listeners = [];
     var evalsSensor = 0;
     var limiteSeguridad = null;
+    var cambiosVariable = 0;
 
     function notificar() {
       listeners.forEach(function (fn) { fn(estado); });
@@ -44,6 +45,7 @@
       // executing and the run still ends in normal 'idle'.
       var trip = interpreter.limiteSeguridad ? interpreter.limiteSeguridad() : null;
       if (trip) limiteSeguridad = trip;
+      if (interpreter.cambiosVariable) cambiosVariable = interpreter.cambiosVariable();
       elapsedNode = 0;
       if (currentNode === null) {
         estado = 'idle';
@@ -190,6 +192,7 @@
         if (RS.ui && RS.ui.feedback) RS.ui.feedback.limpiar();
         evalsSensor = 0;
         limiteSeguridad = null;
+        cambiosVariable = 0;
         interpreter = RS.runtime.interpreter.crear(tree, RS.world, RS.robot.estado, onSensorEval);
         estado = 'running';
         notificar();
@@ -201,9 +204,10 @@
        * criteria (see lessons/check.js). `limiteSeguridad` is null unless a
        * `repetir_hasta` or `por_siempre` loop tripped its safety cap
        * (MAX_ITER_REPETIR_HASTA / MAX_ITER_POR_SIEMPRE) during this run, in which case it is {blockId, iteraciones}.
+       * `cambiosVariable` counts executed asignar/cambiar variable nodes.
        */
       obtenerMetricas: function () {
-        return { evalsSensor: evalsSensor, limiteSeguridad: limiteSeguridad };
+        return { evalsSensor: evalsSensor, limiteSeguridad: limiteSeguridad, cambiosVariable: cambiosVariable };
       },
 
       /**
