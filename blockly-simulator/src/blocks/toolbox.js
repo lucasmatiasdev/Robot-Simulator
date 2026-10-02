@@ -23,23 +23,15 @@
     };
   }
 
-  function movementBlockDef(type, ms) {
-    return {
-      kind: 'block',
-      type: type,
-      inputs: { MS: shadowMs(ms) }
-    };
-  }
-
   var INICIO_CONTENTS = [
     { kind: 'block', type: 'rs_inicio' }
   ];
 
   var MOVIMIENTO_CONTENTS = [
-    movementBlockDef('rs_avanzar', 1000),
-    movementBlockDef('rs_retroceder', 1000),
-    movementBlockDef('rs_izquierda', 500),
-    movementBlockDef('rs_derecha', 500),
+    { kind: 'block', type: 'rs_avanzar' },
+    { kind: 'block', type: 'rs_retroceder' },
+    { kind: 'block', type: 'rs_izquierda' },
+    { kind: 'block', type: 'rs_derecha' },
     { kind: 'block', type: 'rs_detener' },
     { kind: 'block', type: 'rs_espera', inputs: { MS: shadowMs(1000) } }
   ];
@@ -74,7 +66,8 @@
       type: 'rs_repetir_hasta',
       inputs: { COND: { shadow: { type: 'rs_hay_obstaculo' } } }
     },
-    { kind: 'block', type: 'rs_por_siempre' }
+    { kind: 'block', type: 'rs_por_siempre' },
+    { kind: 'block', type: 'rs_salir' }
   ];
 
   // Preset blocks: a counter (int) and a direction flag (bool), the two
@@ -135,8 +128,10 @@
   var SENSOR_TYPES_LECCION_4 = ['rs_hay_obstaculo', 'rs_medir_distancia', 'rs_comparar'];
 
   // Lessons 4-6 introduce repetir/repetir_hasta but NOT rs_por_siempre (it
-  // unlocks in lesson 7 and the sandbox, which get the full toolbox).
-  var REPETICION_TYPES_LECCIONES_4_A_6 = ['rs_repetir', 'rs_repetir_hasta'];
+  // unlocks in lesson 7 and the sandbox, which get the full toolbox). Salir
+  // (loop break) joins them from lesson 5 on.
+  var REPETICION_TYPES_LECCION_4 = ['rs_repetir', 'rs_repetir_hasta'];
+  var REPETICION_TYPES_LECCIONES_5_A_6 = ['rs_repetir', 'rs_repetir_hasta', 'rs_salir'];
 
   RS.toolbox.paraLeccion = function (leccionId) {
     // Lesson 7 (Variables) introduces the Variables category and rs_por_siempre
@@ -154,7 +149,8 @@
     }
 
     if (leccionId >= 4) {
-      categorias.push(construirCategoria('Repetición', '20', filtrarContenidos(REPETICION_CONTENTS, REPETICION_TYPES_LECCIONES_4_A_6)));
+      var tiposRepeticion = leccionId >= 5 ? REPETICION_TYPES_LECCIONES_5_A_6 : REPETICION_TYPES_LECCION_4;
+      categorias.push(construirCategoria('Repetición', '20', filtrarContenidos(REPETICION_CONTENTS, tiposRepeticion)));
     }
 
     return { kind: 'categoryToolbox', contents: categorias };

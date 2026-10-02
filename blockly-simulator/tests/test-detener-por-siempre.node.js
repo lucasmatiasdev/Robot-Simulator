@@ -266,15 +266,15 @@ function bloqueFalso(type, id, hijoDo, siguiente) {
 var interior = bloqueFalso('rs_avanzar', 'int1', null, null);
 var raiz = bloqueFalso('rs_por_siempre', 'ps1', interior, null);
 var arbolGenerado = RS.generator.buildProgramTree({ getTopBlocks: function () { return [raiz]; } });
-assertEquals(arbolGenerado, [{ tipo: 'por_siempre', cuerpo: [{ tipo: 'accion', accion: 'avanzar', blockId: 'int1', valor: 0 }], blockId: 'ps1' }],
+assertEquals(arbolGenerado, [{ tipo: 'por_siempre', cuerpo: [{ tipo: 'accion', accion: 'avanzar', blockId: 'int1' }], blockId: 'ps1' }],
   'buildProgramTree: rs_por_siempre produce {tipo:"por_siempre", cuerpo, blockId}');
 
 // ---------------------------------------------------------------------------
 // Block shapes (Blockly stub records what init declares)
 // ---------------------------------------------------------------------------
 function inspeccionar(tipo) {
-  var info = { prev: null, next: null, inputs: [] };
-  var entrada = { setCheck: function () { return entrada; }, appendField: function () { return entrada; } };
+  var info = { prev: null, next: null, inputs: [], textos: [] };
+  var entrada = { setCheck: function () { return entrada; }, appendField: function (f) { if (typeof f === 'string') info.textos.push(f); return entrada; } };
   var bloque = {
     appendValueInput: function (n) { info.inputs.push('valor:' + n); return entrada; },
     appendDummyInput: function () { return entrada; },
@@ -291,7 +291,48 @@ function inspeccionar(tipo) {
 
 var infoDetener = inspeccionar('rs_detener');
 assertEquals(infoDetener.prev, true, 'rs_detener conserva su conexion previa');
-assertEquals(infoDetener.next, false, 'rs_detener no tiene conexion siguiente (nada puede ir debajo)');
+assertEquals(infoDetener.next, true, 'rs_detener tiene conexion siguiente (ya no termina el programa)');
+
+['rs_avanzar', 'rs_retroceder', 'rs_izquierda', 'rs_derecha'].forEach(function (tipo) {
+  var info = inspeccionar(tipo);
+  assertEquals(info.inputs, [], tipo + ' no tiene entrada MS (solo fija el estado de los motores)');
+  assert(info.prev === true && info.next === true, tipo + ' es encadenable');
+});
+var infoEspera = inspeccionar('rs_espera');
+assertEquals(infoEspera.inputs, ['valor:MS'], 'rs_espera conserva su entrada MS');
+assert(infoEspera.textos.indexOf('Delay(') !== -1 && infoEspera.textos.indexOf('esperar(') === -1, 'rs_espera se muestra como Delay(ms)');
+
+var infoSalir = inspeccionar('rs_salir');
+assertEquals(infoSalir.prev, true, 'rs_salir tiene conexion previa');
+assertEquals(infoSalir.next, false, 'rs_salir no tiene conexion siguiente');
+assertEquals(infoSalir.inputs, [], 'rs_salir no tiene entradas (rompe sin condicion)');
+assertEquals(infoSalir.colour, inspeccionar('rs_repetir').colour, 'rs_salir usa el color de Repeticion');
+assert(RS.blocks.REPETICION_TYPES.indexOf('rs_salir') !== -1, 'rs_salir pertenece al grupo REPETICION_TYPES');
+
+// Tree shape: movement/detener nodes carry no `valor` key, Salir maps to {tipo:'salir'}.
+var arbolMov = RS.generator.buildProgramTree({ getTopBlocks: function () {
+  return [bloqueFalso('rs_avanzar', 'm1', null, bloqueFalso('rs_detener', 'm2', null, bloqueFalso('rs_salir', 'm3', null, null)))];
+} });
+assertEquals(arbolMov, [
+  { tipo: 'accion', accion: 'avanzar', blockId: 'm1' },
+  { tipo: 'accion', accion: 'detener', blockId: 'm2' },
+  { tipo: 'salir', blockId: 'm3' }
+], 'buildProgramTree: movimientos sin clave valor y rs_salir -> {tipo:"salir"}');
+assert(!Object.prototype.hasOwnProperty.call(arbolMov[0], 'valor'), 'buildProgramTree: avanzar no tiene la clave valor');
+
+// Orphan Salir validation (before the variable checks).
+var MENSAJE_SALIR = 'Salir';
+function salirOk(arbol) { return RS.generator.validarSalir(arbol); }
+assert(salirOk([{ tipo: 'salir', blockId: 's' }]).ok === false && salirOk([{ tipo: 'salir', blockId: 's' }]).mensaje.indexOf(MENSAJE_SALIR) !== -1,
+  'validarSalir: un Salir en el nivel superior bloquea con un mensaje que nombra Salir');
+assert(salirOk([{ tipo: 'si', sensor: 'hayObstaculo', cuerpo: [{ tipo: 'salir', blockId: 's' }], blockId: 'x' }]).ok === false,
+  'validarSalir: un Salir dentro de un si fuera de un bucle bloquea');
+assert(salirOk([{ tipo: 'por_siempre', cuerpo: [{ tipo: 'si', sensor: 'hayObstaculo', cuerpo: [{ tipo: 'salir', blockId: 's' }], blockId: 'x' }], blockId: 'p' }]).ok === true,
+  'validarSalir: un Salir dentro de un si dentro de por_siempre es valido');
+assert(salirOk([{ tipo: 'repetir', veces: 2, cuerpo: [{ tipo: 'salir', blockId: 's' }], blockId: 'r' }]).ok === true, 'validarSalir: un Salir dentro de repetir es valido');
+var wsOrfano = { getTopBlocks: function () { return [bloqueFalso('rs_inicio', 'i0', null, bloqueFalso('rs_salir', 's0', null, null))]; } };
+var rOrfano = RS.generator.validarPrograma(wsOrfano);
+assert(rOrfano.ok === false && rOrfano.mensaje.indexOf('Salir') !== -1, 'validarPrograma bloquea la ejecucion con un Salir huerfano');
 
 var infoSiempre = inspeccionar('rs_por_siempre');
 assertEquals(infoSiempre.prev, true, 'rs_por_siempre tiene conexion previa');
@@ -319,6 +360,19 @@ function tiposSensor(toolbox) {
 var l6 = tiposRepeticion(RS.toolbox.paraLeccion(6));
 assert(l6 !== null && l6.indexOf('rs_por_siempre') === -1, 'L6: la categoria Repeticion NO contiene rs_por_siempre');
 assert(l6 !== null && l6.indexOf('rs_repetir') !== -1 && l6.indexOf('rs_repetir_hasta') !== -1, 'L6: conserva rs_repetir y rs_repetir_hasta');
+[1, 2, 3, 4].forEach(function (n) {
+  var rep = tiposRepeticion(RS.toolbox.paraLeccion(n));
+  assert(rep === null || rep.indexOf('rs_salir') === -1, 'L' + n + ': Salir no esta disponible antes de L5');
+});
+[5, 6].forEach(function (n) {
+  assert(tiposRepeticion(RS.toolbox.paraLeccion(n)).indexOf('rs_salir') !== -1, 'L' + n + ': Salir esta disponible');
+});
+assert(tiposRepeticion(RS.toolbox.paraLeccion(7)).indexOf('rs_salir') !== -1, 'L7: Salir esta disponible');
+assert(tiposRepeticion(RS.toolbox).indexOf('rs_salir') !== -1, 'RS.toolbox (sandbox) contiene rs_salir');
+['Movimiento'].forEach(function (nombre) {
+  var cat = RS.toolbox.contents.filter(function (c) { return c.name === nombre; })[0];
+  assert(cat.contents.every(function (b) { return !b.inputs || b.type === 'rs_espera'; }), 'toolbox: solo Delay lleva shadow de MS, los movimientos no');
+});
 assert(tiposRepeticion(RS.toolbox.paraLeccion(7)).indexOf('rs_por_siempre') !== -1, 'L7: la categoria Repeticion contiene rs_por_siempre');
 assert(tiposRepeticion(RS.toolbox).indexOf('rs_por_siempre') !== -1, 'RS.toolbox (sandbox) contiene rs_por_siempre');
 
