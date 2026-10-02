@@ -1,8 +1,12 @@
 /**
  * RS.runtime.scheduler — single requestAnimationFrame loop with delta time.
- * Run states: idle / running / error / stopped. AABB collision is tested
- * before committing each position update; a collision aborts immediately
- * into 'error' state (no further nodes run).
+ * Run states: idle / running / error / stopped. Owns time and physics: motor
+ * leaves set RS.robot.motores in zero time; only `esperar` (Delay) and loop
+ * `tick` leaves consume sim time, during which the current motor state is
+ * integrated. AABB collision is tested before committing each position
+ * update; a collision aborts immediately into 'error' state. A program that
+ * ends with motors on keeps coasting (state stays 'running') until it
+ * collides or, if only rotating, COAST_GIRO_MAX_MS elapses -> 'error'.
  */
 (function (global) {
   'use strict';
@@ -15,14 +19,18 @@
   function crearScheduler() {
     var estado = 'idle'; // idle | running | error | stopped
     var interpreter = null;
-    var currentNode = null;
-    var elapsedNode = 0;
+    var actual = null; // leaf in progress (esperar / tick) across frames
+    var restanteActual = 0;
+    var ultimoMotor = null; // last block that turned the motors on
+    var finPrograma = false;
+    var coastGiroMs = 0;
+    var tiempoSim = 0;
+    var ultimoResaltado = null;
     var lastTs = null;
     var ctx = null;
     var rayoFlashHasta = 0;
     var listeners = [];
     var evalsSensor = 0;
-    var limiteSeguridad = null;
     var cambiosVariable = 0;
 
     function notificar() {
@@ -33,98 +41,126 @@
       listeners.push(fn);
     }
 
-    function girarSentido(accion) {
-      return accion === 'derecha' ? 1 : -1;
+    function resaltar(blockId) {
+      if (blockId === ultimoResaltado) return;
+      ultimoResaltado = blockId;
+      if (RS.ui && RS.ui.resaltar) RS.ui.resaltar(blockId);
     }
 
-    function avanzarSiguienteNodo() {
-      currentNode = interpreter.siguienteNodo();
-      // Pick up a repetir_hasta safety-cap trip, if one just happened. D4:
-      // this is a behavioral-failure signal on the run's metrics, never a
-      // scheduler run-state change — the rest of the program (if any) keeps
-      // executing and the run still ends in normal 'idle'.
-      var trip = interpreter.limiteSeguridad ? interpreter.limiteSeguridad() : null;
-      if (trip) limiteSeguridad = trip;
-      if (interpreter.cambiosVariable) cambiosVariable = interpreter.cambiosVariable();
-      elapsedNode = 0;
-      if (currentNode === null) {
-        estado = 'idle';
-        if (RS.ui && RS.ui.resaltar) RS.ui.resaltar(null);
-        notificar();
-        return false;
-      }
-      if (RS.ui && RS.ui.resaltar) RS.ui.resaltar(currentNode.blockId);
-      return true;
+    function motoresEncendidos() {
+      var m = RS.robot.motores;
+      return m.izq !== 0 || m.der !== 0;
     }
 
     function abortarPorColision(obstaculoOLimite) {
       estado = 'error';
-      // Highlight stays on the guilty block (do not clear it).
+      // Highlight stays on the block that turned the motors on.
+      resaltar(ultimoMotor ? ultimoMotor.blockId : null);
       if (RS.ui && RS.ui.feedback) {
-        RS.ui.feedback.mostrarColision(currentNode, obstaculoOLimite);
+        RS.ui.feedback.mostrarColision(ultimoMotor, obstaculoOLimite, { finPrograma: finPrograma });
       }
       notificar();
     }
 
-    function procesarFrame(dt) {
-      if (!currentNode) return;
-
-      var accion = currentNode.accion;
-
-      if (accion === 'detener') {
-        // Program exit: end the run here and never ask the interpreter for
-        // another node, so nothing after detener (or later loop passes) runs.
-        currentNode = null;
-        estado = 'idle';
-        if (RS.ui && RS.ui.resaltar) RS.ui.resaltar(null);
-        notificar();
-        return;
-      }
-
-      var duracion = currentNode.valor || 0;
-      var restante = Math.max(0, duracion - elapsedNode);
-      var dtAplicado = Math.min(dt, restante);
-
-      if (accion === 'avanzar' || accion === 'retroceder') {
-        // A single rAF frame's dt is not bounded (backgrounded tab, GC pause,
-        // slow device can all produce a large dt). Advancing the full
-        // dtAplicado in one AABB check can jump clean over a thin obstacle
-        // without any intermediate position ever overlapping it (tunneling).
-        // Subdivide into MAX_SUBSTEP_MS-sized steps and re-check collision
-        // after each one, so detection is independent of real frame timing.
-        var maxSubstep = (RS.config && RS.config.MAX_SUBSTEP_MS) || 16;
-        var restanteEnFrame = dtAplicado;
-        while (restanteEnFrame > 0) {
-          var paso = Math.min(maxSubstep, restanteEnFrame);
-          var candidato = accion === 'avanzar'
-            ? RS.robot.proponerAvance(paso)
-            : RS.robot.proponerRetroceso(paso);
+    /**
+     * Runs the current motor state for `ms` of sim time, in
+     * MAX_SUBSTEP_MS-sized collision-checked steps (a frame's dt is not
+     * bounded, so one big step could tunnel through a thin obstacle).
+     * Collision is tested only when the position changes (rotation stays
+     * untested). Returns false when the run aborted.
+     */
+    function integrar(ms) {
+      var maxSubstep = (RS.config && RS.config.MAX_SUBSTEP_MS) || 16;
+      var restante = ms;
+      while (restante > 0) {
+        var paso = Math.min(maxSubstep, restante);
+        tiempoSim += paso;
+        restante -= paso;
+        if (!motoresEncendidos()) continue;
+        var est = RS.robot.estado;
+        var candidato = RS.robot.proponerPaso(paso);
+        var movio = candidato.x !== est.x || candidato.y !== est.y;
+        if (movio) {
           var colision = RS.world.colisionEn(candidato.x, candidato.y);
           if (colision) {
             abortarPorColision(colision);
-            return;
+            return false;
           }
-          RS.robot.commitPosicion(candidato.x, candidato.y);
-          restanteEnFrame -= paso;
         }
-        elapsedNode += dtAplicado;
-      } else if (accion === 'izquierda' || accion === 'derecha') {
-        if (dtAplicado > 0) {
-          RS.robot.girar(dtAplicado, girarSentido(accion));
+        RS.robot.commitPaso(candidato);
+        if (finPrograma && !movio) {
+          coastGiroMs += paso;
+          if (coastGiroMs >= RS.config.COAST_GIRO_MAX_MS) {
+            abortarPorColision('giro');
+            return false;
+          }
         }
-        elapsedNode += dtAplicado;
-      } else if (accion === 'esperar') {
-        // Accrues elapsed time without moving the robot or testing collision.
-        elapsedNode += dtAplicado;
-      } else {
-        // Unknown action: skip defensively.
-        avanzarSiguienteNodo();
-        return;
+      }
+      return true;
+    }
+
+    function procesarFrame(dt) {
+      if (estado !== 'running' || !interpreter) return;
+
+      var cfg = RS.config;
+      var presupuesto = cfg.MAX_NODOS_POR_FRAME;
+      var restanteDt = dt;
+      var resaltado; // one highlight update per frame
+
+      while (estado === 'running') {
+        if (finPrograma) {
+          // Coasting: motors keep running under the final state.
+          resaltado = ultimoMotor ? ultimoMotor.blockId : null;
+          integrar(restanteDt);
+          break;
+        }
+        if (presupuesto-- <= 0) {
+          // Yield guard: drop the remaining dt so the sim slows down
+          // rather than advancing without program progress.
+          break;
+        }
+        if (!actual) {
+          var nodo = interpreter.siguienteNodo();
+          if (interpreter.cambiosVariable) cambiosVariable = interpreter.cambiosVariable();
+          if (nodo === null) {
+            if (!motoresEncendidos()) {
+              estado = 'idle';
+              resaltar(null);
+              notificar();
+              return;
+            }
+            finPrograma = true;
+            continue;
+          }
+          if (nodo.tipo === 'accion' && nodo.accion === 'detener') {
+            RS.robot.setMotores(0, 0);
+            continue;
+          }
+          if (nodo.tipo === 'accion' && cfg.MOTORES[nodo.accion]) {
+            var m = cfg.MOTORES[nodo.accion];
+            RS.robot.setMotores(m.izq, m.der);
+            ultimoMotor = nodo;
+            continue;
+          }
+          if (nodo.tipo === 'tick' || nodo.accion === 'esperar') {
+            actual = nodo;
+            restanteActual = Math.max(0, nodo.valor || 0);
+          }
+          // Unknown leaf: skipped defensively.
+          if (!actual) continue;
+        }
+
+        if (actual.tipo !== 'tick') resaltado = actual.blockId;
+        if (restanteActual > 0 && restanteDt <= 0) break;
+        var consumo = Math.min(restanteDt, restanteActual);
+        restanteDt -= consumo;
+        restanteActual -= consumo;
+        if (!integrar(consumo)) return;
+        if (restanteActual > 0) break;
+        actual = null;
       }
 
-      if (elapsedNode >= duracion) {
-        avanzarSiguienteNodo();
-      }
+      if (estado === 'running' && resaltado !== undefined) resaltar(resaltado);
     }
 
     function loop(ts) {
@@ -191,23 +227,33 @@
         RS.robot.reset();
         if (RS.ui && RS.ui.feedback) RS.ui.feedback.limpiar();
         evalsSensor = 0;
-        limiteSeguridad = null;
         cambiosVariable = 0;
+        actual = null;
+        restanteActual = 0;
+        ultimoMotor = null;
+        finPrograma = false;
+        coastGiroMs = 0;
+        tiempoSim = 0;
+        ultimoResaltado = null;
         interpreter = RS.runtime.interpreter.crear(tree, RS.world, RS.robot.estado, onSensorEval);
         estado = 'running';
         notificar();
-        avanzarSiguienteNodo();
       },
 
       /**
        * obtenerMetricas() — observed-behavior counters used by lesson
-       * criteria (see lessons/check.js). `limiteSeguridad` is null unless a
-       * `repetir_hasta` or `por_siempre` loop tripped its safety cap
-       * (MAX_ITER_REPETIR_HASTA / MAX_ITER_POR_SIEMPRE) during this run, in which case it is {blockId, iteraciones}.
-       * `cambiosVariable` counts executed asignar/cambiar variable nodes.
+       * criteria (see lessons/check.js). `limiteSeguridad` is deprecated and
+       * always null (loops are uncapped; kept so criterio code still reads
+       * it). `cambiosVariable` counts executed asignar/cambiar nodes.
+       * `finConMotores` is true when the program ended with motors on.
        */
       obtenerMetricas: function () {
-        return { evalsSensor: evalsSensor, limiteSeguridad: limiteSeguridad, cambiosVariable: cambiosVariable };
+        return {
+          evalsSensor: evalsSensor,
+          limiteSeguridad: null,
+          cambiosVariable: cambiosVariable,
+          finConMotores: finPrograma
+        };
       },
 
       /**
@@ -218,19 +264,27 @@
        */
       _procesarFrame: function (dt) { procesarFrame(dt); },
 
+      /** Test-only hook: total sim ms integrated since the run started. */
+      _tiempoSim: function () { return tiempoSim; },
+
       detener: function () {
         if (estado !== 'running') return;
         estado = 'stopped';
-        if (RS.ui && RS.ui.resaltar) RS.ui.resaltar(null);
+        RS.robot.setMotores(0, 0);
+        resaltar(null);
         notificar();
       },
 
       reiniciar: function () {
         estado = 'idle';
         interpreter = null;
-        currentNode = null;
-        elapsedNode = 0;
+        actual = null;
+        restanteActual = 0;
+        ultimoMotor = null;
+        finPrograma = false;
+        coastGiroMs = 0;
         RS.robot.reset();
+        ultimoResaltado = null;
         if (RS.ui && RS.ui.resaltar) RS.ui.resaltar(null);
         if (RS.ui && RS.ui.feedback) RS.ui.feedback.limpiar();
         notificar();

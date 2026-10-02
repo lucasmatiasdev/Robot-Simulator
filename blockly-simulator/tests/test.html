@@ -20,6 +20,7 @@
      the Blockly global and are exercised only through fake block/workspace
      stubs below, matching the minimal API program-tree.js actually calls. -->
 <script src="../src/config.js"></script>
+<script src="../src/sim/gridAdapter.js"></script>
 <script src="../src/lessons/content.js"></script>
 <script src="../src/lessons/progress.js"></script>
 <script src="../src/lessons/check.js"></script>
@@ -220,12 +221,14 @@
   (function () {
     RS.robot.reset();
     var pose0 = { x: RS.robot.estado.x, y: RS.robot.estado.y };
-    var candidato = RS.robot.proponerAvance(1000); // 1000ms * VEL(0.12) = 120px hacia heading 0 (este)
-    assert(Math.abs(candidato.x - (pose0.x + 120)) < 0.001, 'avanzar(1000) mueve VEL*ms px sobre el heading (x)');
-    assert(Math.abs(candidato.y - pose0.y) < 0.001, 'avanzar(1000) con heading 0 no cambia y');
+    RS.robot.setMotores(1, 1);
+    var candidato = RS.robot.proponerPaso(1000); // 1000ms * VEL(0.12) = 120px hacia heading 0 (este)
+    assert(Math.abs(candidato.x - (pose0.x + 120)) < 0.001, 'motores (1,1) durante 1000 ms mueven VEL*ms px sobre el heading (x)');
+    assert(Math.abs(candidato.y - pose0.y) < 0.001, 'motores (1,1) con heading 0 no cambian y');
 
-    RS.robot.girar(500, 1); // derecha: +GIRO*ms = 0.18*500 = 90 grados
-    assertEquals(RS.robot.estado.angulo, 90, 'girar derecha(500) rota GIRO*ms grados sin dividir por 4');
+    RS.robot.setMotores(1, -1); // derecha: +GIRO*ms = 0.18*500 = 90 grados
+    RS.robot.commitPaso(RS.robot.proponerPaso(500));
+    assertEquals(RS.robot.estado.angulo, 90, 'motores (1,-1) durante 500 ms rotan GIRO*ms grados sin dividir por 4');
     RS.robot.reset();
   })();
 
@@ -235,16 +238,16 @@
     var seq = encadenar(bloqueAccion('rs_avanzar', 'a1', 500), bloqueAccion('rs_retroceder', 'l1', 1));
     var arbol = RS.generator.buildProgramTree(workspaceFalso([seq]));
     assertEquals(arbol, [
-      { tipo: 'accion', accion: 'avanzar', blockId: 'a1', valor: 500 },
-      { tipo: 'accion', accion: 'retroceder', blockId: 'l1', valor: 1 }
-    ], 'secuencia simple: avanzar(500) + retroceder(1)');
+      { tipo: 'accion', accion: 'avanzar', blockId: 'a1' },
+      { tipo: 'accion', accion: 'retroceder', blockId: 'l1' }
+    ], 'secuencia simple: avanzar + retroceder (movimientos sin clave valor)');
 
     var cuerpoRepetir = bloqueAccion('rs_avanzar', 'a2', 200);
     var rep = bloqueRepetir('r1', 4, cuerpoRepetir);
     var arbolRep = RS.generator.buildProgramTree(workspaceFalso([rep]));
     assertEquals(arbolRep, [
       { tipo: 'repetir', veces: 4, blockId: 'r1', cuerpo: [
-        { tipo: 'accion', accion: 'avanzar', blockId: 'a2', valor: 200 }
+        { tipo: 'accion', accion: 'avanzar', blockId: 'a2' }
       ] }
     ], 'repetir(4) NO se pre-expande a 4 hojas: un solo nodo repetir con cuerpo de 1');
 
@@ -295,8 +298,8 @@
     ]));
     assertEquals(arbolSiSinoDefault, [
       { tipo: 'si_sino', sensor: 'hayObstaculo', blockId: 'ssd1',
-        cuerpo: [{ tipo: 'accion', accion: 'derecha', blockId: 'ss-do', valor: 500 }],
-        sino: [{ tipo: 'accion', accion: 'avanzar', blockId: 'ss-else', valor: 1000 }] }
+        cuerpo: [{ tipo: 'accion', accion: 'derecha', blockId: 'ss-do' }],
+        sino: [{ tipo: 'accion', accion: 'avanzar', blockId: 'ss-else' }] }
     ], 'si_sino (shadow por defecto): nodo con sensor:"hayObstaculo", cuerpo (DO) y sino (ELSE)');
 
     // rs_si_sino: comparador como COND.
@@ -317,7 +320,7 @@
     ]));
     assertEquals(arbolRepetirHastaDefault, [
       { tipo: 'repetir_hasta', sensor: 'hayObstaculo', blockId: 'rhd1',
-        cuerpo: [{ tipo: 'accion', accion: 'avanzar', blockId: 'rh-do', valor: 100 }] }
+        cuerpo: [{ tipo: 'accion', accion: 'avanzar', blockId: 'rh-do' }] }
     ], 'repetir_hasta (shadow por defecto): nodo con sensor:"hayObstaculo" y cuerpo (DO)');
 
     // rs_repetir_hasta: comparador como COND.
@@ -328,7 +331,7 @@
     assertEquals(arbolRepetirHastaComparador, [
       { tipo: 'repetir_hasta', blockId: 'rhc1',
         condicion: { op: '>=', izq: { k: 'medirDistancia' }, der: { k: 'numero', v: 20 } },
-        cuerpo: [{ tipo: 'accion', accion: 'avanzar', blockId: 'rhc-do', valor: 100 }] }
+        cuerpo: [{ tipo: 'accion', accion: 'avanzar', blockId: 'rhc-do' }] }
     ], 'repetir_hasta con rs_comparar en COND: nodo con condicion {op, izq, der}');
 
     // rs_repetir_hasta: cuerpo vacio -> cuerpo:[] (no se cae, no lanza excepcion en generacion).
@@ -425,7 +428,7 @@
     assert(llamadaFabricadaSiSino, 'alguna linea de guion de si_sino contiene una llamada real a hayObstaculo()');
     assert(textoSiSino.indexOf('int medirDistancia() {') !== -1, 'usaSensor() detecta si_sino: se emite el driver real medirDistancia() aunque no haya nodo "si" plano');
 
-    // --- repetir_hasta: real counter-guarded for loop (pre-test "while not" + MAX_ITER cap) ---
+    // --- repetir_hasta: uncapped while (pre-test "while not") ---
     var arbolRepetirHasta = [
       { tipo: 'repetir_hasta', sensor: 'hayObstaculo', blockId: 'rh1', cuerpo: [
         { tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'rhd1' }
@@ -435,7 +438,7 @@
     var textoRepetirHasta = RS.cppView.renderTexto(arbolRepetirHasta);
     var lineaRepetirHasta = resultadoRepetirHasta.lineas.filter(function (l) { return l.blockId === 'rh1'; })[0];
     assert(lineaRepetirHasta !== undefined, 'el nodo repetir_hasta mapea su blockId a una linea');
-    assertEquals(lineaRepetirHasta.texto, 'for (int i = 0; i < 1000 && !(hayObstaculo()); i++) {', 'el nodo repetir_hasta genera un for real con tope de seguridad');
+    assertEquals(lineaRepetirHasta.texto, 'while (!(hayObstaculo())) {', 'el nodo repetir_hasta genera un while sin tope');
     assert(resultadoRepetirHasta.lineas.filter(function (l) { return l.blockId === 'rhd1'; }).length === 1, 'el cuerpo de repetir_hasta (avanzar) SI se traduce a codigo ejecutable');
     var lineasGuionRepetirHasta = resultadoRepetirHasta.lineas.filter(function (l) { return l.seccion === 'guion'; });
     var llamadaFabricadaRepetirHasta = lineasGuionRepetirHasta.some(function (l) { return l.texto.indexOf('hayObstaculo()') !== -1 && l.texto.indexOf('//') !== 0; });
@@ -457,27 +460,43 @@
     RS.robot.reset();
     var arbol = [
       { tipo: 'repetir', veces: 3, blockId: 'r1', cuerpo: [
-        { tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'a1' }
+        { tipo: 'accion', accion: 'esperar', valor: 100, blockId: 'a1' }
       ] }
     ];
     var walker = RS.runtime.interpreter.crear(arbol, RS.world, RS.robot.estado);
     var pasos = 0;
+    var ticks = 0;
     var nodo = walker.siguienteNodo();
     var vistos = [];
     while (nodo !== null) {
-      vistos.push(nodo.blockId);
-      // Simulate the scheduler applying the full duration in one fixed-dt step.
-      var dist = RS.config.VEL * nodo.valor;
-      RS.robot.commitPosicion(RS.robot.estado.x + dist, RS.robot.estado.y);
-      pasos++;
+      if (nodo.tipo === 'tick') {
+        ticks++;
+      } else {
+        vistos.push(nodo.blockId);
+        pasos++;
+      }
       nodo = walker.siguienteNodo();
-      if (pasos > 10) break; // safety
+      if (pasos + ticks > 20) break; // safety
     }
     assertEquals(vistos, ['a1', 'a1', 'a1'], 'repetir(3) re-camina su cuerpo 3 veces en tiempo de ejecución (mismo blockId)');
     assertEquals(pasos, 3, 'exactamente 3 pasos ejecutados, no expandidos de antemano');
-    var esperadoX = RS.world.poseInicial.x + 3 * RS.config.VEL * 100;
-    assert(Math.abs(RS.robot.estado.x - esperadoX) < 0.001, 'posición final x coincide con 3 avances de 100ms');
-    RS.robot.reset();
+    assertEquals(ticks, 3, 'cada vuelta completada del bucle emite un tick implícito');
+
+    // Same tree through the scheduler: motors on during each Delay.
+    var scheduler = RS.runtime.scheduler;
+    scheduler.iniciarConArbol([
+      { tipo: 'accion', accion: 'avanzar', blockId: 'm1' },
+      { tipo: 'repetir', veces: 3, blockId: 'r1', cuerpo: [
+        { tipo: 'accion', accion: 'esperar', valor: 100, blockId: 'a1' }
+      ] },
+      { tipo: 'accion', accion: 'detener', blockId: 'd1' }
+    ]);
+    var xInicio = RS.robot.estado.x;
+    for (var f = 0; f < 100 && scheduler.obtenerEstado() === 'running'; f++) scheduler._procesarFrame(16);
+    // 3 Delays of 100 ms plus 3 loop ticks of 1 ms, all with motors on.
+    var esperadoX = xInicio + RS.config.VEL * 303;
+    assert(Math.abs(RS.robot.estado.x - esperadoX) < 0.001, 'posición final x coincide con 303 ms de motores encendidos');
+    scheduler.reiniciar();
   })();
 
   // ================= Interprete: condicion de comparador branchea =================
@@ -514,7 +533,7 @@
       { tipo: 'si_sino', blockId: 'ss1',
         condicion: { op: '<', izq: { k: 'medirDistancia' }, der: { k: 'numero', v: 15 } },
         cuerpo: [{ tipo: 'accion', accion: 'detener', blockId: 'do1' }],
-        sino: [{ tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'else1' }] },
+        sino: [{ tipo: 'accion', accion: 'esperar', valor: 100, blockId: 'else1' }] },
       { tipo: 'accion', accion: 'detener', valor: 1, blockId: 'a-despues' }
     ];
 
@@ -551,7 +570,7 @@
     var nSkip = walkerSkip.siguienteNodo();
     while (nSkip !== null) { vistosSkip.push(nSkip.blockId); nSkip = walkerSkip.siguienteNodo(); }
     assertEquals(vistosSkip, ['despues-skip'], 'repetir_hasta con condicion ya verdadera: cero iteraciones del cuerpo (pre-test)');
-    assertEquals(walkerSkip.limiteSeguridad(), null, 'repetir_hasta sin trip: limiteSeguridad() es null');
+    assertEquals(walkerSkip.limiteSeguridad, undefined, 'el intérprete ya no expone limiteSeguridad (sin topes de iteración)');
 
     // --- Condicion se vuelve verdadera tras N pasadas: exactamente N pasadas, re-evaluada entre pasadas ---
     // Usa el patron real: comparador sobre medirDistancia() con una pose que
@@ -562,7 +581,7 @@
     var condicionCerca = { op: '<', izq: { k: 'medirDistancia' }, der: { k: 'numero', v: 15 } };
     var arbolAcercamiento = [
       { tipo: 'repetir_hasta', blockId: 'rh-acerca', condicion: condicionCerca, cuerpo: [
-        { tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'paso-acerca' }
+        { tipo: 'accion', accion: 'esperar', valor: 100, blockId: 'paso-acerca' }
       ] },
       { tipo: 'accion', accion: 'detener', valor: 1, blockId: 'despues-acerca' }
     ];
@@ -571,7 +590,7 @@
     var nAcerca = walkerAcerca.siguienteNodo();
     var pasosAcerca = 0;
     while (nAcerca !== null && pasosAcerca < 50) {
-      vistosAcerca.push(nAcerca.blockId);
+      if (nAcerca.tipo !== 'tick') vistosAcerca.push(nAcerca.blockId);
       if (nAcerca.blockId === 'paso-acerca') {
         // Simula al scheduler avanzando al robot antes de re-evaluar la condicion.
         RS.robot.commitPosicion(RS.robot.estado.x + 20, RS.robot.estado.y);
@@ -582,64 +601,34 @@
     assert(vistosAcerca.length > 1, 'repetir_hasta (acercandose): el cuerpo se yieldea mas de una vez antes de que la condicion se cumpla');
     assertEquals(vistosAcerca[vistosAcerca.length - 1], 'despues-acerca', 'repetir_hasta (acercandose): al cumplirse la condicion, el programa continua tras el loop');
     assert(vistosAcerca.slice(0, -1).every(function (id) { return id === 'paso-acerca'; }), 'repetir_hasta (acercandose): solo hojas del cuerpo se yieldean mientras la condicion es falsa');
-    assertEquals(walkerAcerca.limiteSeguridad(), null, 'repetir_hasta (acercandose, salida normal por condicion): limiteSeguridad() es null');
     RS.robot.reset();
 
-    // --- Safety cap: empty body / never-true condition terminates at exactly MAX_ITER_REPETIR_HASTA ---
+    // --- No caps: a never-true condition with an empty body keeps yielding ticks, never hangs ---
     var condicionNuncaVerdadera = { op: '==', izq: { k: 'numero', v: 1 }, der: { k: 'numero', v: 2 } };
-    var arbolCapVacio = [
+    var walkerSinTope = RS.runtime.interpreter.crear([
       { tipo: 'repetir_hasta', blockId: 'rh-cap', condicion: condicionNuncaVerdadera, cuerpo: [] },
-      { tipo: 'accion', accion: 'detener', valor: 1, blockId: 'despues-cap' }
-    ];
-    var walkerCap = RS.runtime.interpreter.crear(arbolCapVacio, RS.world, RS.robot.estado, null);
-    var nCap = walkerCap.siguienteNodo();
-    assertEquals(nCap && nCap.blockId, 'despues-cap', 'repetir_hasta con cuerpo vacio y condicion que nunca se cumple: el interprete NO se cuelga, el programa continua tras el limite de seguridad');
-    assertEquals(walkerCap.limiteSeguridad(), { blockId: 'rh-cap', iteraciones: RS.config.MAX_ITER_REPETIR_HASTA },
-      'repetir_hasta: al disparar el limite, limiteSeguridad() = {blockId, iteraciones: MAX_ITER_REPETIR_HASTA}');
-
-    // --- Safety cap does not fire when the body has real leaf actions and the ---
-    // --- condition never becomes true either: still bounded, still yields exactly MAX_ITER leaves ---
-    var arbolCapConCuerpo = [
-      { tipo: 'repetir_hasta', blockId: 'rh-cap2', condicion: condicionNuncaVerdadera, cuerpo: [
-        { tipo: 'accion', accion: 'detener', valor: 1, blockId: 'iter-cap2' }
-      ] }
-    ];
-    var walkerCap2 = RS.runtime.interpreter.crear(arbolCapConCuerpo, RS.world, RS.robot.estado, null);
-    var pasosCap2 = 0;
-    var nodoCap2 = walkerCap2.siguienteNodo();
-    while (nodoCap2 !== null) { pasosCap2++; nodoCap2 = walkerCap2.siguienteNodo(); }
-    assertEquals(pasosCap2, RS.config.MAX_ITER_REPETIR_HASTA, 'repetir_hasta con cuerpo no vacio y condicion que nunca se cumple: se yieldean exactamente MAX_ITER_REPETIR_HASTA hojas antes de terminar');
-    assertEquals(walkerCap2.limiteSeguridad(), { blockId: 'rh-cap2', iteraciones: RS.config.MAX_ITER_REPETIR_HASTA }, 'repetir_hasta con cuerpo no vacio: tambien dispara limiteSeguridad al llegar al tope');
+      { tipo: 'accion', accion: 'detener', blockId: 'despues-cap' }
+    ], RS.world, RS.robot.estado, null);
+    var ticksSinTope = 0;
+    var nSinTope = walkerSinTope.siguienteNodo();
+    while (nSinTope !== null && nSinTope.tipo === 'tick' && ticksSinTope < 3000) { ticksSinTope++; nSinTope = walkerSinTope.siguienteNodo(); }
+    assertEquals(ticksSinTope, 3000, 'repetir_hasta vacío con condición que nunca se cumple: sigue emitiendo ticks mucho más allá de 1000 vueltas (sin tope)');
+    assertEquals(walkerSinTope.siguienteNodo() && 'seguia', 'seguia', 'repetir_hasta sin tope: el programa nunca continúa tras el bucle');
   })();
 
-  // ================= Scheduler: repetir_hasta wires the real limiteSeguridad metric =================
-  grupo('Scheduler: repetir_hasta con limite de seguridad termina en idle (nunca error/stopped) y expone la metrica');
+  // ================= Scheduler: repetir_hasta sin tope progresa por ticks =================
+  grupo('Scheduler: repetir_hasta vacío sin tope sigue running, avanza por ticks y reporta limiteSeguridad null');
   (function () {
-    var feedbackDivRH = document.createElement('div');
-    document.body.appendChild(feedbackDivRH);
-    RS.ui.feedback.init(feedbackDivRH);
-
     var scheduler = RS.runtime.scheduler;
     var condicionNuncaVerdaderaSched = { op: '==', izq: { k: 'numero', v: 1 }, der: { k: 'numero', v: 2 } };
-    var arbolSched = [
+    scheduler.iniciarConArbol([
       { tipo: 'repetir_hasta', blockId: 'rh-sched', condicion: condicionNuncaVerdaderaSched, cuerpo: [] },
-      { tipo: 'accion', accion: 'detener', valor: 1, blockId: 'despues-sched' }
-    ];
-    scheduler.iniciarConArbol(arbolSched);
-    // A single tick is enough: the interpreter's own while-loop already
-    // resolves the entire capped loop synchronously inside siguienteNodo().
+      { tipo: 'accion', accion: 'detener', blockId: 'despues-sched' }
+    ]);
     scheduler._procesarFrame(16);
-
-    assertEquals(scheduler.obtenerEstado(), 'idle', 'repetir_hasta con limite disparado: el run termina en idle, NUNCA en error (no es una colision) ni stopped (no fue detenido manualmente)');
-    var metricasRH = scheduler.obtenerMetricas();
-    assertEquals(metricasRH.limiteSeguridad, { blockId: 'rh-sched', iteraciones: RS.config.MAX_ITER_REPETIR_HASTA }, 'scheduler.obtenerMetricas().limiteSeguridad expone el trip real (ya no hardcodeado a null)');
-
-    scheduler.reiniciar();
-    document.body.removeChild(feedbackDivRH);
-
-    // Confirm a normal (non-tripping) run still reports limiteSeguridad: null.
-    scheduler.iniciarConArbol([{ tipo: 'accion', accion: 'detener', valor: 1, blockId: 'l-normal' }]);
-    assertEquals(scheduler.obtenerMetricas().limiteSeguridad, null, 'una corrida sin repetir_hasta sigue reportando limiteSeguridad: null');
+    assertEquals(scheduler.obtenerEstado(), 'running', 'el bucle sin tope sigue running (no hay trip ni error)');
+    assertEquals(scheduler._tiempoSim(), 16, 'el bucle vacío consume un tick por vuelta: el tiempo simulado avanza 16 ms en un frame de 16 ms');
+    assertEquals(scheduler.obtenerMetricas().limiteSeguridad, null, 'limiteSeguridad es siempre null');
     scheduler.reiniciar();
   })();
 
@@ -653,7 +642,8 @@
     var scheduler = RS.runtime.scheduler;
     var arbol = [
       { tipo: 'accion', accion: 'esperar', valor: 500, blockId: 'e1' },
-      { tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'a1' }
+      { tipo: 'accion', accion: 'avanzar', blockId: 'a1' }, { tipo: 'accion', accion: 'esperar', valor: 100, blockId: 'a1' },
+      { tipo: 'accion', accion: 'detener', blockId: 'd1' }
     ];
     scheduler.iniciarConArbol(arbol);
     var xInicial = RS.robot.estado.x;
@@ -687,7 +677,7 @@
     RS.ui.initHighlight(fakeWorkspace);
     RS.ui.codePanel.init(fakeWorkspace, contenedor);
     var arbol = [
-      { tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'a1' },
+      { tipo: 'accion', accion: 'avanzar', blockId: 'a1' }, { tipo: 'accion', accion: 'esperar', valor: 100, blockId: 'a1' },
       { tipo: 'accion', accion: 'detener', valor: 1, blockId: 'l1' }
     ];
     RS.ui.codePanel.render(arbol);
@@ -727,7 +717,7 @@
     // overlapeara y sin disparar colisión nunca. Se simula ese frame grande
     // llamando _procesarFrame(4000) una única vez, como si rAF hubiera
     // entregado un dt de 4 segundos completo.
-    var arbol = [{ tipo: 'accion', accion: 'avanzar', valor: 4000, blockId: 'a-largo' }];
+    var arbol = [{ tipo: 'accion', accion: 'avanzar', blockId: 'a-largo' }, { tipo: 'accion', accion: 'esperar', valor: 4000, blockId: 'a-largo' }];
     scheduler.iniciarConArbol(arbol);
     assertEquals(scheduler.obtenerEstado(), 'running', 'arranca en estado running');
 
@@ -743,6 +733,66 @@
     document.body.removeChild(feedbackDiv);
   })();
 
+  // ================= Scheduler: modelo de motores (estado persistente) =================
+  grupo('Scheduler: motores persistentes; solo Delay y ticks consumen tiempo; fin con motores encendidos');
+  (function () {
+    var feedbackDiv = document.createElement('div');
+    document.body.appendChild(feedbackDiv);
+    RS.ui.feedback.init(feedbackDiv);
+    var scheduler = RS.runtime.scheduler;
+    function mot(accion, id) { return { tipo: 'accion', accion: accion, blockId: id }; }
+    function esp(ms, id) { return { tipo: 'accion', accion: 'esperar', valor: ms, blockId: id }; }
+    function correr(arbol, frames) {
+      scheduler.iniciarConArbol(arbol);
+      for (var i = 0; i < (frames || 2000) && scheduler.obtenerEstado() === 'running'; i++) scheduler._procesarFrame(16);
+    }
+
+    // Zero-time set: avanzar alone consumes no sim time and does not move the robot yet.
+    scheduler.iniciarConArbol([mot('avanzar', 'a'), esp(100, 'e'), mot('detener', 'd')]);
+    var x0 = RS.robot.estado.x;
+    scheduler._procesarFrame(0);
+    assertEquals(scheduler._tiempoSim(), 0, 'avanzar sin Delay: 0 ms de tiempo simulado');
+    assertEquals(RS.robot.estado.x, x0, 'avanzar sin Delay: el robot todavía no se movió');
+    assertEquals(RS.robot.motores, { izq: 1, der: 1 }, 'avanzar enciende ambos motores');
+    scheduler.reiniciar();
+
+    // State persists across Delays; Delay(500) turn = 90 deg; clean end is not an error.
+    correr([mot('avanzar', 'a'), esp(200, 'e1'), esp(300, 'e2'), mot('detener', 'd')]);
+    assertEquals(scheduler.obtenerEstado(), 'idle', 'avanzar, Delay, detener: termina en idle (no error)');
+    assert(Math.abs(RS.robot.estado.x - x0 - RS.config.VEL * 500) < 0.001, 'el estado de motores persiste durante dos Delay seguidos (500 ms)');
+    scheduler.reiniciar();
+    correr([mot('derecha', 'a'), esp(500, 'e'), mot('detener', 'd')]);
+    assert(Math.abs(RS.robot.estado.angulo - 90) < 0.001, 'girar derecha, Delay(500), detener: gira 90 grados');
+    scheduler.reiniciar();
+
+    // detener is non-terminal.
+    correr([mot('detener', 'd'), mot('avanzar', 'a'), esp(100, 'e'), mot('detener', 'd2')]);
+    assert(RS.robot.estado.x > x0 + 11, 'los bloques posteriores a detener se ejecutan');
+    scheduler.reiniciar();
+
+    // Program end with motors on: coasts into the wall -> error + finConMotores + wording.
+    correr([mot('avanzar', 'a')]);
+    assertEquals(scheduler.obtenerEstado(), 'error', 'avanzar como último bloque: el robot sigue hasta chocar y termina en error');
+    assertEquals(scheduler.obtenerMetricas().finConMotores, true, 'obtenerMetricas().finConMotores es true');
+    assert(feedbackDiv.textContent.indexOf('El programa terminó con los motores encendidos y el robot chocó contra') === 0, 'el mensaje explica el fin con motores encendidos');
+    scheduler.reiniciar();
+
+    // Rotation-only coast ends in error after COAST_GIRO_MAX_MS; avanzar coast still collides.
+    correr([mot('derecha', 'a')]);
+    assertEquals(scheduler.obtenerEstado(), 'error', 'solo girar hasta el fin del programa: error por tiempo de giro');
+    assert(scheduler._tiempoSim() >= RS.config.COAST_GIRO_MAX_MS && scheduler._tiempoSim() < RS.config.COAST_GIRO_MAX_MS + 16, 'el error de giro llega a los COAST_GIRO_MAX_MS (2000 ms)');
+    scheduler.reiniciar();
+
+    // Anti-tunneling through proponerPaso: one huge frame with the new model still collides.
+    var obstaculo = RS.world.obstaculos[0];
+    correr([mot('avanzar', 'a'), esp(4000, 'e'), mot('detener', 'd')], 0);
+    scheduler._procesarFrame(4000);
+    assertEquals(scheduler.obtenerEstado(), 'error', 'frame gigante con motores: detecta la colisión');
+    assert(RS.robot.estado.x < obstaculo.x + obstaculo.w, 'proponerPaso en subpasos: el robot no atraviesa el obstáculo');
+    scheduler.reiniciar();
+    document.body.removeChild(feedbackDiv);
+  })();
+
   // ================= Feedback visible tras colisión =================
   grupo('Feedback: mensaje visible de colisión se puebla y se limpia en Reiniciar');
   (function () {
@@ -751,7 +801,7 @@
     RS.ui.feedback.init(feedbackDiv);
 
     var scheduler = RS.runtime.scheduler;
-    var arbol = [{ tipo: 'accion', accion: 'avanzar', valor: 3000, blockId: 'a-choque' }];
+    var arbol = [{ tipo: 'accion', accion: 'avanzar', blockId: 'a-choque' }, { tipo: 'accion', accion: 'esperar', valor: 3000, blockId: 'a-choque' }];
     scheduler.iniciarConArbol(arbol);
     assertEquals(feedbackDiv.textContent, '', 'el feedback arranca vacío al iniciar la ejecución');
 
@@ -831,7 +881,7 @@
     RS.ui.feedback.init(feedbackDiv2);
     RS.world.cargarMapa(leccion2.mapa);
     var arbolL2 = [
-      { tipo: 'accion', accion: 'avanzar', valor: 2100, blockId: 'a1' },
+      { tipo: 'accion', accion: 'avanzar', blockId: 'a1' }, { tipo: 'accion', accion: 'esperar', valor: 2100, blockId: 'a1' },
       { tipo: 'accion', accion: 'detener', blockId: 'd1' }
     ];
     scheduler2.iniciarConArbol(arbolL2);
@@ -846,7 +896,7 @@
 
     // Un avance excesivo choca contra el obstáculo más lejano del mapa v2.
     scheduler2.iniciarConArbol([
-      { tipo: 'accion', accion: 'avanzar', valor: 3000, blockId: 'a1' },
+      { tipo: 'accion', accion: 'avanzar', blockId: 'a1' }, { tipo: 'accion', accion: 'esperar', valor: 3000, blockId: 'a1' },
       { tipo: 'accion', accion: 'detener', blockId: 'd1' }
     ]);
     for (var i2c = 0; i2c < 500 && scheduler2.obtenerEstado() === 'running'; i2c++) {
@@ -888,7 +938,7 @@
     RS.world.cargarMapa(leccion3.mapa);
 
     // Colisión real #1: ir derecho sin girar choca contra el primer obstáculo.
-    scheduler3.iniciarConArbol([{ tipo: 'accion', accion: 'avanzar', valor: 3000, blockId: 'a1' }]);
+    scheduler3.iniciarConArbol([{ tipo: 'accion', accion: 'avanzar', blockId: 'a1' }, { tipo: 'accion', accion: 'esperar', valor: 3000, blockId: 'a1' }]);
     for (var i3c = 0; i3c < 500 && scheduler3.obtenerEstado() === 'running'; i3c++) {
       scheduler3._procesarFrame(16);
     }
@@ -899,9 +949,9 @@
 
     // Colisión real #2: girar una sola vez y seguir de largo hacia el sur choca contra el segundo obstáculo.
     scheduler3.iniciarConArbol([
-      { tipo: 'accion', accion: 'avanzar', valor: 1500, blockId: 'a1' },
-      { tipo: 'accion', accion: 'derecha', valor: 500, blockId: 'd1' },
-      { tipo: 'accion', accion: 'avanzar', valor: 3000, blockId: 'a2' }
+      { tipo: 'accion', accion: 'avanzar', blockId: 'a1' }, { tipo: 'accion', accion: 'esperar', valor: 1500, blockId: 'a1' },
+      { tipo: 'accion', accion: 'derecha', blockId: 'd1' }, { tipo: 'accion', accion: 'esperar', valor: 500, blockId: 'd1' },
+      { tipo: 'accion', accion: 'avanzar', blockId: 'a2' }, { tipo: 'accion', accion: 'esperar', valor: 3000, blockId: 'a2' }
     ]);
     for (var i3g = 0; i3g < 500 && scheduler3.obtenerEstado() === 'running'; i3g++) {
       scheduler3._procesarFrame(16);
@@ -911,11 +961,11 @@
 
     // El programa de referencia (avanzar+derecha+avanzar+izquierda+avanzar, dos giros) cumple su propio criterio en una corrida real.
     scheduler3.iniciarConArbol([
-      { tipo: 'accion', accion: 'avanzar', valor: 1500, blockId: 'a1' },
-      { tipo: 'accion', accion: 'derecha', valor: 500, blockId: 'd1' },
-      { tipo: 'accion', accion: 'avanzar', valor: 1200, blockId: 'a2' },
-      { tipo: 'accion', accion: 'izquierda', valor: 500, blockId: 'i1' },
-      { tipo: 'accion', accion: 'avanzar', valor: 1000, blockId: 'a3' }
+      { tipo: 'accion', accion: 'avanzar', blockId: 'a1' }, { tipo: 'accion', accion: 'esperar', valor: 1500, blockId: 'a1' },
+      { tipo: 'accion', accion: 'derecha', blockId: 'd1' }, { tipo: 'accion', accion: 'esperar', valor: 500, blockId: 'd1' },
+      { tipo: 'accion', accion: 'avanzar', blockId: 'a2' }, { tipo: 'accion', accion: 'esperar', valor: 1200, blockId: 'a2' },
+      { tipo: 'accion', accion: 'izquierda', blockId: 'i1' }, { tipo: 'accion', accion: 'esperar', valor: 500, blockId: 'i1' },
+      { tipo: 'accion', accion: 'avanzar', blockId: 'a3' }, { tipo: 'accion', accion: 'esperar', valor: 1000, blockId: 'a3' }
     ]);
     for (var i3 = 0; i3 < 500 && scheduler3.obtenerEstado() === 'running'; i3++) {
       scheduler3._procesarFrame(16);
@@ -953,10 +1003,11 @@
     RS.world.cargarMapa(leccion4.mapa);
 
     var arbolSensor = [
-      { tipo: 'accion', accion: 'avanzar', valor: 2583, blockId: 'a1' },
+      { tipo: 'accion', accion: 'avanzar', blockId: 'a1' }, { tipo: 'accion', accion: 'esperar', valor: 2583, blockId: 'a1' },
       { tipo: 'si', sensor: 'hayObstaculo', blockId: 's1', cuerpo: [
         { tipo: 'accion', accion: 'detener', blockId: 'd1' }
-      ] }
+      ] },
+      { tipo: 'accion', accion: 'detener', blockId: 'd2' }
     ];
     scheduler.iniciarConArbol(arbolSensor);
     for (var i = 0; i < 500 && scheduler.obtenerEstado() === 'running'; i++) {
@@ -975,7 +1026,7 @@
 
     // Un avance corto (el sensor nunca se dispara) queda fuera de la zona de meta.
     scheduler.iniciarConArbol([
-      { tipo: 'accion', accion: 'avanzar', valor: 1500, blockId: 'a1' },
+      { tipo: 'accion', accion: 'avanzar', blockId: 'a1' }, { tipo: 'accion', accion: 'esperar', valor: 1500, blockId: 'a1' },
       { tipo: 'si', sensor: 'hayObstaculo', blockId: 's1', cuerpo: [{ tipo: 'accion', accion: 'detener', blockId: 'd1' }] }
     ]);
     for (var i4c = 0; i4c < 500 && scheduler.obtenerEstado() === 'running'; i4c++) {
@@ -1038,13 +1089,13 @@
 
     var arbolL5 = [
       { tipo: 'repetir_hasta', sensor: 'hayObstaculo', blockId: 'rh1', cuerpo: [
-        { tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'a1' }
+        { tipo: 'accion', accion: 'avanzar', blockId: 'a1' }, { tipo: 'accion', accion: 'esperar', valor: 100, blockId: 'a1' }
       ] },
-      { tipo: 'accion', accion: 'derecha', valor: 500, blockId: 'd1' },
+      { tipo: 'accion', accion: 'derecha', blockId: 'd1' }, { tipo: 'accion', accion: 'esperar', valor: 500, blockId: 'd1' },
       { tipo: 'repetir', veces: 40, blockId: 'r1', cuerpo: [
         { tipo: 'si_sino', sensor: 'hayObstaculo', blockId: 'ss1',
           cuerpo: [{ tipo: 'accion', accion: 'detener', blockId: 'd2' }],
-          sino: [{ tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'a2' }] }
+          sino: [{ tipo: 'accion', accion: 'avanzar', blockId: 'a2' }, { tipo: 'accion', accion: 'esperar', valor: 100, blockId: 'a2' }] }
       ] }
     ];
     scheduler5.iniciarConArbol(arbolL5);
@@ -1060,12 +1111,12 @@
     // Sin el giro derecha(500), el primer "si/si no" del segundo bucle ya detecta la pared del fondo del primer pasillo y se detiene ahí mismo, a la misma altura que el inicio.
     scheduler5.iniciarConArbol([
       { tipo: 'repetir_hasta', sensor: 'hayObstaculo', blockId: 'rh1', cuerpo: [
-        { tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'a1' }
+        { tipo: 'accion', accion: 'avanzar', blockId: 'a1' }, { tipo: 'accion', accion: 'esperar', valor: 100, blockId: 'a1' }
       ] },
       { tipo: 'repetir', veces: 40, blockId: 'r1', cuerpo: [
         { tipo: 'si_sino', sensor: 'hayObstaculo', blockId: 'ss1',
           cuerpo: [{ tipo: 'accion', accion: 'detener', blockId: 'd2' }],
-          sino: [{ tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'a2' }] }
+          sino: [{ tipo: 'accion', accion: 'avanzar', blockId: 'a2' }, { tipo: 'accion', accion: 'esperar', valor: 100, blockId: 'a2' }] }
       ] }
     ]);
     for (var i5g = 0; i5g < 2000 && scheduler5.obtenerEstado() === 'running'; i5g++) {
@@ -1084,12 +1135,12 @@
   (function () {
     // Same pre-existing-block-only tree as before rs_si_sino existed: byte-identical output.
     var arbolPreexistente = [
-      { tipo: 'accion', accion: 'avanzar', valor: 1000, blockId: 'a1' },
+      { tipo: 'accion', accion: 'avanzar', blockId: 'a1' }, { tipo: 'accion', accion: 'esperar', valor: 1000, blockId: 'a1' },
       { tipo: 'si', sensor: 'hayObstaculo', blockId: 's1', cuerpo: [
         { tipo: 'accion', accion: 'detener', blockId: 'd1' }
       ] },
       { tipo: 'repetir', veces: 4, blockId: 'r1', cuerpo: [
-        { tipo: 'accion', accion: 'izquierda', valor: 500, blockId: 'i1' }
+        { tipo: 'accion', accion: 'izquierda', blockId: 'i1' }, { tipo: 'accion', accion: 'esperar', valor: 500, blockId: 'i1' }
       ] }
     ];
     var reg1 = RS.cppView.renderTexto(arbolPreexistente);
@@ -1126,15 +1177,6 @@
     });
     assert(fallaCortoL6.ok === false, 'Lección 6: robot corto de la zona (x=250) falla');
 
-    // --- Fails when limiteSeguridad is non-null (cap-driven exit), EVEN IF position matches ---
-    var fallaLimiteL6 = RS.lessons.check.evaluar(leccion6, {
-      estado: { x: 344, y: 300 }, resultadoRun: 'idle',
-      metricas: { evalsSensor: RS.config.MAX_ITER_REPETIR_HASTA, limiteSeguridad: { blockId: 'rh1', iteraciones: RS.config.MAX_ITER_REPETIR_HASTA } }
-    });
-    assert(fallaLimiteL6.ok === false, 'Lección 6: posición dentro de la ventana pero limiteSeguridad no-null (salida por límite, no por condición) falla');
-    assert(fallaLimiteL6.observado.indexOf('límite') !== -1 || fallaLimiteL6.observado.indexOf('limite') !== -1, 'Lección 6: el mensaje de falla describe que se alcanzó el límite de seguridad');
-    assert(fallaLimiteL6.observado.toLowerCase().indexOf('bloque') === -1, 'Lección 6: el mensaje de falla no nombra un bloque');
-
     var fallaSinSensorL6 = RS.lessons.check.evaluar(leccion6, {
       estado: { x: 344, y: 300 }, resultadoRun: 'idle', metricas: { evalsSensor: 1, limiteSeguridad: null }
     });
@@ -1149,8 +1191,9 @@
 
     var arbolL6 = [
       { tipo: 'repetir_hasta', sensor: 'hayObstaculo', blockId: 'rh1', cuerpo: [
-        { tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'a1' }
-      ] }
+        { tipo: 'accion', accion: 'avanzar', blockId: 'a1' }, { tipo: 'accion', accion: 'esperar', valor: 100, blockId: 'a1' }
+      ] },
+      { tipo: 'accion', accion: 'detener', blockId: 'd1' }
     ];
     scheduler6.iniciarConArbol(arbolL6);
     for (var i6 = 0; i6 < 2000 && scheduler6.obtenerEstado() === 'running'; i6++) {
@@ -1182,9 +1225,9 @@
     RS.world.cargarMapa(leccion7.mapa);
 
     var arbolEjemploL7 = [
-      { tipo: 'accion', accion: 'avanzar', valor: 900, blockId: 'a1' },
+      { tipo: 'accion', accion: 'avanzar', blockId: 'a1' }, { tipo: 'accion', accion: 'esperar', valor: 900, blockId: 'a1' },
       { tipo: 'repetir_hasta', sensor: 'hayObstaculo', blockId: 'rh1', cuerpo: [
-        { tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'a2' }
+        { tipo: 'accion', accion: 'avanzar', blockId: 'a2' }, { tipo: 'accion', accion: 'esperar', valor: 100, blockId: 'a2' }
       ] }
     ];
     scheduler7.iniciarConArbol(arbolEjemploL7);
@@ -1200,15 +1243,15 @@
     // first one and then barreling straight east collides against it. The second detour is
     // not optional. ---
     var arbolUnSoloDetourL7 = [
-      { tipo: 'accion', accion: 'avanzar', valor: 900, blockId: 'u1' },
+      { tipo: 'accion', accion: 'avanzar', blockId: 'u1' }, { tipo: 'accion', accion: 'esperar', valor: 900, blockId: 'u1' },
       { tipo: 'repetir_hasta', sensor: 'hayObstaculo', blockId: 'u2', cuerpo: [
-        { tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'u2b' }
+        { tipo: 'accion', accion: 'avanzar', blockId: 'u2b' }, { tipo: 'accion', accion: 'esperar', valor: 100, blockId: 'u2b' }
       ] },
       { tipo: 'si_sino', sensor: 'hayObstaculo', blockId: 'u3',
-        cuerpo: [{ tipo: 'accion', accion: 'derecha', valor: 500, blockId: 'u3d' }], sino: [] },
-      { tipo: 'accion', accion: 'avanzar', valor: 750, blockId: 'u4' },
-      { tipo: 'accion', accion: 'izquierda', valor: 500, blockId: 'u5' },
-      { tipo: 'accion', accion: 'avanzar', valor: 3400, blockId: 'u6' }
+        cuerpo: [{ tipo: 'accion', accion: 'derecha', blockId: 'u3d' }, { tipo: 'accion', accion: 'esperar', valor: 500, blockId: 'u3d' }], sino: [] },
+      { tipo: 'accion', accion: 'avanzar', blockId: 'u4' }, { tipo: 'accion', accion: 'esperar', valor: 750, blockId: 'u4' },
+      { tipo: 'accion', accion: 'izquierda', blockId: 'u5' }, { tipo: 'accion', accion: 'esperar', valor: 500, blockId: 'u5' },
+      { tipo: 'accion', accion: 'avanzar', blockId: 'u6' }, { tipo: 'accion', accion: 'esperar', valor: 3400, blockId: 'u6' }
     ];
     scheduler7.iniciarConArbol(arbolUnSoloDetourL7);
     for (var i7u = 0; i7u < 2000 && scheduler7.obtenerEstado() === 'running'; i7u++) {
@@ -1219,22 +1262,22 @@
 
     // --- Reference full-traverse route (rodea AMBOS obstáculos): real scheduler run, empirically verified ---
     var arbolRutaSurL7 = [
-      { tipo: 'accion', accion: 'avanzar', valor: 900, blockId: 'r1' },
+      { tipo: 'accion', accion: 'avanzar', blockId: 'r1' }, { tipo: 'accion', accion: 'esperar', valor: 900, blockId: 'r1' },
       { tipo: 'repetir_hasta', sensor: 'hayObstaculo', blockId: 'r2', cuerpo: [
-        { tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'r2b' }
+        { tipo: 'accion', accion: 'avanzar', blockId: 'r2b' }, { tipo: 'accion', accion: 'esperar', valor: 100, blockId: 'r2b' }
       ] },
       { tipo: 'si_sino', sensor: 'hayObstaculo', blockId: 'r3',
-        cuerpo: [{ tipo: 'accion', accion: 'derecha', valor: 500, blockId: 'r3d' }], sino: [] },
-      { tipo: 'accion', accion: 'avanzar', valor: 750, blockId: 'r4' },
-      { tipo: 'accion', accion: 'izquierda', valor: 500, blockId: 'r5' },
+        cuerpo: [{ tipo: 'accion', accion: 'derecha', blockId: 'r3d' }, { tipo: 'accion', accion: 'esperar', valor: 500, blockId: 'r3d' }], sino: [] },
+      { tipo: 'accion', accion: 'avanzar', blockId: 'r4' }, { tipo: 'accion', accion: 'esperar', valor: 750, blockId: 'r4' },
+      { tipo: 'accion', accion: 'izquierda', blockId: 'r5' }, { tipo: 'accion', accion: 'esperar', valor: 500, blockId: 'r5' },
       { tipo: 'repetir_hasta', sensor: 'hayObstaculo', blockId: 'r6', cuerpo: [
-        { tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'r6b' }
+        { tipo: 'accion', accion: 'avanzar', blockId: 'r6b' }, { tipo: 'accion', accion: 'esperar', valor: 100, blockId: 'r6b' }
       ] },
       { tipo: 'si_sino', sensor: 'hayObstaculo', blockId: 'r7',
-        cuerpo: [{ tipo: 'accion', accion: 'derecha', valor: 500, blockId: 'r7d' }], sino: [] },
-      { tipo: 'accion', accion: 'avanzar', valor: 700, blockId: 'r8' },
-      { tipo: 'accion', accion: 'izquierda', valor: 500, blockId: 'r9' },
-      { tipo: 'accion', accion: 'avanzar', valor: 1900, blockId: 'r10' }
+        cuerpo: [{ tipo: 'accion', accion: 'derecha', blockId: 'r7d' }, { tipo: 'accion', accion: 'esperar', valor: 500, blockId: 'r7d' }], sino: [] },
+      { tipo: 'accion', accion: 'avanzar', blockId: 'r8' }, { tipo: 'accion', accion: 'esperar', valor: 700, blockId: 'r8' },
+      { tipo: 'accion', accion: 'izquierda', blockId: 'r9' }, { tipo: 'accion', accion: 'esperar', valor: 500, blockId: 'r9' },
+      { tipo: 'accion', accion: 'avanzar', blockId: 'r10' }, { tipo: 'accion', accion: 'esperar', valor: 1900, blockId: 'r10' }
     ];
     scheduler7.iniciarConArbol(arbolRutaSurL7);
     for (var i7s = 0; i7s < 2000 && scheduler7.obtenerEstado() === 'running'; i7s++) {
@@ -1250,22 +1293,22 @@
 
     // --- A second, differently-combined valid route (goes around the NORTH side instead) also satisfies the criterion ---
     var arbolRutaNorteL7 = [
-      { tipo: 'accion', accion: 'avanzar', valor: 900, blockId: 'n1' },
+      { tipo: 'accion', accion: 'avanzar', blockId: 'n1' }, { tipo: 'accion', accion: 'esperar', valor: 900, blockId: 'n1' },
       { tipo: 'repetir_hasta', sensor: 'hayObstaculo', blockId: 'n2', cuerpo: [
-        { tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'n2b' }
+        { tipo: 'accion', accion: 'avanzar', blockId: 'n2b' }, { tipo: 'accion', accion: 'esperar', valor: 100, blockId: 'n2b' }
       ] },
       { tipo: 'si_sino', sensor: 'hayObstaculo', blockId: 'n3',
-        cuerpo: [{ tipo: 'accion', accion: 'izquierda', valor: 500, blockId: 'n3i' }], sino: [] },
-      { tipo: 'accion', accion: 'avanzar', valor: 950, blockId: 'n4' },
-      { tipo: 'accion', accion: 'derecha', valor: 500, blockId: 'n5' },
+        cuerpo: [{ tipo: 'accion', accion: 'izquierda', blockId: 'n3i' }, { tipo: 'accion', accion: 'esperar', valor: 500, blockId: 'n3i' }], sino: [] },
+      { tipo: 'accion', accion: 'avanzar', blockId: 'n4' }, { tipo: 'accion', accion: 'esperar', valor: 950, blockId: 'n4' },
+      { tipo: 'accion', accion: 'derecha', blockId: 'n5' }, { tipo: 'accion', accion: 'esperar', valor: 500, blockId: 'n5' },
       { tipo: 'repetir_hasta', sensor: 'hayObstaculo', blockId: 'n6', cuerpo: [
-        { tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'n6b' }
+        { tipo: 'accion', accion: 'avanzar', blockId: 'n6b' }, { tipo: 'accion', accion: 'esperar', valor: 100, blockId: 'n6b' }
       ] },
       { tipo: 'si_sino', sensor: 'hayObstaculo', blockId: 'n7',
-        cuerpo: [{ tipo: 'accion', accion: 'izquierda', valor: 500, blockId: 'n7i' }], sino: [] },
-      { tipo: 'accion', accion: 'avanzar', valor: 700, blockId: 'n8' },
-      { tipo: 'accion', accion: 'derecha', valor: 500, blockId: 'n9' },
-      { tipo: 'accion', accion: 'avanzar', valor: 1900, blockId: 'n10' }
+        cuerpo: [{ tipo: 'accion', accion: 'izquierda', blockId: 'n7i' }, { tipo: 'accion', accion: 'esperar', valor: 500, blockId: 'n7i' }], sino: [] },
+      { tipo: 'accion', accion: 'avanzar', blockId: 'n8' }, { tipo: 'accion', accion: 'esperar', valor: 700, blockId: 'n8' },
+      { tipo: 'accion', accion: 'derecha', blockId: 'n9' }, { tipo: 'accion', accion: 'esperar', valor: 500, blockId: 'n9' },
+      { tipo: 'accion', accion: 'avanzar', blockId: 'n10' }, { tipo: 'accion', accion: 'esperar', valor: 1900, blockId: 'n10' }
     ];
     scheduler7.iniciarConArbol(arbolRutaNorteL7);
     for (var i7n = 0; i7n < 2000 && scheduler7.obtenerEstado() === 'running'; i7n++) {
@@ -1306,9 +1349,9 @@
 
     // Same pre-existing-block-only tree as before: byte-identical cppView output.
     var arbolPreexistenteC2 = [
-      { tipo: 'accion', accion: 'avanzar', valor: 1000, blockId: 'a1' },
+      { tipo: 'accion', accion: 'avanzar', blockId: 'a1' }, { tipo: 'accion', accion: 'esperar', valor: 1000, blockId: 'a1' },
       { tipo: 'repetir', veces: 4, blockId: 'r1', cuerpo: [
-        { tipo: 'accion', accion: 'izquierda', valor: 500, blockId: 'i1' }
+        { tipo: 'accion', accion: 'izquierda', blockId: 'i1' }, { tipo: 'accion', accion: 'esperar', valor: 500, blockId: 'i1' }
       ] }
     ];
     var regA = RS.cppView.renderTexto(arbolPreexistenteC2);

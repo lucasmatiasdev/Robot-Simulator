@@ -22,9 +22,9 @@
  *
  * For `repetir`/`si`/`si_sino`/`repetir_hasta`/`por_siempre` nodes, only the
  * header line carries the blockId (never the closing brace), matching the
- * pre-existing highlighting rule. A `detener` action emits `detener();`
- * (with its blockId) followed by a blockId-less `return;`, except when it is
- * the last top-level statement.
+ * pre-existing highlighting rule. A `detener` action emits just `detener();`
+ * (with its blockId): it is non-terminal, so no `return;` is ever added. A
+ * `salir` node emits `break;` (with its blockId).
  *
  * Sensor support: this hardware has a real HC-SR04 ultrasonic sensor wired
  * to TRIG/ECHO (see RS.config.arduino). `si`/`si_sino`/`repetir_hasta` nodes
@@ -245,7 +245,7 @@
       }
 
       // detener()
-      addLinea(0, null, [tok('// Detiene ambos motores (direccion en LOW y PWM en 0).', 'com')], 'motores');
+      addLinea(0, null, [tok('// detener: apaga AMBOS motores (direccion en LOW y PWM en 0).', 'com')], 'motores');
       addLinea(0, null, [tok('void ', 'tipo'), tok(nDetener, 'fn'), tok('() {', 'punct')], 'motores');
       pines('LOW', 'LOW', 'LOW', 'LOW');
       addLinea(1, null, [tok('analogWrite(ENA, 0);', 'punct')], 'motores');
@@ -253,49 +253,23 @@
       addLinea(0, null, [tok('}', 'punct')], 'motores');
       blanco('motores');
 
-      // avanzar(int ms)
-      addLinea(0, null, [tok('// Avanza: ambos motores hacia adelante durante ms milisegundos, luego se detiene.', 'com')], 'motores');
-      addLinea(0, null, [tok('void ', 'tipo'), tok(nAvanzar, 'fn'), tok('(', 'punct'), tok('int', 'tipo'), tok(' ms) {', 'punct')], 'motores');
-      pines('HIGH', 'LOW', 'HIGH', 'LOW');
-      addLinea(1, null, [tok('analogWrite(ENA, VELOCIDAD);', 'punct')], 'motores');
-      addLinea(1, null, [tok('analogWrite(ENB, VELOCIDAD);', 'punct')], 'motores');
-      addLinea(1, null, [tok('delay(ms);', 'punct')], 'motores');
-      addLinea(1, null, [tok(nDetener + '();', 'call')], 'motores');
-      addLinea(0, null, [tok('}', 'punct')], 'motores');
-      blanco('motores');
+      // Motor functions only set the pins and PWM: no duration, no auto-stop.
+      // The motors stay as set until another motor call or detener(); time
+      // passes only in delay(ms) (the Delay block).
+      function funcionMotor(nombre, comentario, in1, in2, in3, in4) {
+        addLinea(0, null, [tok('// ' + comentario, 'com')], 'motores');
+        addLinea(0, null, [tok('void ', 'tipo'), tok(nombre, 'fn'), tok('() {', 'punct')], 'motores');
+        pines(in1, in2, in3, in4);
+        addLinea(1, null, [tok('analogWrite(ENA, VELOCIDAD);', 'punct')], 'motores');
+        addLinea(1, null, [tok('analogWrite(ENB, VELOCIDAD);', 'punct')], 'motores');
+        addLinea(0, null, [tok('}', 'punct')], 'motores');
+        blanco('motores');
+      }
 
-      // retroceder(int ms)
-      addLinea(0, null, [tok('// Retrocede: ambos motores hacia atras durante ms milisegundos, luego se detiene.', 'com')], 'motores');
-      addLinea(0, null, [tok('void ', 'tipo'), tok(nRetroceder, 'fn'), tok('(', 'punct'), tok('int', 'tipo'), tok(' ms) {', 'punct')], 'motores');
-      pines('LOW', 'HIGH', 'LOW', 'HIGH');
-      addLinea(1, null, [tok('analogWrite(ENA, VELOCIDAD);', 'punct')], 'motores');
-      addLinea(1, null, [tok('analogWrite(ENB, VELOCIDAD);', 'punct')], 'motores');
-      addLinea(1, null, [tok('delay(ms);', 'punct')], 'motores');
-      addLinea(1, null, [tok(nDetener + '();', 'call')], 'motores');
-      addLinea(0, null, [tok('}', 'punct')], 'motores');
-      blanco('motores');
-
-      // girarIzquierda(int ms) — motor1 (izquierdo) atras, motor2 (derecho) adelante
-      addLinea(0, null, [tok('// Gira a la izquierda: motor izquierdo atras, motor derecho adelante.', 'com')], 'motores');
-      addLinea(0, null, [tok('void ', 'tipo'), tok(nIzquierda, 'fn'), tok('(', 'punct'), tok('int', 'tipo'), tok(' ms) {', 'punct')], 'motores');
-      pines('LOW', 'HIGH', 'HIGH', 'LOW');
-      addLinea(1, null, [tok('analogWrite(ENA, VELOCIDAD);', 'punct')], 'motores');
-      addLinea(1, null, [tok('analogWrite(ENB, VELOCIDAD);', 'punct')], 'motores');
-      addLinea(1, null, [tok('delay(ms);', 'punct')], 'motores');
-      addLinea(1, null, [tok(nDetener + '();', 'call')], 'motores');
-      addLinea(0, null, [tok('}', 'punct')], 'motores');
-      blanco('motores');
-
-      // girarDerecha(int ms) — motor1 (izquierdo) adelante, motor2 (derecho) atras
-      addLinea(0, null, [tok('// Gira a la derecha: motor izquierdo adelante, motor derecho atras.', 'com')], 'motores');
-      addLinea(0, null, [tok('void ', 'tipo'), tok(nDerecha, 'fn'), tok('(', 'punct'), tok('int', 'tipo'), tok(' ms) {', 'punct')], 'motores');
-      pines('HIGH', 'LOW', 'LOW', 'HIGH');
-      addLinea(1, null, [tok('analogWrite(ENA, VELOCIDAD);', 'punct')], 'motores');
-      addLinea(1, null, [tok('analogWrite(ENB, VELOCIDAD);', 'punct')], 'motores');
-      addLinea(1, null, [tok('delay(ms);', 'punct')], 'motores');
-      addLinea(1, null, [tok(nDetener + '();', 'call')], 'motores');
-      addLinea(0, null, [tok('}', 'punct')], 'motores');
-      blanco('motores');
+      funcionMotor(nAvanzar, 'avanzar: enciende AMBOS motores hacia adelante (siguen asi hasta otra orden).', 'HIGH', 'LOW', 'HIGH', 'LOW');
+      funcionMotor(nRetroceder, 'retroceder: enciende AMBOS motores hacia atras (siguen asi hasta otra orden).', 'LOW', 'HIGH', 'LOW', 'HIGH');
+      funcionMotor(nIzquierda, 'izquierda: motor izquierdo hacia atras y motor derecho hacia adelante (el robot gira a la izquierda).', 'LOW', 'HIGH', 'HIGH', 'LOW');
+      funcionMotor(nDerecha, 'derecha: motor izquierdo hacia adelante y motor derecho hacia atras (el robot gira a la derecha).', 'HIGH', 'LOW', 'LOW', 'HIGH');
     }
 
     // ---------------------------------------------------------------
@@ -341,54 +315,49 @@
     // real hayObstaculo()/medirDistancia() from emitirSensores() above —
     // see condicionATexto() and renderNodo() below.
     // ---------------------------------------------------------------
-    function accionTokens(node) {
-      // A variable-driven duration is clamped, matching the interpreter:
-      // Arduino delay() with a negative int would wait for ~49 days.
-      var valorTokens = (node.valor && typeof node.valor === 'object')
-        ? [tok('max', 'call'), tok('(0, ' + valorATexto(node.valor) + ')', 'punct')]
-        : [tok(String(node.valor), 'num')];
+    // What each motor call does to the (izq, der) pair, shown as a trailing
+    // comment so the student reads the motor state next to the call.
+    var COMENTARIO_MOTORES = {
+      avanzar: '// izq: adelante, der: adelante',
+      retroceder: '// izq: atras, der: atras',
+      izquierda: '// izq: atras, der: adelante',
+      derecha: '// izq: adelante, der: atras',
+      detener: '// izq: apagado, der: apagado'
+    };
 
+    function accionTokens(node) {
       if (node.accion === 'esperar') {
         // 'esperar' is simulator/sketch-only (not part of RS.config.ACCIONES);
         // it maps directly to Arduino's built-in delay(ms), no custom
-        // function scaffold needed.
+        // function scaffold needed. A variable-driven duration is clamped,
+        // matching the interpreter: delay() with a negative int would wait
+        // for ~49 days.
+        var valorTokens = (node.valor && typeof node.valor === 'object')
+          ? [tok('max', 'call'), tok('(0, ' + valorATexto(node.valor) + ')', 'punct')]
+          : [tok(String(node.valor), 'num')];
         return [tok('delay', 'call'), tok('(', 'punct')].concat(valorTokens, [tok(')', 'punct'), tok(';', 'punct')]);
       }
 
+      // avanzar / retroceder / izquierda / derecha / detener: no arguments.
       var nombre = nombreCpp[node.accion] || node.accion;
-
-      if (node.accion === 'detener') {
-        return [tok(nombre, 'call'), tok('(', 'punct'), tok(')', 'punct'), tok(';', 'punct')];
-      }
-      // avanzar / retroceder / izquierda / derecha — all take one numeric
-      // argument (ms).
-      return [tok(nombre, 'call'), tok('(', 'punct')].concat(valorTokens, [tok(')', 'punct'), tok(';', 'punct')]);
+      var tokens = [tok(nombre, 'call'), tok('(', 'punct'), tok(')', 'punct'), tok(';', 'punct')];
+      if (COMENTARIO_MOTORES[node.accion]) tokens.push(tok('  ' + COMENTARIO_MOTORES[node.accion], 'com'));
+      return tokens;
     }
 
-    // `esRaiz` is true only for the top-level program body. A `detener` there
-    // that is also the last statement needs no `return;` (setup() ends anyway);
-    // everywhere else `detener();` is followed by a `return;` so the sketch
-    // really stops, mirroring the simulator's program exit. The `return;` line
-    // carries a null blockId, so each detener blockId still maps to one line.
-    function renderCuerpo(cuerpo, indent, depth, esRaiz) {
+    // detener() is non-terminal (it only turns the motors off), so no
+    // `return;` is ever emitted after it.
+    function renderCuerpo(cuerpo, indent, depth) {
       for (var i = 0; i < cuerpo.length; i++) {
-        var node = cuerpo[i];
-        renderNodo(node, indent, depth);
-        if (node.tipo === 'accion' && node.accion === 'detener' && !(esRaiz && i === cuerpo.length - 1)) {
-          addLinea(indent, null, [tok('return', 'kw'), tok(';', 'punct')], 'guion');
-        }
+        renderNodo(cuerpo[i], indent, depth);
       }
     }
 
     function renderNodo(node, indent, depth) {
       if (node.tipo === 'por_siempre') {
-        // Plain infinite loop: real firmware never stops on its own, so the
-        // simulator's MAX_ITER_POR_SIEMPRE cap is deliberately NOT emitted.
+        // Plain infinite loop, uncapped: it runs until a `break;` (Salir).
         addLinea(indent, node.blockId, [
           tok('while', 'kw'), tok(' (', 'punct'), tok('true', 'kw'), tok(') {', 'punct')
-        ], 'guion');
-        addLinea(indent + 1, null, [
-          tok('// sin tope en el Arduino; el simulador corta a las ' + ((cfg.MAX_ITER_POR_SIEMPRE) || 1000) + ' vueltas (MAX_ITER_POR_SIEMPRE)', 'com')
         ], 'guion');
         renderCuerpo(node.cuerpo, indent + 1, depth + 1);
         addLinea(indent, null, [tok('}', 'punct')], 'guion');
@@ -396,6 +365,10 @@
       }
       if (node.tipo === 'accion') {
         addLinea(indent, node.blockId, accionTokens(node), 'guion');
+        return;
+      }
+      if (node.tipo === 'salir') {
+        addLinea(indent, node.blockId, [tok('break', 'kw'), tok(';', 'punct')], 'guion');
         return;
       }
       if (node.tipo === 'declarar' || node.tipo === 'asignar') {
@@ -448,21 +421,11 @@
       if (node.tipo === 'repetir_hasta') {
         // Pre-test ("while not") loop, per interpreter.js: the body runs
         // while the condition is still false, re-checked before each pass.
-        // Mirrors the interpreter's own MAX_ITER_REPETIR_HASTA safety cap
-        // (an uncapped `while (!(cond)) {...}` could spin real hardware
-        // forever if the sensor condition never becomes true) with a
-        // counter-guarded `for`, same contadorNombre(depth) scheme `repetir`
-        // uses above so nested loops at different depths don't collide.
+        // Uncapped, like por_siempre: it ends when the condition turns true
+        // or a `break;` (Salir) runs.
         var condHasta = condicionATexto(node);
-        var vHasta = contadorNombre(depth);
-        var maxIter = (cfg.MAX_ITER_REPETIR_HASTA) || 1000;
         addLinea(indent, node.blockId, [
-          tok('for', 'kw'), tok(' (', 'punct'), tok('int', 'tipo'), tok(' ' + vHasta + ' = ', 'punct'),
-          tok('0', 'num'), tok('; ' + vHasta + ' < ', 'punct'), tok(String(maxIter), 'num'),
-          tok(' && !(' + condHasta + '); ' + vHasta + '++) {', 'punct')
-        ], 'guion');
-        addLinea(indent + 1, null, [
-          tok('// tope de seguridad ' + maxIter + ' iteraciones, igual al del simulador (MAX_ITER_REPETIR_HASTA)', 'com')
+          tok('while', 'kw'), tok(' (!(' + condHasta + ')) {', 'punct')
         ], 'guion');
         renderCuerpo(node.cuerpo, indent + 1, depth + 1);
         addLinea(indent, null, [tok('}', 'punct')], 'guion');
@@ -489,9 +452,7 @@
       addLinea(1, null, [tok(nDetener + '();', 'call')], 'setup');
       blanco('setup');
       addLinea(1, null, [tok('// ---- Tu programa ----', 'com')], 'setup');
-      renderCuerpo(tree, 1, 0, true);
-      blanco('setup');
-      addLinea(1, null, [tok(nDetener + '();', 'call')], 'setup');
+      renderCuerpo(tree, 1, 0);
       addLinea(0, null, [tok('}', 'punct')], 'setup');
       blanco('setup');
     }
@@ -504,7 +465,8 @@
     function emitirLoop() {
       addLinea(0, null, [tok('void ', 'tipo'), tok('loop', 'fn'), tok('() {', 'punct')], 'loop');
       addLinea(1, null, [tok('// Vacio a proposito: tu programa ya se ejecuto una vez en setup().', 'com')], 'loop');
-      addLinea(1, null, [tok('// Los motores quedan detenidos. Pulsa RESET en la placa para repetirlo.', 'com')], 'loop');
+      addLinea(1, null, [tok('// Los motores quedan como los dejo tu programa (si no los apagas con detener(), siguen girando).', 'com')], 'loop');
+      addLinea(1, null, [tok('// Pulsa RESET en la placa para repetirlo.', 'com')], 'loop');
       addLinea(0, null, [tok('}', 'punct')], 'loop');
     }
 

@@ -1,7 +1,9 @@
 /**
  * RS.generator.buildProgramTree — the sole workspace traversal.
  * Produces a nested program tree (never flattened/pre-expanded):
- *   { tipo:'accion',  accion, valor, blockId }
+ *   { tipo:'accion',  accion, blockId }            (motor leaf: NO valor key)
+ *   { tipo:'accion',  accion:'esperar', valor, blockId }  (Delay(ms))
+ *   { tipo:'salir',   blockId }
  *   { tipo:'repetir', veces, cuerpo:[...], blockId }
  *   { tipo:'si',      sensor:'hayObstaculo', cuerpo:[...], blockId }
  *   { tipo:'si_sino', sensor|condicion, cuerpo:[...], sino:[...], blockId }
@@ -13,7 +15,7 @@
  *
  * Expr := {k:'numero',v} | {k:'booleano',v} | {k:'variable',nombre}
  *       | {k:'medirDistancia'} | {k:'hayObstaculo'} | {k:'comparar',op,izq,der}
- * An accion's `valor` stays a number unless its MS input holds a variable
+ * Only esperar carries a `valor`; it stays a number unless its MS input holds a variable
  * getter, in which case it is {k:'variable',nombre} (resolved at run time).
  * A COND is `sensor:'hayObstaculo'` (default shadow), `condicion:{op,izq,der}`
  * (rs_comparar), or `condicion:{k:'variable'|'booleano',...}`.
@@ -119,10 +121,16 @@
     if (ACCION_POR_TIPO[type]) {
       var accion = ACCION_POR_TIPO[type];
       var nodo = { tipo: 'accion', accion: accion, blockId: block.id };
-      if (type !== 'rs_detener') {
+      // Movement/detener only set the motor state: the key must be absent
+      // (not undefined/null), or the legacy interpreter shim would expand it.
+      if (type === 'rs_espera') {
         nodo.valor = readMs(block);
       }
       return nodo;
+    }
+
+    if (type === 'rs_salir') {
+      return { tipo: 'salir', blockId: block.id };
     }
 
     if (type === 'rs_repetir') {
@@ -294,7 +302,7 @@
     function revisarDuracion(valor) {
       if (!valor || typeof valor !== 'object') return;
       if (existe(valor.nombre) && declarados[valor.nombre] !== 'int') {
-        falla('La variable "' + valor.nombre + '" es bool: la duración de una acción necesita un número (int).');
+        falla('La variable "' + valor.nombre + '" es bool: la duración de Delay necesita un número (int).');
       }
     }
 
@@ -336,7 +344,7 @@
           if (existe(node.nombre) && declarados[node.nombre] !== 'int') {
             falla('"cambiar" solo funciona con variables int, y "' + node.nombre + '" es bool.');
           }
-        } else if (node.tipo === 'accion') {
+        } else if (node.tipo === 'accion' && node.accion === 'esperar') {
           revisarDuracion(node.valor);
         } else if (node.tipo === 'si' || node.tipo === 'si_sino' || node.tipo === 'repetir_hasta') {
           revisarCondicion(node);
@@ -349,6 +357,29 @@
 
     recorrer(tree);
     return error ? { ok: false, mensaje: error } : { ok: true };
+  };
+
+  var MENSAJE_SALIR_FUERA_DE_BUCLE =
+    'El bloque "Salir" solo puede usarse dentro de un bucle (repetir, repetir hasta o por siempre).';
+
+  /**
+   * Blocks a Salir with no enclosing loop (top level, or inside si/si_sino
+   * not nested in a loop). Returns { ok:true } or { ok:false, mensaje }.
+   */
+  RS.generator.validarSalir = function (tree) {
+    function huerfano(cuerpo, dentroDeBucle) {
+      for (var i = 0; i < (cuerpo || []).length; i++) {
+        var node = cuerpo[i];
+        if (node.tipo === 'salir' && !dentroDeBucle) return true;
+        var bucle = dentroDeBucle ||
+          node.tipo === 'repetir' || node.tipo === 'repetir_hasta' || node.tipo === 'por_siempre';
+        if (huerfano(node.cuerpo, bucle) || huerfano(node.sino, bucle)) return true;
+      }
+      return false;
+    }
+    return huerfano(tree, false)
+      ? { ok: false, mensaje: MENSAJE_SALIR_FUERA_DE_BUCLE }
+      : { ok: true };
   };
 
   /**
@@ -372,7 +403,10 @@
     if (raices.length > 1 || raices[0].type !== 'rs_inicio') {
       return { ok: false, mensaje: 'El programa debe empezar con el bloque "Inicio/evento" y todos los demás bloques deben estar conectados a él.' };
     }
-    return RS.generator.validarVariables(RS.generator.buildProgramTree(workspace));
+    var arbol = RS.generator.buildProgramTree(workspace);
+    var salir = RS.generator.validarSalir(arbol);
+    if (!salir.ok) return salir;
+    return RS.generator.validarVariables(arbol);
   };
 
   RS.protocol = RS.protocol || {};

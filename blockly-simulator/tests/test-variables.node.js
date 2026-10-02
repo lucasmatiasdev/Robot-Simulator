@@ -71,7 +71,9 @@ function hojas(arbol) {
   var out = [];
   var leaf;
   var guardia = 0;
-  while ((leaf = walker.siguienteNodo()) !== null && guardia++ < 1000) out.push(leaf);
+  while ((leaf = walker.siguienteNodo()) !== null && guardia++ < 1000) {
+    if (leaf.tipo !== 'tick') out.push(leaf); // implicit loop ticks are not program leaves
+  }
   return { hojas: out, walker: walker };
 }
 
@@ -88,61 +90,61 @@ assertEquals(valores([
   repetir(3, [
     decl('t', 'int', num(10)),
     camb('t', 5),
-    acc('avanzar', 'x', vr('t'))
+    acc('esperar', 'x', vr('t'))
   ])
 ]), [15, 15, 15], 'declarar dentro de repetir reinicia el valor en cada vuelta');
 
 // Declared before the loop: the value accumulates.
 assertEquals(valores([
   decl('t', 'int', num(10)),
-  repetir(3, [camb('t', 5), acc('avanzar', 'x', vr('t'))])
+  repetir(3, [camb('t', 5), acc('esperar', 'x', vr('t'))])
 ]), [15, 20, 25], 'declarar antes del repetir acumula entre vueltas');
 
 // 5.3 Reassignment inside si_sino persists to later nodes.
 assertEquals(valores([
   decl('activo', 'bool', bool(false)),
-  siSinoVar('activo', [acc('avanzar', 'x', 111)], [asig('activo', bool(true)), acc('avanzar', 'x', 222)]),
-  siSinoVar('activo', [acc('avanzar', 'x', 333)], [acc('avanzar', 'x', 444)])
+  siSinoVar('activo', [acc('esperar', 'x', 111)], [asig('activo', bool(true)), acc('esperar', 'x', 222)]),
+  siSinoVar('activo', [acc('esperar', 'x', 333)], [acc('esperar', 'x', 444)])
 ]), [222, 333], 'asignar dentro de si_sino persiste para el si_sino siguiente');
 
 assertEquals(valores([
   decl('lados', 'int', num(0)),
   repetir(2, [
-    siVar('ignorada', [acc('avanzar', 'x', 1)]),
+    siVar('ignorada', [acc('esperar', 'x', 1)]),
     camb('lados', 2)
   ]),
-  acc('avanzar', 'x', vr('lados'))
+  acc('esperar', 'x', vr('lados'))
 ]), [4], 'cambiar dentro de repetir es visible fuera del bucle');
 
 // 5.4 Int truncation and zero default for an unexecuted declare.
 assertEquals(valores([
   decl('a', 'int', num(7.9)),
-  acc('avanzar', 'x', vr('a'))
+  acc('esperar', 'x', vr('a'))
 ]), [7], 'un int trunca su valor inicial decimal');
 
 assertEquals(valores([
   decl('b', 'int', num(-2.7)),
-  acc('avanzar', 'x', vr('b'))
+  acc('esperar', 'x', vr('b'))
 ]), [0], 'un int negativo usado como ms se recorta a 0');
 
 assertEquals(valores([
   siVar('nunca', [decl('z', 'int', num(9))]),
-  acc('avanzar', 'x', vr('z'))
+  acc('esperar', 'x', vr('z'))
 ]), [0], 'un declarar que nunca se ejecuta deja el valor en cero');
 
 assertEquals(valores([
   decl('flag', 'bool', num(0)),
-  siSinoVar('flag', [acc('avanzar', 'x', 1)], [acc('avanzar', 'x', 2)])
+  siSinoVar('flag', [acc('esperar', 'x', 1)], [acc('esperar', 'x', 2)])
 ]), [2], 'un bool coacciona un valor numerico 0 a falso');
 
 // 5.5 max(0, ...) clamp on variable-driven action ms.
 assertEquals(valores([
   decl('p', 'int', num(5)),
   camb('p', -20),
-  acc('avanzar', 'x', vr('p'))
+  acc('esperar', 'x', vr('p'))
 ]), [0], 'una duracion de accion negativa proveniente de una variable se recorta a 0');
 
-assertEquals(valores([acc('avanzar', 'x', 250)]), [250], 'una duracion numerica literal no cambia');
+assertEquals(valores([acc('esperar', 'x', 250)]), [250], 'una duracion numerica literal no cambia');
 
 // cambiosVariable counts asignar + cambiar, not declarar.
 (function () {
@@ -150,7 +152,7 @@ assertEquals(valores([acc('avanzar', 'x', 250)]), [250], 'una duracion numerica 
     decl('n', 'int', num(0)),
     asig('n', num(3)),
     camb('n', 1),
-    acc('avanzar', 'x', vr('n'))
+    acc('esperar', 'x', vr('n'))
   ]);
   assertEquals(r.hojas.map(function (h) { return h.valor; }), [4], 'asignar y luego cambiar acumulan sobre la misma variable');
   assertEquals(r.walker.cambiosVariable(), 2, 'cambiosVariable cuenta asignar y cambiar pero no declarar');
@@ -162,10 +164,11 @@ assertEquals(valores([acc('avanzar', 'x', 250)]), [250], 'una duracion numerica 
   var walker = RS.runtime.interpreter.crear([
     decl('lados', 'int', num(0)),
     { tipo: 'repetir_hasta', condicion: { op: '>=', izq: vr('lados'), der: num(2) },
-      cuerpo: [camb('lados', 1), acc('avanzar', 'x', 10)], blockId: 'rh' }
+      cuerpo: [camb('lados', 1), acc('esperar', 'x', 10)], blockId: 'rh' }
   ], null, null, function () { evals++; });
   var n = 0;
-  while (walker.siguienteNodo() !== null && n++ < 50) { /* drain */ }
+  var hoja;
+  while ((hoja = walker.siguienteNodo()) !== null && n < 50) { if (hoja.tipo !== 'tick') n++; }
   assertEquals(n, 2, 'repetir_hasta con variable itera hasta cumplir la condicion');
   assertEquals(evals, 0, 'una comparacion solo con variables no dispara onSensorEval');
 })();
@@ -192,7 +195,7 @@ var arbolCpp = [
     camb('lados', 1, 'B4'),
     camb('lados', -2, 'B5'),
     asig('activo', bool(false), 'B6'),
-    acc('avanzar', 'B7', vr('lados'))
+    acc('esperar', 'B7', vr('lados'))
   ])
 ];
 var cpp = RS.cppView.render(arbolCpp);
@@ -217,7 +220,7 @@ assertEquals(lineaDe('B3').texto, 'lados = 1;', 'C++: declarar dentro del bucle 
 assertEquals(lineaDe('B4').texto, 'lados += 1;', 'C++: cambiar con delta positivo usa +=');
 assertEquals(lineaDe('B5').texto, 'lados -= 2;', 'C++: cambiar con delta negativo usa -=');
 assertEquals(lineaDe('B6').texto, 'activo = false;', 'C++: asignar emite una asignacion real');
-assertEquals(lineaDe('B7').texto, 'avanzar(max(0, lados));', 'C++: duracion desde variable se recorta con max(0, x)');
+assertEquals(lineaDe('B7').texto, 'delay(max(0, lados));', 'C++: duracion desde variable se recorta con max(0, x)');
 assert(['B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7'].every(function (id) {
   return cpp.lineasPorBloque[id] && cpp.lineasPorBloque[id].length === 1 &&
     cpp.bloquePorLinea[cpp.lineasPorBloque[id][0]] === id;
@@ -356,6 +359,7 @@ var cuerpoHasta = encadenar([spec('rs_cambiar_variable', { NOMBRE: 'contador', D
 var wsArbol = programa([
   spec('rs_declarar_variable', { TIPO: 'int', NOMBRE: 'contador' }, { VALOR: nRep(0) }),
   spec('rs_repetir_hasta', {}, { COND: comparador, DO: cuerpoHasta }),
+  spec('rs_espera', {}, { MS: vget('contador') }),
   spec('rs_avanzar', {}, { MS: vget('contador') })
 ]);
 var arbolCons = RS.generator.buildProgramTree(wsArbol);
@@ -365,7 +369,8 @@ assertEquals([arbolCons[0].nombre, arbolCons[0].tipoDato, arbolCons[0].valor], [
 assertEquals(arbolCons[1].condicion.izq, { k: 'variable', nombre: 'contador' }, 'arbol: un getter en IZQ del comparar produce {k:variable}');
 assertEquals(arbolCons[1].cuerpo[0], { tipo: 'cambiar', nombre: 'contador', delta: 1, blockId: arbolCons[1].cuerpo[0].blockId },
   'arbol: cambiar produce un nodo cambiar dentro del cuerpo');
-assertEquals(arbolCons[2].valor, { k: 'variable', nombre: 'contador' }, 'arbol: un getter en MS resuelve en ejecucion, no en construccion');
+assertEquals(arbolCons[2].valor, { k: 'variable', nombre: 'contador' }, 'arbol: un getter en el MS de Delay resuelve en ejecucion, no en construccion');
+assert(!Object.prototype.hasOwnProperty.call(arbolCons[3], 'valor'), 'arbol: un movimiento no lleva la clave valor (ni siquiera con un MS conectado)');
 assertEquals(RS.generator.validarPrograma(wsArbol), { ok: true }, 'validarPrograma acepta un programa de variables valido');
 
 // Empty declarar VALOR defaults to the type's zero value.
@@ -405,7 +410,7 @@ function fallaCon(arbol, fragmento, mensaje) {
   var r = validar(arbol);
   assert(r.ok === false && r.mensaje.indexOf(fragmento) !== -1, mensaje + (r.ok ? ' (paso sin error)' : ' [' + r.mensaje + ']'));
 }
-assertEquals(validar([decl('x', 'int', num(1)), camb('x', 1), acc('avanzar', 'a', vr('x'))]), { ok: true }, 'validar: programa valido');
+assertEquals(validar([decl('x', 'int', num(1)), camb('x', 1), acc('esperar', 'a', vr('x'))]), { ok: true }, 'validar: programa valido');
 assertEquals(validar([acc('avanzar', 'a', 100)]), { ok: true }, 'validar: un programa sin variables es valido');
 fallaCon([decl('1x', 'int', num(0))], 'no es válido', 'validar: identificador que empieza con digito');
 fallaCon([decl('mi var', 'int', num(0))], 'no es válido', 'validar: identificador con espacios');
@@ -416,7 +421,7 @@ fallaCon([decl('delay', 'int', num(0))], 'reservado', 'validar: nombre reservado
 fallaCon([decl('int', 'int', num(0))], 'reservado', 'validar: palabra clave de C++');
 fallaCon([decl('x', 'int', num(0)), decl('x', 'int', num(1), 'otro')], 'más de una vez', 'validar: declarar duplicado');
 fallaCon([decl('x', 'int', num(0)), repetir(2, [decl('x', 'int', num(1), 'otro')])], 'más de una vez', 'validar: declarar duplicado dentro de un bucle');
-fallaCon([acc('avanzar', 'a', vr('y'))], 'antes de declararla', 'validar: getter en MS sin declarar');
+fallaCon([acc('esperar', 'a', vr('y'))], 'antes de declararla', 'validar: getter en Delay sin declarar');
 fallaCon([asig('y', num(1))], 'antes de declararla', 'validar: asignar sin declarar');
 fallaCon([camb('y', 1)], 'antes de declararla', 'validar: cambiar sin declarar');
 fallaCon([asig('x', num(1)), decl('x', 'int', num(0))], 'antes de declararla', 'validar: usar antes de declarar en orden de documento');
@@ -427,7 +432,8 @@ fallaCon([decl('num1', 'int', num(0)), asig('num1', bool(true))], 'No se puede a
 fallaCon([decl('b', 'bool', bool(true)), asig('b', num(1))], 'No se puede asignar', 'validar: asignar int a bool');
 fallaCon([decl('b', 'bool', bool(true)), camb('b', 1)], 'solo funciona con variables int', 'validar: cambiar sobre un bool');
 fallaCon([decl('num1', 'int', num(0)), siVar('num1', [])], 'es int', 'validar: variable int como condicion');
-fallaCon([decl('b', 'bool', bool(true)), acc('avanzar', 'a', vr('b'))], 'es bool', 'validar: variable bool como duracion');
+fallaCon([decl('b', 'bool', bool(true)), acc('esperar', 'a', vr('b'))], 'es bool', 'validar: variable bool como duracion de Delay');
+assertEquals(validar([decl('b', 'bool', bool(true)), { tipo: 'accion', accion: 'avanzar', blockId: 'a' }]), { ok: true }, 'validar: un movimiento sin duracion no revisa variables');
 fallaCon([decl('b', 'bool', bool(true)),
   { tipo: 'si', condicion: { op: '<', izq: vr('b'), der: num(2) }, cuerpo: [], blockId: 's' }], 'comparar', 'validar: variable bool dentro de un comparar');
 fallaCon([decl('num1', 'int', num(0)),
