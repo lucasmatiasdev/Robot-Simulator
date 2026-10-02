@@ -236,16 +236,16 @@
     var seq = encadenar(bloqueAccion('rs_avanzar', 'a1', 500), bloqueAccion('rs_retroceder', 'l1', 1));
     var arbol = RS.generator.buildProgramTree(workspaceFalso([seq]));
     assertEquals(arbol, [
-      { tipo: 'accion', accion: 'avanzar', blockId: 'a1', valor: 500 },
-      { tipo: 'accion', accion: 'retroceder', blockId: 'l1', valor: 1 }
-    ], 'secuencia simple: avanzar(500) + retroceder(1)');
+      { tipo: 'accion', accion: 'avanzar', blockId: 'a1' },
+      { tipo: 'accion', accion: 'retroceder', blockId: 'l1' }
+    ], 'secuencia simple: avanzar + retroceder (movimientos sin clave valor)');
 
     var cuerpoRepetir = bloqueAccion('rs_avanzar', 'a2', 200);
     var rep = bloqueRepetir('r1', 4, cuerpoRepetir);
     var arbolRep = RS.generator.buildProgramTree(workspaceFalso([rep]));
     assertEquals(arbolRep, [
       { tipo: 'repetir', veces: 4, blockId: 'r1', cuerpo: [
-        { tipo: 'accion', accion: 'avanzar', blockId: 'a2', valor: 200 }
+        { tipo: 'accion', accion: 'avanzar', blockId: 'a2' }
       ] }
     ], 'repetir(4) NO se pre-expande a 4 hojas: un solo nodo repetir con cuerpo de 1');
 
@@ -296,8 +296,8 @@
     ]));
     assertEquals(arbolSiSinoDefault, [
       { tipo: 'si_sino', sensor: 'hayObstaculo', blockId: 'ssd1',
-        cuerpo: [{ tipo: 'accion', accion: 'derecha', blockId: 'ss-do', valor: 500 }],
-        sino: [{ tipo: 'accion', accion: 'avanzar', blockId: 'ss-else', valor: 1000 }] }
+        cuerpo: [{ tipo: 'accion', accion: 'derecha', blockId: 'ss-do' }],
+        sino: [{ tipo: 'accion', accion: 'avanzar', blockId: 'ss-else' }] }
     ], 'si_sino (shadow por defecto): nodo con sensor:"hayObstaculo", cuerpo (DO) y sino (ELSE)');
 
     // rs_si_sino: comparador como COND.
@@ -318,7 +318,7 @@
     ]));
     assertEquals(arbolRepetirHastaDefault, [
       { tipo: 'repetir_hasta', sensor: 'hayObstaculo', blockId: 'rhd1',
-        cuerpo: [{ tipo: 'accion', accion: 'avanzar', blockId: 'rh-do', valor: 100 }] }
+        cuerpo: [{ tipo: 'accion', accion: 'avanzar', blockId: 'rh-do' }] }
     ], 'repetir_hasta (shadow por defecto): nodo con sensor:"hayObstaculo" y cuerpo (DO)');
 
     // rs_repetir_hasta: comparador como COND.
@@ -329,7 +329,7 @@
     assertEquals(arbolRepetirHastaComparador, [
       { tipo: 'repetir_hasta', blockId: 'rhc1',
         condicion: { op: '>=', izq: { k: 'medirDistancia' }, der: { k: 'numero', v: 20 } },
-        cuerpo: [{ tipo: 'accion', accion: 'avanzar', blockId: 'rhc-do', valor: 100 }] }
+        cuerpo: [{ tipo: 'accion', accion: 'avanzar', blockId: 'rhc-do' }] }
     ], 'repetir_hasta con rs_comparar en COND: nodo con condicion {op, izq, der}');
 
     // rs_repetir_hasta: cuerpo vacio -> cuerpo:[] (no se cae, no lanza excepcion en generacion).
@@ -426,7 +426,7 @@
     assert(llamadaFabricadaSiSino, 'alguna linea de guion de si_sino contiene una llamada real a hayObstaculo()');
     assert(textoSiSino.indexOf('int medirDistancia() {') !== -1, 'usaSensor() detecta si_sino: se emite el driver real medirDistancia() aunque no haya nodo "si" plano');
 
-    // --- repetir_hasta: real counter-guarded for loop (pre-test "while not" + MAX_ITER cap) ---
+    // --- repetir_hasta: uncapped while (pre-test "while not") ---
     var arbolRepetirHasta = [
       { tipo: 'repetir_hasta', sensor: 'hayObstaculo', blockId: 'rh1', cuerpo: [
         { tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'rhd1' }
@@ -436,7 +436,7 @@
     var textoRepetirHasta = RS.cppView.renderTexto(arbolRepetirHasta);
     var lineaRepetirHasta = resultadoRepetirHasta.lineas.filter(function (l) { return l.blockId === 'rh1'; })[0];
     assert(lineaRepetirHasta !== undefined, 'el nodo repetir_hasta mapea su blockId a una linea');
-    assertEquals(lineaRepetirHasta.texto, 'for (int i = 0; i < 1000 && !(hayObstaculo()); i++) {', 'el nodo repetir_hasta genera un for real con tope de seguridad');
+    assertEquals(lineaRepetirHasta.texto, 'while (!(hayObstaculo())) {', 'el nodo repetir_hasta genera un while sin tope');
     assert(resultadoRepetirHasta.lineas.filter(function (l) { return l.blockId === 'rhd1'; }).length === 1, 'el cuerpo de repetir_hasta (avanzar) SI se traduce a codigo ejecutable');
     var lineasGuionRepetirHasta = resultadoRepetirHasta.lineas.filter(function (l) { return l.seccion === 'guion'; });
     var llamadaFabricadaRepetirHasta = lineasGuionRepetirHasta.some(function (l) { return l.texto.indexOf('hayObstaculo()') !== -1 && l.texto.indexOf('//') !== 0; });
@@ -1176,7 +1176,7 @@
     // --- Fails when limiteSeguridad is non-null (cap-driven exit), EVEN IF position matches ---
     var fallaLimiteL6 = RS.lessons.check.evaluar(leccion6, {
       estado: { x: 344, y: 300 }, resultadoRun: 'idle',
-      metricas: { evalsSensor: RS.config.MAX_ITER_REPETIR_HASTA, limiteSeguridad: { blockId: 'rh1', iteraciones: RS.config.MAX_ITER_REPETIR_HASTA } }
+      metricas: { evalsSensor: 1000, limiteSeguridad: { blockId: 'rh1', iteraciones: 1000 } }
     });
     assert(fallaLimiteL6.ok === false, 'Lección 6: posición dentro de la ventana pero limiteSeguridad no-null (salida por límite, no por condición) falla');
     assert(fallaLimiteL6.observado.indexOf('límite') !== -1 || fallaLimiteL6.observado.indexOf('limite') !== -1, 'Lección 6: el mensaje de falla describe que se alcanzó el límite de seguridad');
