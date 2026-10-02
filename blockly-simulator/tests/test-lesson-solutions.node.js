@@ -39,22 +39,32 @@ function assert(cond, mensaje) {
 }
 
 // Program-tree helpers (same node shapes as src/generator/program-tree.js).
-function av(ms) { return { tipo: 'accion', accion: 'avanzar', valor: ms, blockId: 'b' }; }
-function der(ms) { return { tipo: 'accion', accion: 'derecha', valor: ms, blockId: 'b' }; }
-function izq(ms) { return { tipo: 'accion', accion: 'izquierda', valor: ms, blockId: 'b' }; }
-function det() { return { tipo: 'accion', accion: 'detener', valor: 0, blockId: 'b' }; }
-function siHay(cuerpo) { return { tipo: 'si', sensor: 'hayObstaculo', cuerpo: cuerpo, blockId: 'b' }; }
-function siSino(cuerpo, sino) { return { tipo: 'si_sino', sensor: 'hayObstaculo', cuerpo: cuerpo, sino: sino, blockId: 'b' }; }
-function hasta(cuerpo) { return { tipo: 'repetir_hasta', sensor: 'hayObstaculo', cuerpo: cuerpo, blockId: 'b' }; }
-function rep(veces, cuerpo) { return { tipo: 'repetir', veces: veces, cuerpo: cuerpo, blockId: 'b' }; }
+// Motor-state model: a movement block only sets the motors (no duration);
+// time passes in Delay (esperar) blocks. `av(ms)` & co. are shorthands for the
+// pair "movement + Delay(ms)" and expand to two nodes, so every body/sequence
+// goes through `plano` to flatten them.
+function plano(lista) {
+  return [].concat.apply([], lista.map(function (x) { return Array.isArray(x) ? x : [x]; }));
+}
+function mov(accion) { return { tipo: 'accion', accion: accion, blockId: 'b' }; }
+function esp(ms) { return { tipo: 'accion', accion: 'esperar', valor: ms, blockId: 'b' }; }
+function det() { return mov('detener'); }
+function salir() { return { tipo: 'salir', blockId: 'b' }; }
+function av(ms) { return [mov('avanzar'), esp(ms)]; }
+function der(ms) { return [mov('derecha'), esp(ms)]; }
+function izq(ms) { return [mov('izquierda'), esp(ms)]; }
+function siHay(cuerpo) { return { tipo: 'si', sensor: 'hayObstaculo', cuerpo: plano(cuerpo), blockId: 'b' }; }
+function siSino(cuerpo, sino) { return { tipo: 'si_sino', sensor: 'hayObstaculo', cuerpo: plano(cuerpo), sino: plano(sino), blockId: 'b' }; }
+function hasta(cuerpo) { return { tipo: 'repetir_hasta', sensor: 'hayObstaculo', cuerpo: plano(cuerpo), blockId: 'b' }; }
+function rep(veces, cuerpo) { return { tipo: 'repetir', veces: veces, cuerpo: plano(cuerpo), blockId: 'b' }; }
 function num(v) { return { k: 'numero', v: v }; }
 function bool(v) { return { k: 'booleano', v: v }; }
 function vr(nombre) { return { k: 'variable', nombre: nombre }; }
 function decl(nombre, tipoDato, valor) { return { tipo: 'declarar', nombre: nombre, tipoDato: tipoDato, valor: valor, blockId: 'b' }; }
 function asig(nombre, valor) { return { tipo: 'asignar', nombre: nombre, valor: valor, blockId: 'b' }; }
 function camb(nombre, delta) { return { tipo: 'cambiar', nombre: nombre, delta: delta, blockId: 'b' }; }
-function hastaCond(condicion, cuerpo) { return { tipo: 'repetir_hasta', condicion: condicion, cuerpo: cuerpo, blockId: 'b' }; }
-function siSinoVar(nombre, cuerpo, sino) { return { tipo: 'si_sino', condicion: vr(nombre), cuerpo: cuerpo, sino: sino, blockId: 'b' }; }
+function hastaCond(condicion, cuerpo) { return { tipo: 'repetir_hasta', condicion: condicion, cuerpo: plano(cuerpo), blockId: 'b' }; }
+function siSinoVar(nombre, cuerpo, sino) { return { tipo: 'si_sino', condicion: vr(nombre), cuerpo: plano(cuerpo), sino: plano(sino), blockId: 'b' }; }
 
 /** Runs `arbol` on lesson `n`'s real map; returns the snapshot panel.js would build. */
 function correr(n, arbol, conInicial) {
@@ -62,7 +72,7 @@ function correr(n, arbol, conInicial) {
   var sch = RS.runtime.scheduler;
   RS.world.cargarMapa(lec.mapa);
   sch.reiniciar();
-  sch.iniciarConArbol(arbol);
+  sch.iniciarConArbol(plano(arbol));
   for (var i = 0; i < 20000 && sch.obtenerEstado() === 'running'; i++) sch._procesarFrame(16);
   var snap = {
     estado: { x: RS.robot.estado.x, y: RS.robot.estado.y, angulo: RS.robot.estado.angulo },
@@ -77,14 +87,18 @@ function correr(n, arbol, conInicial) {
   return snap;
 }
 
-function cerca(snap, x, y) {
-  return Math.abs(snap.estado.x - x) <= 0.5 && Math.abs(snap.estado.y - y) <= 0.5;
+// Loops add LOOP_TICK_MS (1 ms of motion at the current motor state) after every
+// body pass, so loop-driven routes land a few px past the pure-geometry pose.
+var TOL_BUCLE = 8;
+function cerca(snap, x, y, tol) {
+  var t = tol === undefined ? 0.5 : tol;
+  return Math.abs(snap.estado.x - x) <= t && Math.abs(snap.estado.y - y) <= t;
 }
 
 // The 8 reference solutions (design geometry; ms = round(px / 0.12)).
 var MS1 = RS.lessons.MS_PRECARGA_LECCION_1;
 var pasoL8 = [hasta([av(125)]), der(500)];
-var refL8 = pasoL8.concat(pasoL8, pasoL8, pasoL8, pasoL8, [hasta([av(125)])]);
+var refL8 = plano([pasoL8, pasoL8, pasoL8, pasoL8, pasoL8, hasta([av(125)]), det()]);
 // L7 (Variables): serpentine, three lanes; `filas` counts the two lane changes
 // and `haciaDerecha` flips the turn direction at each end. One lane change =
 // avanzar(1333) (lane centers are 160px apart).
@@ -98,28 +112,30 @@ var refL7 = [
       [izq(500), av(1333), izq(500), asig('haciaDerecha', bool(true))]),
     camb('filas', 1)
   ]),
-  hasta([av(100)])
+  hasta([av(100)]),
+  det()
 ];
 // The L7 ejemplo: a small square counted with a variable.
 var ejemploL7 = [
   decl('lados', 'int', num(0)),
-  hastaCond({ op: '>=', izq: vr('lados'), der: num(4) }, [av(300), der(500), camb('lados', 1)])
+  hastaCond({ op: '>=', izq: vr('lados'), der: num(4) }, [av(300), der(500), camb('lados', 1)]),
+  det()
 ];
-var refL5 = [hasta([av(100)]), der(500), rep(40, [siSino([det()], [av(100)])])];
+var refL5 = [hasta([av(100)]), der(500), rep(40, [siSino([salir()], [av(100)])]), det()];
 var referencias = [
   { n: 1, arbol: [av(MS1), det()], x: 60 + MS1 * 0.12, y: 300 },
   { n: 2, arbol: [av(2500), det()], x: 360, y: 300 },
-  { n: 3, arbol: [av(1250), der(500), av(500), izq(500), av(1900), izq(500), av(917), der(500), av(2000)], x: 678, y: 249.96 },
-  { n: 4, arbol: [hasta([av(100)])], x: 600, y: 300, sensor: true },
+  { n: 3, arbol: [av(1250), der(500), av(500), izq(500), av(1900), izq(500), av(917), der(500), av(2000), det()], x: 678, y: 249.96 },
+  { n: 4, arbol: [hasta([av(100)]), det()], x: 600, y: 300, sensor: true },
   { n: 5, arbol: refL5, x: 480, y: 404, sensor: true },
-  { n: 6, arbol: [hasta([av(100)])], x: 600, y: 300, sensor: true },
+  { n: 6, arbol: [hasta([av(100)]), det()], x: 600, y: 300, sensor: true },
   { n: 7, arbol: refL7, x: 688, y: 420, sensor: true },
   { n: 8, arbol: refL8, x: 520, y: 325, sensor: true }
 ];
 
 referencias.forEach(function (r) {
   var s = correr(r.n, r.arbol);
-  var dentro = cerca(s, r.x, r.y);
+  var dentro = cerca(s, r.x, r.y, r.sensor ? TOL_BUCLE : 0.5);
   assert(s.ok.ok && s.resultadoRun !== 'error' && dentro,
     'L' + r.n + ' reference solution passes; final pose ' + s.pose + ', expected (' + r.x + ',' + r.y + ')' +
     (s.ok.ok ? '' : ' — criterio failed: ' + s.ok.observado));
@@ -131,26 +147,26 @@ var s1 = correr(1, [av(MS1), det()]);
 assert(s1.estado.x >= 320 && s1.estado.x <= 520, 'L1 shared constant ' + MS1 + ' ends inside meta (x=' + s1.estado.x.toFixed(2) + ')');
 
 // Sensor-threshold behavior (L4): 3900 ms stops at x=528 with no obstacle detected.
-var s4 = correr(4, [av(3900), siHay([det()])]);
+var s4 = correr(4, [av(3900), siHay([det()]), det()]);
 assert(Math.abs(s4.estado.x - 528) <= 0.5 && s4.hayObstaculo === false, 'L4 avanzar(3900) stops at x=528 without hayObstaculo (' + s4.pose + ')');
 
 // Non-passing runs: no collision, ok=false.
-var n3 = correr(3, [av(1250), der(500), av(500)]);
+var n3 = correr(3, [av(1250), der(500), av(500), det()]);
 assert(!n3.ok.ok && n3.resultadoRun !== 'error' && cerca(n3, 210, 360), 'L3 ejemplo ends at (210,360) without passing; got ' + n3.pose);
-var m3 = correr(3, [av(1250), av(500), der(500)]);
+var m3 = correr(3, [av(1250), av(500), der(500), det()]);
 assert(m3.resultadoRun === 'error' && !m3.ok.ok, 'L3 modificacion (swapped last two blocks) hits pillar 1; got ' + m3.resultadoRun + ' at ' + m3.pose);
-var refL5SinGiro = [hasta([av(100)]), rep(40, [siSino([det()], [av(100)])])];
+var refL5SinGiro = [hasta([av(100)]), rep(40, [siSino([salir()], [av(100)])]), det()];
 var n5 = correr(5, refL5SinGiro);
-assert(!n5.ok.ok && n5.resultadoRun !== 'error' && cerca(n5, 480, 140) && /misma altura/.test(n5.ok.observado),
+assert(!n5.ok.ok && n5.resultadoRun !== 'error' && cerca(n5, 480, 140, TOL_BUCLE) && /misma altura/.test(n5.ok.observado),
   'L5 variant without derecha(500) ends at (480,140) with "misma altura" feedback; got ' + n5.pose + ' / ' + n5.ok.observado);
-var n8 = correr(8, [hasta([av(100)]), der(500)]);
+var n8 = correr(8, [hasta([av(100)]), der(500), det()]);
 assert(!n8.ok.ok && n8.resultadoRun !== 'error', 'L8 ejemplo does not pass and does not collide; got ' + n8.pose);
 var n7 = correr(7, ejemploL7);
 assert(!n7.ok.ok && n7.resultadoRun !== 'error' && n7.metricas.cambiosVariable === 4,
   'L7 ejemplo does not pass, does not collide and changes the counter 4 times; got ' + n7.pose + ', cambiosVariable=' + n7.metricas.cambiosVariable);
 // L7 criterio requires variable changes: the same route with no variables reaches the meta but fails.
-var sinVariablesL7 = correr(7, [hasta([av(100)]), der(500), av(1333), der(500), hasta([av(100)]), izq(500), av(1333), izq(500), hasta([av(100)])]);
-assert(sinVariablesL7.resultadoRun !== 'error' && cerca(sinVariablesL7, 688, 420) && !sinVariablesL7.ok.ok && sinVariablesL7.metricas.cambiosVariable === 0,
+var sinVariablesL7 = correr(7, [hasta([av(100)]), der(500), av(1333), der(500), hasta([av(100)]), izq(500), av(1333), izq(500), hasta([av(100)]), det()]);
+assert(sinVariablesL7.resultadoRun !== 'error' && cerca(sinVariablesL7, 688, 420, TOL_BUCLE) && !sinVariablesL7.ok.ok && sinVariablesL7.metricas.cambiosVariable === 0,
   'L7 route without variables reaches the meta but does not pass (cambiosVariable=' + sinVariablesL7.metricas.cambiosVariable + '); got ' + sinVariablesL7.pose);
 assert(/variable/.test(sinVariablesL7.ok.observado), 'L7 describir explains the missing variable use: ' + sinVariablesL7.ok.observado);
 var sinInicial = null;
@@ -165,8 +181,8 @@ var sinIni = null;
 try { sinIni = descL5({ estado: { x: 300, y: 300 }, metricas: { evalsSensor: 1 } }, false); } catch (e) { sinIni = e; }
 assert(typeof sinIni === 'string', 'L5 describir without inicial returns a string instead of throwing');
 
-// Text anchors: each ejemplo quotes its reference ms; stale L1/L2 values are gone.
-[[1, 'avanzar(' + MS1 + ')'], [2, 'avanzar(2500)'], [3, 'avanzar(1250)'], [4, 'repetir hasta hayObstaculo() { avanzar(100) }'], [5, 'repetir 40 veces']]
+// Text anchors: each ejemplo quotes its reference Delay ms (Salir for L5); stale L1/L2 values are gone.
+[[1, 'Delay(' + MS1 + ')'], [2, 'Delay(2500)'], [3, 'Delay(1250)'], [4, 'repetir hasta hayObstaculo() { avanzar → Delay(100) }'], [5, 'repetir 40 veces'], [5, '{ Salir }']]
   .forEach(function (a) {
     assert(lecciones[a[0] - 1].ejemplo.indexOf(a[1]) !== -1, 'L' + a[0] + ' ejemplo contains ' + a[1]);
   });
@@ -174,13 +190,14 @@ assert(typeof sinIni === 'string', 'L5 describir without inicial returns a strin
   var texto = JSON.stringify(lecciones[n - 1]);
   assert(!/1167|1833/.test(texto), 'L' + n + ' text has no stale 1167/1833 ms');
 });
+assert(!/límite de (repeticiones de )?seguridad/i.test(JSON.stringify(lecciones)), 'lesson text no longer mentions a loop safety limit');
 assert(!/dos obst/i.test(lecciones[7].criterioTexto + lecciones[7].desafio), 'L8 text does not mention two obstacles');
 
 // L1 drift guard: main.js preload must equal the value quoted in the L1 ejemplo.
 var literalMain = /MS_PRECARGA_LECCION_1\s*=\s*(\d+)/.exec(mainFuente);
 var usaConstante = /=\s*RS\.lessons\.MS_PRECARGA_LECCION_1/.test(mainFuente);
 var msMain = literalMain ? Number(literalMain[1]) : (usaConstante ? MS1 : null);
-var ejemploMs = /avanzar\((\d+)\)/.exec(lecciones[0].ejemplo);
+var ejemploMs = /Delay\((\d+)\)/.exec(lecciones[0].ejemplo);
 ejemploMs = ejemploMs ? Number(ejemploMs[1]) : null;
 assert(!literalMain && msMain === ejemploMs,
   'L1 preload and ejemplo share one source: main.js=' + msMain + ', ejemplo=' + ejemploMs + (literalMain ? ' (main.js has a numeric literal)' : ''));
