@@ -60,6 +60,32 @@
     // without switching to a swept/continuous collision test.
     MAX_SUBSTEP_MS: 16,
 
+    // --- Motor-state engine (see src/runtime/scheduler.js) ---
+    // Implicit sim time cost of one loop back-edge, so a loop body with no
+    // Delay still makes time progress (1 ms limits per-pass drift to
+    // 0.12 px / 0.18 deg).
+    LOOP_TICK_MS: 1,
+
+    // Max zero-time leaves processed in one frame. A pure yield guard: when
+    // it trips, the frame ends and its remaining dt is dropped, so the sim
+    // slows down instead of running without program progress.
+    MAX_NODOS_POR_FRAME: 5000,
+
+    // Motor state per movement action: {izq, der} in {-1, 0, 1}
+    // (+1 = wheel forward). `detener` switches both motors off.
+    MOTORES: {
+      avanzar: { izq: 1, der: 1 },
+      retroceder: { izq: -1, der: -1 },
+      izquierda: { izq: -1, der: 1 },
+      derecha: { izq: 1, der: -1 },
+      detener: { izq: 0, der: 0 }
+    },
+
+    // A program that ends while only rotating (no collision is ever tested
+    // on rotation) ends in `error` after this much continuous spinning
+    // (one full turn at GIRO).
+    COAST_GIRO_MAX_MS: 2000,
+
     // --- Robot geometry ---
     ROBOT_SIZE: 40, // px (10cm at ESCALA=4)
 

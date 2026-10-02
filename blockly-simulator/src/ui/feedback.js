@@ -24,12 +24,27 @@
         contenedor = container;
       },
 
-      mostrarColision: function (nodo, obstaculoOLimite) {
+      /**
+       * nodoMotor: the block that turned the motors on (may be null).
+       * opciones.finPrograma: the program had already ended with motors on.
+       * obstaculoOLimite === 'giro' means the robot only kept spinning (no
+       * collision) until the coast timeout.
+       */
+      mostrarColision: function (nodoMotor, obstaculoOLimite, opciones) {
         if (!contenedor) return;
-        var accion = nodo ? nodo.accion : 'una acción';
-        var valor = nodo && Object.prototype.hasOwnProperty.call(nodo, 'valor') ? '(' + nodo.valor + ')' : '()';
-        var mensaje = '¡Choque! ' + accion + valor + ' chocó contra ' + describirObstaculo(obstaculoOLimite) +
-          '. La ejecución se detuvo. Ajustá el programa y probá de nuevo.';
+        var finPrograma = !!(opciones && opciones.finPrograma);
+        var mensaje;
+        if (obstaculoOLimite === 'giro') {
+          mensaje = 'El programa terminó con los motores encendidos y el robot siguió girando sin parar. ' +
+            'La ejecución se detuvo. Apagá los motores con detener y probá de nuevo.';
+        } else if (finPrograma) {
+          mensaje = 'El programa terminó con los motores encendidos y el robot chocó contra ' +
+            describirObstaculo(obstaculoOLimite) + '. La ejecución se detuvo. Apagá los motores con detener y probá de nuevo.';
+        } else {
+          var accion = nodoMotor ? nodoMotor.accion : 'una acción';
+          mensaje = '¡Choque! ' + accion + '() chocó contra ' + describirObstaculo(obstaculoOLimite) +
+            '. La ejecución se detuvo. Ajustá el programa y probá de nuevo.';
+        }
         contenedor.textContent = mensaje;
         contenedor.classList.add('feedback-error');
       },

@@ -71,7 +71,9 @@ function hojas(arbol) {
   var out = [];
   var leaf;
   var guardia = 0;
-  while ((leaf = walker.siguienteNodo()) !== null && guardia++ < 1000) out.push(leaf);
+  while ((leaf = walker.siguienteNodo()) !== null && guardia++ < 1000) {
+    if (leaf.tipo !== 'tick') out.push(leaf); // implicit loop ticks are not program leaves
+  }
   return { hojas: out, walker: walker };
 }
 
@@ -88,61 +90,61 @@ assertEquals(valores([
   repetir(3, [
     decl('t', 'int', num(10)),
     camb('t', 5),
-    acc('avanzar', 'x', vr('t'))
+    acc('esperar', 'x', vr('t'))
   ])
 ]), [15, 15, 15], 'declarar dentro de repetir reinicia el valor en cada vuelta');
 
 // Declared before the loop: the value accumulates.
 assertEquals(valores([
   decl('t', 'int', num(10)),
-  repetir(3, [camb('t', 5), acc('avanzar', 'x', vr('t'))])
+  repetir(3, [camb('t', 5), acc('esperar', 'x', vr('t'))])
 ]), [15, 20, 25], 'declarar antes del repetir acumula entre vueltas');
 
 // 5.3 Reassignment inside si_sino persists to later nodes.
 assertEquals(valores([
   decl('activo', 'bool', bool(false)),
-  siSinoVar('activo', [acc('avanzar', 'x', 111)], [asig('activo', bool(true)), acc('avanzar', 'x', 222)]),
-  siSinoVar('activo', [acc('avanzar', 'x', 333)], [acc('avanzar', 'x', 444)])
+  siSinoVar('activo', [acc('esperar', 'x', 111)], [asig('activo', bool(true)), acc('esperar', 'x', 222)]),
+  siSinoVar('activo', [acc('esperar', 'x', 333)], [acc('esperar', 'x', 444)])
 ]), [222, 333], 'asignar dentro de si_sino persiste para el si_sino siguiente');
 
 assertEquals(valores([
   decl('lados', 'int', num(0)),
   repetir(2, [
-    siVar('ignorada', [acc('avanzar', 'x', 1)]),
+    siVar('ignorada', [acc('esperar', 'x', 1)]),
     camb('lados', 2)
   ]),
-  acc('avanzar', 'x', vr('lados'))
+  acc('esperar', 'x', vr('lados'))
 ]), [4], 'cambiar dentro de repetir es visible fuera del bucle');
 
 // 5.4 Int truncation and zero default for an unexecuted declare.
 assertEquals(valores([
   decl('a', 'int', num(7.9)),
-  acc('avanzar', 'x', vr('a'))
+  acc('esperar', 'x', vr('a'))
 ]), [7], 'un int trunca su valor inicial decimal');
 
 assertEquals(valores([
   decl('b', 'int', num(-2.7)),
-  acc('avanzar', 'x', vr('b'))
+  acc('esperar', 'x', vr('b'))
 ]), [0], 'un int negativo usado como ms se recorta a 0');
 
 assertEquals(valores([
   siVar('nunca', [decl('z', 'int', num(9))]),
-  acc('avanzar', 'x', vr('z'))
+  acc('esperar', 'x', vr('z'))
 ]), [0], 'un declarar que nunca se ejecuta deja el valor en cero');
 
 assertEquals(valores([
   decl('flag', 'bool', num(0)),
-  siSinoVar('flag', [acc('avanzar', 'x', 1)], [acc('avanzar', 'x', 2)])
+  siSinoVar('flag', [acc('esperar', 'x', 1)], [acc('esperar', 'x', 2)])
 ]), [2], 'un bool coacciona un valor numerico 0 a falso');
 
 // 5.5 max(0, ...) clamp on variable-driven action ms.
 assertEquals(valores([
   decl('p', 'int', num(5)),
   camb('p', -20),
-  acc('avanzar', 'x', vr('p'))
+  acc('esperar', 'x', vr('p'))
 ]), [0], 'una duracion de accion negativa proveniente de una variable se recorta a 0');
 
-assertEquals(valores([acc('avanzar', 'x', 250)]), [250], 'una duracion numerica literal no cambia');
+assertEquals(valores([acc('esperar', 'x', 250)]), [250], 'una duracion numerica literal no cambia');
 
 // cambiosVariable counts asignar + cambiar, not declarar.
 (function () {
@@ -150,7 +152,7 @@ assertEquals(valores([acc('avanzar', 'x', 250)]), [250], 'una duracion numerica 
     decl('n', 'int', num(0)),
     asig('n', num(3)),
     camb('n', 1),
-    acc('avanzar', 'x', vr('n'))
+    acc('esperar', 'x', vr('n'))
   ]);
   assertEquals(r.hojas.map(function (h) { return h.valor; }), [4], 'asignar y luego cambiar acumulan sobre la misma variable');
   assertEquals(r.walker.cambiosVariable(), 2, 'cambiosVariable cuenta asignar y cambiar pero no declarar');
@@ -162,10 +164,11 @@ assertEquals(valores([acc('avanzar', 'x', 250)]), [250], 'una duracion numerica 
   var walker = RS.runtime.interpreter.crear([
     decl('lados', 'int', num(0)),
     { tipo: 'repetir_hasta', condicion: { op: '>=', izq: vr('lados'), der: num(2) },
-      cuerpo: [camb('lados', 1), acc('avanzar', 'x', 10)], blockId: 'rh' }
+      cuerpo: [camb('lados', 1), acc('esperar', 'x', 10)], blockId: 'rh' }
   ], null, null, function () { evals++; });
   var n = 0;
-  while (walker.siguienteNodo() !== null && n++ < 50) { /* drain */ }
+  var hoja;
+  while ((hoja = walker.siguienteNodo()) !== null && n < 50) { if (hoja.tipo !== 'tick') n++; }
   assertEquals(n, 2, 'repetir_hasta con variable itera hasta cumplir la condicion');
   assertEquals(evals, 0, 'una comparacion solo con variables no dispara onSensorEval');
 })();

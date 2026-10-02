@@ -8,12 +8,14 @@
  *   inicial   — RS.world.poseInicial (for feedback wording)
  *   resultadoRun — the scheduler state the run ended in
  *   colision  — the colliding obstacle/'limite' when resultadoRun === 'error', else null
- *   metricas  — RS.runtime.scheduler.obtenerMetricas(): { evalsSensor, limiteSeguridad }.
+ *   metricas  — RS.runtime.scheduler.obtenerMetricas(): { evalsSensor, limiteSeguridad,
+ *               cambiosVariable, finConMotores }.
  *               `evalsSensor` counts sensor/comparator evaluations during the
  *               run (used by lessons whose criterion requires the student to
  *               actually consult the sensor, not just reach a position).
- *               `limiteSeguridad` stays null until a later slice wires the
- *               `repetir_hasta` safety-bound trip.
+ *               `limiteSeguridad` is deprecated and always null (loops are
+ *               uncapped); `finConMotores` is true when the program ended
+ *               with motors on.
  *
  * Returns { ok, observado }. `observado` describes ONLY observed robot
  * behavior — it never names which block to add/change/remove (see
@@ -39,6 +41,13 @@
     }
 
     if (snapshot && snapshot.resultadoRun === 'error') {
+      if (snapshot.metricas && snapshot.metricas.finConMotores) {
+        return {
+          ok: false,
+          observado: 'El programa terminó con los motores encendidos y el robot no se detuvo; la ejecución se cortó en ' +
+            describirPosicionFinal(snapshot) + '.'
+        };
+      }
       return {
         ok: false,
         observado: 'El robot chocó y la ejecución se detuvo en ' + describirPosicionFinal(snapshot) + '.'
