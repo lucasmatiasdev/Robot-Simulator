@@ -122,16 +122,6 @@ assertEquals(etiquetas(w, 10), ['avanzar', 'tick', 'avanzar', 'tick'], 'salir an
 w = caminar([salir('s0'), siVerdadero('si', [salir('s1')]), mot('avanzar', 'a')]);
 assertEquals(etiquetas(w, 10), ['avanzar'], 'salir huerfano: no hace nada (la validacion lo bloquea antes de ejecutar)');
 
-// TEMP-PR3 shim: a movement node with `valor` expands to motor, esperar, detener.
-w = caminar([acc('avanzar', 'a', 100)]);
-var expandido = [w.siguienteNodo(), w.siguienteNodo(), w.siguienteNodo(), w.siguienteNodo()];
-assertEquals(expandido, [
-  { tipo: 'accion', accion: 'avanzar', blockId: 'a' },
-  { tipo: 'accion', accion: 'esperar', valor: 100, blockId: 'a' },
-  { tipo: 'accion', accion: 'detener', blockId: 'a' },
-  null
-], 'shim legado: avanzar(valor) se expande a motor + esperar(valor) + detener con el mismo blockId');
-
 // ---------------------------------------------------------------------------
 // Robot kinematics: proponerPaso
 // ---------------------------------------------------------------------------
