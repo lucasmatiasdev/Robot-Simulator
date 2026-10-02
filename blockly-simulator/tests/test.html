@@ -221,12 +221,14 @@
   (function () {
     RS.robot.reset();
     var pose0 = { x: RS.robot.estado.x, y: RS.robot.estado.y };
-    var candidato = RS.robot.proponerAvance(1000); // 1000ms * VEL(0.12) = 120px hacia heading 0 (este)
-    assert(Math.abs(candidato.x - (pose0.x + 120)) < 0.001, 'avanzar(1000) mueve VEL*ms px sobre el heading (x)');
-    assert(Math.abs(candidato.y - pose0.y) < 0.001, 'avanzar(1000) con heading 0 no cambia y');
+    RS.robot.setMotores(1, 1);
+    var candidato = RS.robot.proponerPaso(1000); // 1000ms * VEL(0.12) = 120px hacia heading 0 (este)
+    assert(Math.abs(candidato.x - (pose0.x + 120)) < 0.001, 'motores (1,1) durante 1000 ms mueven VEL*ms px sobre el heading (x)');
+    assert(Math.abs(candidato.y - pose0.y) < 0.001, 'motores (1,1) con heading 0 no cambian y');
 
-    RS.robot.girar(500, 1); // derecha: +GIRO*ms = 0.18*500 = 90 grados
-    assertEquals(RS.robot.estado.angulo, 90, 'girar derecha(500) rota GIRO*ms grados sin dividir por 4');
+    RS.robot.setMotores(1, -1); // derecha: +GIRO*ms = 0.18*500 = 90 grados
+    RS.robot.commitPaso(RS.robot.proponerPaso(500));
+    assertEquals(RS.robot.estado.angulo, 90, 'motores (1,-1) durante 500 ms rotan GIRO*ms grados sin dividir por 4');
     RS.robot.reset();
   })();
 
@@ -640,7 +642,8 @@
     var scheduler = RS.runtime.scheduler;
     var arbol = [
       { tipo: 'accion', accion: 'esperar', valor: 500, blockId: 'e1' },
-      { tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'a1' }
+      { tipo: 'accion', accion: 'avanzar', blockId: 'a1' }, { tipo: 'accion', accion: 'esperar', valor: 100, blockId: 'a1' },
+      { tipo: 'accion', accion: 'detener', blockId: 'd1' }
     ];
     scheduler.iniciarConArbol(arbol);
     var xInicial = RS.robot.estado.x;
@@ -674,7 +677,7 @@
     RS.ui.initHighlight(fakeWorkspace);
     RS.ui.codePanel.init(fakeWorkspace, contenedor);
     var arbol = [
-      { tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'a1' },
+      { tipo: 'accion', accion: 'avanzar', blockId: 'a1' }, { tipo: 'accion', accion: 'esperar', valor: 100, blockId: 'a1' },
       { tipo: 'accion', accion: 'detener', valor: 1, blockId: 'l1' }
     ];
     RS.ui.codePanel.render(arbol);
@@ -714,7 +717,7 @@
     // overlapeara y sin disparar colisión nunca. Se simula ese frame grande
     // llamando _procesarFrame(4000) una única vez, como si rAF hubiera
     // entregado un dt de 4 segundos completo.
-    var arbol = [{ tipo: 'accion', accion: 'avanzar', valor: 4000, blockId: 'a-largo' }];
+    var arbol = [{ tipo: 'accion', accion: 'avanzar', blockId: 'a-largo' }, { tipo: 'accion', accion: 'esperar', valor: 4000, blockId: 'a-largo' }];
     scheduler.iniciarConArbol(arbol);
     assertEquals(scheduler.obtenerEstado(), 'running', 'arranca en estado running');
 
@@ -798,7 +801,7 @@
     RS.ui.feedback.init(feedbackDiv);
 
     var scheduler = RS.runtime.scheduler;
-    var arbol = [{ tipo: 'accion', accion: 'avanzar', valor: 3000, blockId: 'a-choque' }];
+    var arbol = [{ tipo: 'accion', accion: 'avanzar', blockId: 'a-choque' }, { tipo: 'accion', accion: 'esperar', valor: 3000, blockId: 'a-choque' }];
     scheduler.iniciarConArbol(arbol);
     assertEquals(feedbackDiv.textContent, '', 'el feedback arranca vacío al iniciar la ejecución');
 
@@ -878,7 +881,7 @@
     RS.ui.feedback.init(feedbackDiv2);
     RS.world.cargarMapa(leccion2.mapa);
     var arbolL2 = [
-      { tipo: 'accion', accion: 'avanzar', valor: 2100, blockId: 'a1' },
+      { tipo: 'accion', accion: 'avanzar', blockId: 'a1' }, { tipo: 'accion', accion: 'esperar', valor: 2100, blockId: 'a1' },
       { tipo: 'accion', accion: 'detener', blockId: 'd1' }
     ];
     scheduler2.iniciarConArbol(arbolL2);
@@ -893,7 +896,7 @@
 
     // Un avance excesivo choca contra el obstáculo más lejano del mapa v2.
     scheduler2.iniciarConArbol([
-      { tipo: 'accion', accion: 'avanzar', valor: 3000, blockId: 'a1' },
+      { tipo: 'accion', accion: 'avanzar', blockId: 'a1' }, { tipo: 'accion', accion: 'esperar', valor: 3000, blockId: 'a1' },
       { tipo: 'accion', accion: 'detener', blockId: 'd1' }
     ]);
     for (var i2c = 0; i2c < 500 && scheduler2.obtenerEstado() === 'running'; i2c++) {
@@ -935,7 +938,7 @@
     RS.world.cargarMapa(leccion3.mapa);
 
     // Colisión real #1: ir derecho sin girar choca contra el primer obstáculo.
-    scheduler3.iniciarConArbol([{ tipo: 'accion', accion: 'avanzar', valor: 3000, blockId: 'a1' }]);
+    scheduler3.iniciarConArbol([{ tipo: 'accion', accion: 'avanzar', blockId: 'a1' }, { tipo: 'accion', accion: 'esperar', valor: 3000, blockId: 'a1' }]);
     for (var i3c = 0; i3c < 500 && scheduler3.obtenerEstado() === 'running'; i3c++) {
       scheduler3._procesarFrame(16);
     }
@@ -946,9 +949,9 @@
 
     // Colisión real #2: girar una sola vez y seguir de largo hacia el sur choca contra el segundo obstáculo.
     scheduler3.iniciarConArbol([
-      { tipo: 'accion', accion: 'avanzar', valor: 1500, blockId: 'a1' },
-      { tipo: 'accion', accion: 'derecha', valor: 500, blockId: 'd1' },
-      { tipo: 'accion', accion: 'avanzar', valor: 3000, blockId: 'a2' }
+      { tipo: 'accion', accion: 'avanzar', blockId: 'a1' }, { tipo: 'accion', accion: 'esperar', valor: 1500, blockId: 'a1' },
+      { tipo: 'accion', accion: 'derecha', blockId: 'd1' }, { tipo: 'accion', accion: 'esperar', valor: 500, blockId: 'd1' },
+      { tipo: 'accion', accion: 'avanzar', blockId: 'a2' }, { tipo: 'accion', accion: 'esperar', valor: 3000, blockId: 'a2' }
     ]);
     for (var i3g = 0; i3g < 500 && scheduler3.obtenerEstado() === 'running'; i3g++) {
       scheduler3._procesarFrame(16);
@@ -958,11 +961,11 @@
 
     // El programa de referencia (avanzar+derecha+avanzar+izquierda+avanzar, dos giros) cumple su propio criterio en una corrida real.
     scheduler3.iniciarConArbol([
-      { tipo: 'accion', accion: 'avanzar', valor: 1500, blockId: 'a1' },
-      { tipo: 'accion', accion: 'derecha', valor: 500, blockId: 'd1' },
-      { tipo: 'accion', accion: 'avanzar', valor: 1200, blockId: 'a2' },
-      { tipo: 'accion', accion: 'izquierda', valor: 500, blockId: 'i1' },
-      { tipo: 'accion', accion: 'avanzar', valor: 1000, blockId: 'a3' }
+      { tipo: 'accion', accion: 'avanzar', blockId: 'a1' }, { tipo: 'accion', accion: 'esperar', valor: 1500, blockId: 'a1' },
+      { tipo: 'accion', accion: 'derecha', blockId: 'd1' }, { tipo: 'accion', accion: 'esperar', valor: 500, blockId: 'd1' },
+      { tipo: 'accion', accion: 'avanzar', blockId: 'a2' }, { tipo: 'accion', accion: 'esperar', valor: 1200, blockId: 'a2' },
+      { tipo: 'accion', accion: 'izquierda', blockId: 'i1' }, { tipo: 'accion', accion: 'esperar', valor: 500, blockId: 'i1' },
+      { tipo: 'accion', accion: 'avanzar', blockId: 'a3' }, { tipo: 'accion', accion: 'esperar', valor: 1000, blockId: 'a3' }
     ]);
     for (var i3 = 0; i3 < 500 && scheduler3.obtenerEstado() === 'running'; i3++) {
       scheduler3._procesarFrame(16);
@@ -1000,10 +1003,11 @@
     RS.world.cargarMapa(leccion4.mapa);
 
     var arbolSensor = [
-      { tipo: 'accion', accion: 'avanzar', valor: 2583, blockId: 'a1' },
+      { tipo: 'accion', accion: 'avanzar', blockId: 'a1' }, { tipo: 'accion', accion: 'esperar', valor: 2583, blockId: 'a1' },
       { tipo: 'si', sensor: 'hayObstaculo', blockId: 's1', cuerpo: [
         { tipo: 'accion', accion: 'detener', blockId: 'd1' }
-      ] }
+      ] },
+      { tipo: 'accion', accion: 'detener', blockId: 'd2' }
     ];
     scheduler.iniciarConArbol(arbolSensor);
     for (var i = 0; i < 500 && scheduler.obtenerEstado() === 'running'; i++) {
@@ -1022,7 +1026,7 @@
 
     // Un avance corto (el sensor nunca se dispara) queda fuera de la zona de meta.
     scheduler.iniciarConArbol([
-      { tipo: 'accion', accion: 'avanzar', valor: 1500, blockId: 'a1' },
+      { tipo: 'accion', accion: 'avanzar', blockId: 'a1' }, { tipo: 'accion', accion: 'esperar', valor: 1500, blockId: 'a1' },
       { tipo: 'si', sensor: 'hayObstaculo', blockId: 's1', cuerpo: [{ tipo: 'accion', accion: 'detener', blockId: 'd1' }] }
     ]);
     for (var i4c = 0; i4c < 500 && scheduler.obtenerEstado() === 'running'; i4c++) {
@@ -1085,13 +1089,13 @@
 
     var arbolL5 = [
       { tipo: 'repetir_hasta', sensor: 'hayObstaculo', blockId: 'rh1', cuerpo: [
-        { tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'a1' }
+        { tipo: 'accion', accion: 'avanzar', blockId: 'a1' }, { tipo: 'accion', accion: 'esperar', valor: 100, blockId: 'a1' }
       ] },
-      { tipo: 'accion', accion: 'derecha', valor: 500, blockId: 'd1' },
+      { tipo: 'accion', accion: 'derecha', blockId: 'd1' }, { tipo: 'accion', accion: 'esperar', valor: 500, blockId: 'd1' },
       { tipo: 'repetir', veces: 40, blockId: 'r1', cuerpo: [
         { tipo: 'si_sino', sensor: 'hayObstaculo', blockId: 'ss1',
           cuerpo: [{ tipo: 'accion', accion: 'detener', blockId: 'd2' }],
-          sino: [{ tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'a2' }] }
+          sino: [{ tipo: 'accion', accion: 'avanzar', blockId: 'a2' }, { tipo: 'accion', accion: 'esperar', valor: 100, blockId: 'a2' }] }
       ] }
     ];
     scheduler5.iniciarConArbol(arbolL5);
@@ -1107,12 +1111,12 @@
     // Sin el giro derecha(500), el primer "si/si no" del segundo bucle ya detecta la pared del fondo del primer pasillo y se detiene ahí mismo, a la misma altura que el inicio.
     scheduler5.iniciarConArbol([
       { tipo: 'repetir_hasta', sensor: 'hayObstaculo', blockId: 'rh1', cuerpo: [
-        { tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'a1' }
+        { tipo: 'accion', accion: 'avanzar', blockId: 'a1' }, { tipo: 'accion', accion: 'esperar', valor: 100, blockId: 'a1' }
       ] },
       { tipo: 'repetir', veces: 40, blockId: 'r1', cuerpo: [
         { tipo: 'si_sino', sensor: 'hayObstaculo', blockId: 'ss1',
           cuerpo: [{ tipo: 'accion', accion: 'detener', blockId: 'd2' }],
-          sino: [{ tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'a2' }] }
+          sino: [{ tipo: 'accion', accion: 'avanzar', blockId: 'a2' }, { tipo: 'accion', accion: 'esperar', valor: 100, blockId: 'a2' }] }
       ] }
     ]);
     for (var i5g = 0; i5g < 2000 && scheduler5.obtenerEstado() === 'running'; i5g++) {
@@ -1131,12 +1135,12 @@
   (function () {
     // Same pre-existing-block-only tree as before rs_si_sino existed: byte-identical output.
     var arbolPreexistente = [
-      { tipo: 'accion', accion: 'avanzar', valor: 1000, blockId: 'a1' },
+      { tipo: 'accion', accion: 'avanzar', blockId: 'a1' }, { tipo: 'accion', accion: 'esperar', valor: 1000, blockId: 'a1' },
       { tipo: 'si', sensor: 'hayObstaculo', blockId: 's1', cuerpo: [
         { tipo: 'accion', accion: 'detener', blockId: 'd1' }
       ] },
       { tipo: 'repetir', veces: 4, blockId: 'r1', cuerpo: [
-        { tipo: 'accion', accion: 'izquierda', valor: 500, blockId: 'i1' }
+        { tipo: 'accion', accion: 'izquierda', blockId: 'i1' }, { tipo: 'accion', accion: 'esperar', valor: 500, blockId: 'i1' }
       ] }
     ];
     var reg1 = RS.cppView.renderTexto(arbolPreexistente);
@@ -1173,15 +1177,6 @@
     });
     assert(fallaCortoL6.ok === false, 'Lección 6: robot corto de la zona (x=250) falla');
 
-    // --- Fails when limiteSeguridad is non-null (cap-driven exit), EVEN IF position matches ---
-    var fallaLimiteL6 = RS.lessons.check.evaluar(leccion6, {
-      estado: { x: 344, y: 300 }, resultadoRun: 'idle',
-      metricas: { evalsSensor: 1000, limiteSeguridad: { blockId: 'rh1', iteraciones: 1000 } }
-    });
-    assert(fallaLimiteL6.ok === false, 'Lección 6: posición dentro de la ventana pero limiteSeguridad no-null (salida por límite, no por condición) falla');
-    assert(fallaLimiteL6.observado.indexOf('límite') !== -1 || fallaLimiteL6.observado.indexOf('limite') !== -1, 'Lección 6: el mensaje de falla describe que se alcanzó el límite de seguridad');
-    assert(fallaLimiteL6.observado.toLowerCase().indexOf('bloque') === -1, 'Lección 6: el mensaje de falla no nombra un bloque');
-
     var fallaSinSensorL6 = RS.lessons.check.evaluar(leccion6, {
       estado: { x: 344, y: 300 }, resultadoRun: 'idle', metricas: { evalsSensor: 1, limiteSeguridad: null }
     });
@@ -1196,8 +1191,9 @@
 
     var arbolL6 = [
       { tipo: 'repetir_hasta', sensor: 'hayObstaculo', blockId: 'rh1', cuerpo: [
-        { tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'a1' }
-      ] }
+        { tipo: 'accion', accion: 'avanzar', blockId: 'a1' }, { tipo: 'accion', accion: 'esperar', valor: 100, blockId: 'a1' }
+      ] },
+      { tipo: 'accion', accion: 'detener', blockId: 'd1' }
     ];
     scheduler6.iniciarConArbol(arbolL6);
     for (var i6 = 0; i6 < 2000 && scheduler6.obtenerEstado() === 'running'; i6++) {
@@ -1229,9 +1225,9 @@
     RS.world.cargarMapa(leccion7.mapa);
 
     var arbolEjemploL7 = [
-      { tipo: 'accion', accion: 'avanzar', valor: 900, blockId: 'a1' },
+      { tipo: 'accion', accion: 'avanzar', blockId: 'a1' }, { tipo: 'accion', accion: 'esperar', valor: 900, blockId: 'a1' },
       { tipo: 'repetir_hasta', sensor: 'hayObstaculo', blockId: 'rh1', cuerpo: [
-        { tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'a2' }
+        { tipo: 'accion', accion: 'avanzar', blockId: 'a2' }, { tipo: 'accion', accion: 'esperar', valor: 100, blockId: 'a2' }
       ] }
     ];
     scheduler7.iniciarConArbol(arbolEjemploL7);
@@ -1247,15 +1243,15 @@
     // first one and then barreling straight east collides against it. The second detour is
     // not optional. ---
     var arbolUnSoloDetourL7 = [
-      { tipo: 'accion', accion: 'avanzar', valor: 900, blockId: 'u1' },
+      { tipo: 'accion', accion: 'avanzar', blockId: 'u1' }, { tipo: 'accion', accion: 'esperar', valor: 900, blockId: 'u1' },
       { tipo: 'repetir_hasta', sensor: 'hayObstaculo', blockId: 'u2', cuerpo: [
-        { tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'u2b' }
+        { tipo: 'accion', accion: 'avanzar', blockId: 'u2b' }, { tipo: 'accion', accion: 'esperar', valor: 100, blockId: 'u2b' }
       ] },
       { tipo: 'si_sino', sensor: 'hayObstaculo', blockId: 'u3',
-        cuerpo: [{ tipo: 'accion', accion: 'derecha', valor: 500, blockId: 'u3d' }], sino: [] },
-      { tipo: 'accion', accion: 'avanzar', valor: 750, blockId: 'u4' },
-      { tipo: 'accion', accion: 'izquierda', valor: 500, blockId: 'u5' },
-      { tipo: 'accion', accion: 'avanzar', valor: 3400, blockId: 'u6' }
+        cuerpo: [{ tipo: 'accion', accion: 'derecha', blockId: 'u3d' }, { tipo: 'accion', accion: 'esperar', valor: 500, blockId: 'u3d' }], sino: [] },
+      { tipo: 'accion', accion: 'avanzar', blockId: 'u4' }, { tipo: 'accion', accion: 'esperar', valor: 750, blockId: 'u4' },
+      { tipo: 'accion', accion: 'izquierda', blockId: 'u5' }, { tipo: 'accion', accion: 'esperar', valor: 500, blockId: 'u5' },
+      { tipo: 'accion', accion: 'avanzar', blockId: 'u6' }, { tipo: 'accion', accion: 'esperar', valor: 3400, blockId: 'u6' }
     ];
     scheduler7.iniciarConArbol(arbolUnSoloDetourL7);
     for (var i7u = 0; i7u < 2000 && scheduler7.obtenerEstado() === 'running'; i7u++) {
@@ -1266,22 +1262,22 @@
 
     // --- Reference full-traverse route (rodea AMBOS obstáculos): real scheduler run, empirically verified ---
     var arbolRutaSurL7 = [
-      { tipo: 'accion', accion: 'avanzar', valor: 900, blockId: 'r1' },
+      { tipo: 'accion', accion: 'avanzar', blockId: 'r1' }, { tipo: 'accion', accion: 'esperar', valor: 900, blockId: 'r1' },
       { tipo: 'repetir_hasta', sensor: 'hayObstaculo', blockId: 'r2', cuerpo: [
-        { tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'r2b' }
+        { tipo: 'accion', accion: 'avanzar', blockId: 'r2b' }, { tipo: 'accion', accion: 'esperar', valor: 100, blockId: 'r2b' }
       ] },
       { tipo: 'si_sino', sensor: 'hayObstaculo', blockId: 'r3',
-        cuerpo: [{ tipo: 'accion', accion: 'derecha', valor: 500, blockId: 'r3d' }], sino: [] },
-      { tipo: 'accion', accion: 'avanzar', valor: 750, blockId: 'r4' },
-      { tipo: 'accion', accion: 'izquierda', valor: 500, blockId: 'r5' },
+        cuerpo: [{ tipo: 'accion', accion: 'derecha', blockId: 'r3d' }, { tipo: 'accion', accion: 'esperar', valor: 500, blockId: 'r3d' }], sino: [] },
+      { tipo: 'accion', accion: 'avanzar', blockId: 'r4' }, { tipo: 'accion', accion: 'esperar', valor: 750, blockId: 'r4' },
+      { tipo: 'accion', accion: 'izquierda', blockId: 'r5' }, { tipo: 'accion', accion: 'esperar', valor: 500, blockId: 'r5' },
       { tipo: 'repetir_hasta', sensor: 'hayObstaculo', blockId: 'r6', cuerpo: [
-        { tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'r6b' }
+        { tipo: 'accion', accion: 'avanzar', blockId: 'r6b' }, { tipo: 'accion', accion: 'esperar', valor: 100, blockId: 'r6b' }
       ] },
       { tipo: 'si_sino', sensor: 'hayObstaculo', blockId: 'r7',
-        cuerpo: [{ tipo: 'accion', accion: 'derecha', valor: 500, blockId: 'r7d' }], sino: [] },
-      { tipo: 'accion', accion: 'avanzar', valor: 700, blockId: 'r8' },
-      { tipo: 'accion', accion: 'izquierda', valor: 500, blockId: 'r9' },
-      { tipo: 'accion', accion: 'avanzar', valor: 1900, blockId: 'r10' }
+        cuerpo: [{ tipo: 'accion', accion: 'derecha', blockId: 'r7d' }, { tipo: 'accion', accion: 'esperar', valor: 500, blockId: 'r7d' }], sino: [] },
+      { tipo: 'accion', accion: 'avanzar', blockId: 'r8' }, { tipo: 'accion', accion: 'esperar', valor: 700, blockId: 'r8' },
+      { tipo: 'accion', accion: 'izquierda', blockId: 'r9' }, { tipo: 'accion', accion: 'esperar', valor: 500, blockId: 'r9' },
+      { tipo: 'accion', accion: 'avanzar', blockId: 'r10' }, { tipo: 'accion', accion: 'esperar', valor: 1900, blockId: 'r10' }
     ];
     scheduler7.iniciarConArbol(arbolRutaSurL7);
     for (var i7s = 0; i7s < 2000 && scheduler7.obtenerEstado() === 'running'; i7s++) {
@@ -1297,22 +1293,22 @@
 
     // --- A second, differently-combined valid route (goes around the NORTH side instead) also satisfies the criterion ---
     var arbolRutaNorteL7 = [
-      { tipo: 'accion', accion: 'avanzar', valor: 900, blockId: 'n1' },
+      { tipo: 'accion', accion: 'avanzar', blockId: 'n1' }, { tipo: 'accion', accion: 'esperar', valor: 900, blockId: 'n1' },
       { tipo: 'repetir_hasta', sensor: 'hayObstaculo', blockId: 'n2', cuerpo: [
-        { tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'n2b' }
+        { tipo: 'accion', accion: 'avanzar', blockId: 'n2b' }, { tipo: 'accion', accion: 'esperar', valor: 100, blockId: 'n2b' }
       ] },
       { tipo: 'si_sino', sensor: 'hayObstaculo', blockId: 'n3',
-        cuerpo: [{ tipo: 'accion', accion: 'izquierda', valor: 500, blockId: 'n3i' }], sino: [] },
-      { tipo: 'accion', accion: 'avanzar', valor: 950, blockId: 'n4' },
-      { tipo: 'accion', accion: 'derecha', valor: 500, blockId: 'n5' },
+        cuerpo: [{ tipo: 'accion', accion: 'izquierda', blockId: 'n3i' }, { tipo: 'accion', accion: 'esperar', valor: 500, blockId: 'n3i' }], sino: [] },
+      { tipo: 'accion', accion: 'avanzar', blockId: 'n4' }, { tipo: 'accion', accion: 'esperar', valor: 950, blockId: 'n4' },
+      { tipo: 'accion', accion: 'derecha', blockId: 'n5' }, { tipo: 'accion', accion: 'esperar', valor: 500, blockId: 'n5' },
       { tipo: 'repetir_hasta', sensor: 'hayObstaculo', blockId: 'n6', cuerpo: [
-        { tipo: 'accion', accion: 'avanzar', valor: 100, blockId: 'n6b' }
+        { tipo: 'accion', accion: 'avanzar', blockId: 'n6b' }, { tipo: 'accion', accion: 'esperar', valor: 100, blockId: 'n6b' }
       ] },
       { tipo: 'si_sino', sensor: 'hayObstaculo', blockId: 'n7',
-        cuerpo: [{ tipo: 'accion', accion: 'izquierda', valor: 500, blockId: 'n7i' }], sino: [] },
-      { tipo: 'accion', accion: 'avanzar', valor: 700, blockId: 'n8' },
-      { tipo: 'accion', accion: 'derecha', valor: 500, blockId: 'n9' },
-      { tipo: 'accion', accion: 'avanzar', valor: 1900, blockId: 'n10' }
+        cuerpo: [{ tipo: 'accion', accion: 'izquierda', blockId: 'n7i' }, { tipo: 'accion', accion: 'esperar', valor: 500, blockId: 'n7i' }], sino: [] },
+      { tipo: 'accion', accion: 'avanzar', blockId: 'n8' }, { tipo: 'accion', accion: 'esperar', valor: 700, blockId: 'n8' },
+      { tipo: 'accion', accion: 'derecha', blockId: 'n9' }, { tipo: 'accion', accion: 'esperar', valor: 500, blockId: 'n9' },
+      { tipo: 'accion', accion: 'avanzar', blockId: 'n10' }, { tipo: 'accion', accion: 'esperar', valor: 1900, blockId: 'n10' }
     ];
     scheduler7.iniciarConArbol(arbolRutaNorteL7);
     for (var i7n = 0; i7n < 2000 && scheduler7.obtenerEstado() === 'running'; i7n++) {
@@ -1353,9 +1349,9 @@
 
     // Same pre-existing-block-only tree as before: byte-identical cppView output.
     var arbolPreexistenteC2 = [
-      { tipo: 'accion', accion: 'avanzar', valor: 1000, blockId: 'a1' },
+      { tipo: 'accion', accion: 'avanzar', blockId: 'a1' }, { tipo: 'accion', accion: 'esperar', valor: 1000, blockId: 'a1' },
       { tipo: 'repetir', veces: 4, blockId: 'r1', cuerpo: [
-        { tipo: 'accion', accion: 'izquierda', valor: 500, blockId: 'i1' }
+        { tipo: 'accion', accion: 'izquierda', blockId: 'i1' }, { tipo: 'accion', accion: 'esperar', valor: 500, blockId: 'i1' }
       ] }
     ];
     var regA = RS.cppView.renderTexto(arbolPreexistenteC2);

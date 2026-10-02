@@ -46,8 +46,6 @@
   function crear(tree, world, robotEstado, onSensorEval) {
     var stack = [{ tipo: 'root', cuerpo: tree || [], index: 0 }];
     var cambiosVariable = 0;
-    // Leaves queued by the TEMP-PR3 shim (see expandirLegacy below).
-    var cola = [];
 
     var tipos = recolectarDeclaraciones(tree);
     var entorno = {};
@@ -128,22 +126,6 @@
       return resultado;
     }
 
-    var MOVIMIENTOS = { avanzar: 1, retroceder: 1, izquierda: 1, derecha: 1 };
-
-    /**
-     * TEMP-PR3: transition shim. A movement node that still carries a `valor`
-     * (old "move for ms" shape) expands into the new model: motor leaf,
-     * esperar(valor), detener leaf, all with the same blockId. Removed in PR3
-     * once the lesson references are ported to Delay/detener.
-     */
-    function expandirLegacy(node) {
-      var bruto = typeof node.valor === 'object' ? evaluarValor(node.valor) : node.valor;
-      var ms = Math.max(0, Number(bruto) || 0);
-      cola.push({ tipo: 'accion', accion: 'esperar', valor: ms, blockId: node.blockId });
-      cola.push({ tipo: 'accion', accion: 'detener', blockId: node.blockId });
-      return { tipo: 'accion', accion: node.accion, blockId: node.blockId };
-    }
-
     function esBucle(frame) {
       return frame.tipo === 'repetir' || frame.tipo === 'repetir_hasta' || frame.tipo === 'por_siempre';
     }
@@ -159,7 +141,6 @@
     }
 
     function siguienteNodo() {
-      if (cola.length > 0) return cola.shift();
       while (stack.length > 0) {
         var top = stack[stack.length - 1];
 
@@ -185,9 +166,6 @@
           }
 
           if (node.tipo === 'accion') {
-            if (MOVIMIENTOS[node.accion] && Object.prototype.hasOwnProperty.call(node, 'valor')) {
-              return expandirLegacy(node);
-            }
             // A variable-driven duration resolves now, clamped at 0 (a
             // negative ms would otherwise hang delay() on the Arduino).
             if (node.valor && typeof node.valor === 'object') {
