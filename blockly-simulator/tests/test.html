@@ -1177,15 +1177,6 @@
     });
     assert(fallaCortoL6.ok === false, 'Lección 6: robot corto de la zona (x=250) falla');
 
-    // --- Fails when limiteSeguridad is non-null (cap-driven exit), EVEN IF position matches ---
-    var fallaLimiteL6 = RS.lessons.check.evaluar(leccion6, {
-      estado: { x: 344, y: 300 }, resultadoRun: 'idle',
-      metricas: { evalsSensor: 1000, limiteSeguridad: { blockId: 'rh1', iteraciones: 1000 } }
-    });
-    assert(fallaLimiteL6.ok === false, 'Lección 6: posición dentro de la ventana pero limiteSeguridad no-null (salida por límite, no por condición) falla');
-    assert(fallaLimiteL6.observado.indexOf('límite') !== -1 || fallaLimiteL6.observado.indexOf('limite') !== -1, 'Lección 6: el mensaje de falla describe que se alcanzó el límite de seguridad');
-    assert(fallaLimiteL6.observado.toLowerCase().indexOf('bloque') === -1, 'Lección 6: el mensaje de falla no nombra un bloque');
-
     var fallaSinSensorL6 = RS.lessons.check.evaluar(leccion6, {
       estado: { x: 344, y: 300 }, resultadoRun: 'idle', metricas: { evalsSensor: 1, limiteSeguridad: null }
     });

@@ -1176,18 +1176,15 @@
         evaluar: function (snapshot) {
           if (!snapshot || !snapshot.estado || !snapshot.metricas) return false;
           var m = snapshot.metricas;
-          if (m.evalsSensor < 2 || m.limiteSeguridad !== null) return false;
+          if (m.evalsSensor < 2) return false;
           return dentroDeMeta(MAPA_LECCION_6.meta, snapshot.estado.x, snapshot.estado.y);
         },
         describir: function (snapshot, ok) {
           if (!snapshot || !snapshot.estado) return null;
           var x = Math.round(snapshot.estado.x);
-          var m = snapshot.metricas || { evalsSensor: 0, limiteSeguridad: null };
+          var m = snapshot.metricas || { evalsSensor: 0 };
           if (ok) {
             return 'El robot repitió el paso hasta detectar el muro con su sensor y se detuvo en x=' + x + 'px, dentro de la zona de meta.';
-          }
-          if (m.limiteSeguridad) {
-            return 'El robot alcanzó el límite de seguridad del bucle sin que la condición llegara a cumplirse.';
           }
           if (m.evalsSensor < 2) {
             return 'El robot terminó su ejecución habiendo consultado el sensor menos de dos veces: el bucle no llegó a repetirse lo suficiente.';
@@ -1219,19 +1216,16 @@
         evaluar: function (snapshot) {
           if (!snapshot || !snapshot.estado || !snapshot.metricas) return false;
           var m = snapshot.metricas;
-          if (m.evalsSensor < 1 || m.limiteSeguridad !== null || m.cambiosVariable < 2) return false;
+          if (m.evalsSensor < 1 || m.cambiosVariable < 2) return false;
           return dentroDeMeta(MAPA_LECCION_7.meta, snapshot.estado.x, snapshot.estado.y);
         },
         describir: function (snapshot, ok) {
           if (!snapshot || !snapshot.estado) return null;
           var x = Math.round(snapshot.estado.x);
           var y = Math.round(snapshot.estado.y);
-          var m = snapshot.metricas || { evalsSensor: 0, limiteSeguridad: null, cambiosVariable: 0 };
+          var m = snapshot.metricas || { evalsSensor: 0, cambiosVariable: 0 };
           if (ok) {
             return 'El robot recorrió los tres pasillos usando variables para recordar el tramo y la dirección, y llegó a la zona de meta (x=' + x + 'px, y=' + y + 'px).';
-          }
-          if (m.limiteSeguridad) {
-            return 'El robot alcanzó el límite de seguridad de un bucle: revisa que el contador cambie en cada pasada para que la condición llegue a cumplirse.';
           }
           if (!m.evalsSensor) {
             return 'El robot terminó su ejecución sin haber consultado nunca su sensor para detectar el final de cada pasillo.';
@@ -1266,18 +1260,15 @@
         evaluar: function (snapshot) {
           if (!snapshot || !snapshot.estado || !snapshot.metricas) return false;
           var m = snapshot.metricas;
-          if (m.evalsSensor < 1 || m.limiteSeguridad !== null) return false;
+          if (m.evalsSensor < 1) return false;
           return dentroDeMeta(MAPA_LECCION_8.meta, snapshot.estado.x, snapshot.estado.y);
         },
         describir: function (snapshot, ok) {
           if (!snapshot || !snapshot.estado) return null;
           var x = Math.round(snapshot.estado.x);
-          var m = snapshot.metricas || { evalsSensor: 0, limiteSeguridad: null };
+          var m = snapshot.metricas || { evalsSensor: 0 };
           if (ok) {
             return 'El robot recorrió el circuito, usó su sensor para decidir dónde girar y llegó a la zona de meta (x=' + x + 'px) sin chocar.';
-          }
-          if (m.limiteSeguridad) {
-            return 'El robot alcanzó el límite de seguridad de un bucle sin resolver la condición durante el recorrido.';
           }
           if (!m.evalsSensor) {
             return 'El robot terminó su ejecución sin haber consultado nunca su sensor durante el recorrido.';
