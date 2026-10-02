@@ -1,11 +1,11 @@
 /**
  * RS block definitions: the 5 action blocks (avanzar, retroceder, izquierda,
- * derecha, detener) plus hayObstaculo()/medirDistancia() sensor blocks,
- * the repeat-N-times block, the repeat-until block (pre-test, "while not",
- * with a mandatory safety-iteration cap), the "por siempre" forever loop
- * (also capped), the "si" decision block, and
+ * derecha, detener; no duration, they only set the motor state) plus
+ * hayObstaculo()/medirDistancia() sensor blocks,
+ * the repeat-N-times block, the repeat-until block (pre-test, "while not"),
+ * the "por siempre" forever loop, the "Salir" break, the "si" decision block, and
  * "si/si no" (fixed two-slot if/else, no mutator). Also: rs_inicio (hat, no
- * code), rs_espera (simulator/sketch-only wait), and rs_comparar (usable
+ * code), rs_espera (Delay(ms), the only block that consumes time), and rs_comparar (usable
  * inside any COND value input). Variables (COLOR_VARIABLES): rs_declarar_variable,
  * rs_asignar_variable, rs_cambiar_variable, rs_obtener_variable and the
  * rs_booleano literal — a custom (non-native-Blockly) int/bool variable model
@@ -25,36 +25,34 @@
   var COLOR_INICIO = 0;
   var COLOR_VARIABLES = 330;
 
-  function movementBlock(type, label) {
+  // Movement blocks only set the motor state (0 ms): they carry no duration.
+  // Time passes in Delay(ms) (rs_espera) and nowhere else.
+  function movementBlock(type, label, tooltip) {
     Blockly.Blocks[type] = {
       init: function () {
-        this.appendValueInput('MS')
-          .setCheck('Number')
-          .appendField(label + '(');
-        this.appendDummyInput().appendField(') ms', 'SUFFIX');
-        this.setInputsInline(true);
+        this.appendDummyInput().appendField(label + '()');
         this.setPreviousStatement(true, null);
         this.setNextStatement(true, null);
         this.setColour(COLOR_MOVIMIENTO);
-        this.setTooltip(label + '(ms): mueve el robot durante ms milisegundos.');
+        this.setTooltip(tooltip);
       }
     };
   }
 
   // --- Movimiento ---
-  movementBlock('rs_avanzar', 'avanzar');
-  movementBlock('rs_retroceder', 'retroceder');
-  movementBlock('rs_izquierda', 'izquierda');
-  movementBlock('rs_derecha', 'derecha');
+  movementBlock('rs_avanzar', 'avanzar', 'avanzar(): enciende ambos motores hacia adelante y no los apaga hasta otro movimiento o detener().');
+  movementBlock('rs_retroceder', 'retroceder', 'retroceder(): enciende ambos motores hacia atrás y no los apaga hasta otro movimiento o detener().');
+  movementBlock('rs_izquierda', 'izquierda', 'izquierda(): gira el robot a la izquierda hasta otro movimiento o detener().');
+  movementBlock('rs_derecha', 'derecha', 'derecha(): gira el robot a la derecha hasta otro movimiento o detener().');
 
   Blockly.Blocks['rs_detener'] = {
     init: function () {
       this.appendDummyInput().appendField('detener()');
       this.setPreviousStatement(true, null);
-      // Terminal block: it ends the program, so nothing can follow it.
-      this.setNextStatement(false);
+      // Non-terminal: it only turns both motors off and the program goes on.
+      this.setNextStatement(true, null);
       this.setColour(COLOR_MOVIMIENTO);
-      this.setTooltip('detener(): termina el programa.');
+      this.setTooltip('detener(): apaga ambos motores.');
     }
   };
 
@@ -150,20 +148,20 @@
     }
   };
 
-  // --- Espera ---
+  // --- Delay ---
   // Maps to the 'esperar' action (simulator/sketch-only — deliberately NOT
   // part of RS.config.ACCIONES, the firmware's mqtt_handler.h vocabulary).
   Blockly.Blocks['rs_espera'] = {
     init: function () {
       this.appendValueInput('MS')
         .setCheck('Number')
-        .appendField('esperar(');
+        .appendField('Delay(');
       this.appendDummyInput().appendField(') ms', 'SUFFIX');
       this.setInputsInline(true);
       this.setPreviousStatement(true, null);
       this.setNextStatement(true, null);
       this.setColour(COLOR_MOVIMIENTO);
-      this.setTooltip('esperar(ms): pausa la ejecución durante ms milisegundos sin mover el robot.');
+      this.setTooltip('Delay(ms): deja pasar ms milisegundos con los motores como estén (es el único bloque que consume tiempo).');
     }
   };
 
@@ -183,9 +181,8 @@
     }
   };
 
-  // rs_repetir_hasta — indefinite pre-test ("while not") loop with a
-  // mandatory safety cap (RS.config.MAX_ITER_REPETIR_HASTA, enforced in
-  // src/runtime/interpreter.js). Reuses the exact COND value-input pattern
+  // rs_repetir_hasta — indefinite pre-test ("while not") loop, uncapped (each
+  // pass costs an implicit loop tick in the interpreter). Reuses the exact COND value-input pattern
   // from rs_si_obstaculo/rs_si_sino (same rs_hay_obstaculo default shadow,
   // same rs_comparar swap-in rule). Maps to a NEW program-tree node type
   // ('repetir_hasta', see program-tree.js) — kept distinct from rs_repetir,
@@ -197,14 +194,14 @@
       this.setPreviousStatement(true, null);
       this.setNextStatement(true, null);
       this.setColour(COLOR_REPETICION);
-      this.setTooltip('Repite el cuerpo hasta que la condición sea verdadera (evaluada antes de cada repetición). Tiene un límite de seguridad de iteraciones.');
+      this.setTooltip('Repite el cuerpo hasta que la condición sea verdadera (evaluada antes de cada repetición).');
       this.setInputsInline(true);
     }
   };
 
   // rs_por_siempre — forever loop. Chainable (has a next connection), so it
   // does not have to be the last block. Maps to the 'por_siempre' program-tree
-  // node; the interpreter bounds it with RS.config.MAX_ITER_POR_SIEMPRE.
+  // node; it repeats until Salir runs or the user stops the run.
   Blockly.Blocks['rs_por_siempre'] = {
     init: function () {
       this.appendDummyInput().appendField('por siempre');
@@ -212,7 +209,20 @@
       this.setPreviousStatement(true, null);
       this.setNextStatement(true, null);
       this.setColour(COLOR_REPETICION);
-      this.setTooltip('Repite el cuerpo sin parar, hasta que se ejecute detener().');
+      this.setTooltip('Repite el cuerpo sin parar, hasta que se ejecute Salir.');
+    }
+  };
+
+  // rs_salir — plain break (no condition). Previous connection only: nothing
+  // can follow it. Maps to the 'salir' node, which exits the nearest loop;
+  // program-tree.js blocks the run when no enclosing loop exists.
+  Blockly.Blocks['rs_salir'] = {
+    init: function () {
+      this.appendDummyInput().appendField('Salir');
+      this.setPreviousStatement(true, null);
+      this.setNextStatement(false);
+      this.setColour(COLOR_REPETICION);
+      this.setTooltip('Salir: sale del bucle más cercano (repetir, repetir hasta o por siempre) y sigue con el bloque que viene después.');
     }
   };
 
@@ -320,7 +330,7 @@
     INICIO_TYPES: ['rs_inicio'],
     MOVIMIENTO_TYPES: ['rs_avanzar', 'rs_retroceder', 'rs_izquierda', 'rs_derecha', 'rs_detener', 'rs_espera'],
     SENSOR_TYPES: ['rs_hay_obstaculo', 'rs_medir_distancia', 'rs_si_obstaculo', 'rs_si_sino', 'rs_comparar'],
-    REPETICION_TYPES: ['rs_repetir', 'rs_repetir_hasta', 'rs_por_siempre'],
+    REPETICION_TYPES: ['rs_repetir', 'rs_repetir_hasta', 'rs_por_siempre', 'rs_salir'],
     VARIABLES_TYPES: VARIABLES_TYPES,
     normalizarNombreVariable: normalizarNombreVariable
   };

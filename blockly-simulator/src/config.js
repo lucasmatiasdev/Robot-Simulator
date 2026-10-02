@@ -35,21 +35,6 @@
     GIRO: 0.18, // degrees per ms (izquierda/derecha), value NOT divided by 4
     VEL: 0.12, // px per ms (avanzar/retroceder)
 
-    // Mandatory safety bound for rs_repetir_hasta (pre-test "while not" loop).
-    // The interpreter's tree walker is an explicit-stack loop that can spin
-    // synchronously forever if the loop body yields no leaf action and the
-    // condition never becomes true (e.g. an empty body) -- see
-    // src/runtime/interpreter.js's `repetir_hasta` handling. This cap makes
-    // that walk provably terminating. Mirrors rs_repetir's existing
-    // FieldNumber(4,1,1000) ceiling.
-    MAX_ITER_REPETIR_HASTA: 1000,
-
-    // Same kind of bound for rs_por_siempre ("forever" loop): an empty or
-    // leaf-less body would spin the interpreter's synchronous walk forever,
-    // so the simulator trips after this many body passes (see
-    // src/runtime/interpreter.js). The generated C++ has no such cap.
-    MAX_ITER_POR_SIEMPRE: 1000,
-
     // Max simulated ms advanced per collision-checked sub-step within a single
     // requestAnimationFrame callback. A real rAF frame's dt can spike well
     // beyond a normal ~16ms frame (backgrounded tab, GC pause, slow device),

@@ -136,7 +136,7 @@
     }
 
     // Lesson 1 is pure identification (no block-building required), but it
-    // still has a real goal: this preloads INICIO -> avanzar(ms) -> detener()
+    // still has a real goal: this preloads INICIO -> avanzar -> Delay(ms) -> detener()
     // into the live Blockly workspace so the student presses Ejecutar and
     // watches the robot reach the meta. The ms value lives in content.js
     // (RS.lessons.MS_PRECARGA_LECCION_1), the single source shared with the
@@ -147,22 +147,26 @@
     function precargarProgramaLeccion1(ws) {
       var inicio = ws.newBlock('rs_inicio');
       var avanzar = ws.newBlock('rs_avanzar');
+      var espera = ws.newBlock('rs_espera');
       var numero = ws.newBlock('rs_numero');
       var detener = ws.newBlock('rs_detener');
 
       inicio.initSvg();
       avanzar.initSvg();
+      espera.initSvg();
       numero.initSvg();
       detener.initSvg();
 
       numero.getField('NUM').setValue(MS_PRECARGA_LECCION_1);
 
       inicio.nextConnection.connect(avanzar.previousConnection);
-      avanzar.nextConnection.connect(detener.previousConnection);
-      avanzar.getInput('MS').connection.connect(numero.outputConnection);
+      avanzar.nextConnection.connect(espera.previousConnection);
+      espera.nextConnection.connect(detener.previousConnection);
+      espera.getInput('MS').connection.connect(numero.outputConnection);
 
       inicio.render();
       avanzar.render();
+      espera.render();
       numero.render();
       detener.render();
 
