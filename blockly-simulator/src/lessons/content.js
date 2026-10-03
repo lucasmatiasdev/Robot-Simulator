@@ -1009,74 +1009,30 @@
   var GRID_LECCION_5 = {
     version: 1, cols: 20, rows: 15,
     muros: [
-      { col: 0, row: 0, colSpan: 20 },
-      { col: 1, row: 1 },
-      { col: 3, row: 1, colSpan: 17 },
-      { col: 16, row: 2, colSpan: 4 },
-      { col: 14, row: 3 },
-      { col: 16, row: 3, colSpan: 4 },
-      { col: 14, row: 4, colSpan: 6 },
-      { col: 0, row: 10, colSpan: 2 },
+      { col: 0, row: 0, colSpan: 2 },
+      { col: 3, row: 0, colSpan: 17 },
+      { col: 18, row: 1, colSpan: 2 },
+      { col: 18, row: 2, colSpan: 2 },
+      { col: 18, row: 3, colSpan: 2 },
+      { col: 18, row: 4, colSpan: 2 },
+      { col: 0, row: 10 },
       { col: 0, row: 11 },
-      { col: 0, row: 12, colSpan: 6, rowSpan: 3 },
-      { col: 16, row: 10, colSpan: 4 },
-      { col: 17, row: 11, colSpan: 3 },
-      { col: 16, row: 12, colSpan: 4 },
-      { col: 14, row: 13, colSpan: 6 },
+      { col: 0, row: 12 },
+      { col: 0, row: 13 },
+      { col: 0, row: 14, colSpan: 6 },
+      { col: 18, row: 10, colSpan: 2 },
+      { col: 18, row: 11, colSpan: 2 },
+      { col: 18, row: 12, colSpan: 2 },
+      { col: 18, row: 13, colSpan: 2 },
       { col: 14, row: 14, colSpan: 6 },
-      { col: 1, row: 11 },
-      { col: 2, row: 11 },
-      { col: 3, row: 11 },
-      { col: 4, row: 11 },
-      { col: 3, row: 10 },
-      { col: 2, row: 10 },
-      { col: 4, row: 10 },
-      { col: 5, row: 10 },
-      { col: 5, row: 11 },
       { col: 7, row: 14 },
-      { col: 7, row: 13 },
-      { col: 7, row: 12 },
-      { col: 7, row: 11 },
-      { col: 7, row: 10 },
-      { col: 6, row: 10 },
-      { col: 6, row: 11 },
-      { col: 6, row: 12 },
-      { col: 6, row: 13 },
       { col: 6, row: 14 },
-      { col: 14, row: 10 },
-      { col: 15, row: 10 },
-      { col: 16, row: 11 },
-      { col: 15, row: 12 },
-      { col: 15, row: 11 },
-      { col: 14, row: 12 },
-      { col: 14, row: 11 },
-      { col: 2, row: 1 },
       { col: 0, row: 1 },
       { col: 0, row: 5 },
-      { col: 1, row: 5 },
-      { col: 2, row: 5 },
-      { col: 3, row: 5 },
-      { col: 4, row: 5 },
-      { col: 5, row: 5 },
-      { col: 6, row: 5 },
-      { col: 7, row: 5 },
-      { col: 8, row: 5 },
-      { col: 9, row: 5 },
-      { col: 9, row: 6 },
       { col: 9, row: 7 },
       { col: 9, row: 8 },
-      { col: 9, row: 9 },
-      { col: 9, row: 10 },
-      { col: 9, row: 11 },
-      { col: 9, row: 12 },
-      { col: 9, row: 13 },
       { col: 9, row: 14 },
       { col: 8, row: 14 },
-      { col: 8, row: 13 },
-      { col: 8, row: 12 },
-      { col: 8, row: 11 },
-      { col: 8, row: 10 },
-      { col: 8, row: 9 },
       { col: 8, row: 8 },
       { col: 8, row: 7 },
       { col: 8, row: 6 },
@@ -1085,7 +1041,6 @@
       { col: 5, row: 6 },
       { col: 4, row: 6 },
       { col: 3, row: 6 },
-      { col: 2, row: 6 },
       { col: 1, row: 6 },
       { col: 0, row: 6 },
       { col: 0, row: 7 },
@@ -1095,47 +1050,17 @@
       { col: 1, row: 7 },
       { col: 2, row: 7 },
       { col: 2, row: 8 },
-      { col: 2, row: 9 },
-      { col: 1, row: 9 },
       { col: 3, row: 7 },
       { col: 3, row: 8 },
-      { col: 3, row: 9 },
       { col: 4, row: 8 },
       { col: 4, row: 7 },
       { col: 5, row: 7 },
-      { col: 4, row: 9 },
-      { col: 5, row: 9 },
       { col: 5, row: 8 },
       { col: 6, row: 8 },
       { col: 6, row: 7 },
       { col: 7, row: 7 },
       { col: 7, row: 8 },
-      { col: 6, row: 9 },
-      { col: 7, row: 9 },
-      { col: 14, row: 9 },
-      { col: 14, row: 8 },
-      { col: 14, row: 7 },
-      { col: 14, row: 6 },
-      { col: 14, row: 5 },
-      { col: 14, row: 2 },
-      { col: 15, row: 2 },
-      { col: 15, row: 3 },
-      { col: 15, row: 5 },
-      { col: 15, row: 6 },
-      { col: 15, row: 7 },
-      { col: 15, row: 8 },
-      { col: 16, row: 8 },
-      { col: 16, row: 9 },
-      { col: 17, row: 7 },
-      { col: 17, row: 6 },
-      { col: 17, row: 5 },
-      { col: 16, row: 5 },
-      { col: 16, row: 6 },
-      { col: 16, row: 7 },
-      { col: 15, row: 9 },
-      { col: 17, row: 8 },
       { col: 18, row: 7 },
-      { col: 17, row: 9 },
       { col: 18, row: 9 },
       { col: 18, row: 8 },
       { col: 18, row: 6 },
@@ -1145,21 +1070,68 @@
       { col: 19, row: 7 },
       { col: 19, row: 6 },
       { col: 19, row: 5 },
-      { col: 13, row: 12 },
-      { col: 12, row: 12 },
-      { col: 11, row: 12 },
-      { col: 10, row: 12 },
-      { col: 10, row: 13 },
-      { col: 11, row: 13 },
-      { col: 12, row: 13 },
-      { col: 13, row: 13 },
       { col: 10, row: 14 },
       { col: 11, row: 14 },
       { col: 12, row: 14 },
-      { col: 13, row: 14 }
+      { col: 13, row: 14 },
+      { col: 11, row: 6 },
+      { col: 12, row: 6 },
+      { col: 10, row: 7 },
+      { col: 10, row: 8 },
+      { col: 12, row: 7 },
+      { col: 11, row: 8 },
+      { col: 12, row: 8 },
+      { col: 11, row: 7 },
+      { col: 0, row: 4 },
+      { col: 0, row: 2 },
+      { col: 0, row: 3 },
+      { col: 9, row: 6 },
+      { col: 10, row: 6 },
+      { col: 2, row: 0 },
+      { col: 2, row: 1 },
+      { col: 1, row: 1 },
+      { col: 1, row: 2 },
+      { col: 1, row: 3 },
+      { col: 2, row: 3 },
+      { col: 2, row: 4 },
+      { col: 2, row: 5 },
+      { col: 2, row: 6 },
+      { col: 1, row: 5 },
+      { col: 1, row: 4 },
+      { col: 2, row: 2 },
+      { col: 3, row: 1 },
+      { col: 3, row: 2 },
+      { col: 3, row: 3 },
+      { col: 3, row: 4 },
+      { col: 3, row: 5 },
+      { col: 4, row: 5 },
+      { col: 4, row: 2 },
+      { col: 4, row: 3 },
+      { col: 4, row: 4 },
+      { col: 4, row: 1 },
+      { col: 4, row: 9 },
+      { col: 4, row: 10 },
+      { col: 3, row: 10 },
+      { col: 3, row: 11 },
+      { col: 4, row: 12 },
+      { col: 4, row: 13 },
+      { col: 3, row: 13 },
+      { col: 3, row: 12 },
+      { col: 4, row: 11 },
+      { col: 3, row: 9 },
+      { col: 2, row: 9 },
+      { col: 2, row: 10 },
+      { col: 2, row: 11 },
+      { col: 2, row: 12 },
+      { col: 1, row: 9 },
+      { col: 1, row: 10 },
+      { col: 1, row: 11 },
+      { col: 1, row: 12 },
+      { col: 2, row: 13 },
+      { col: 1, row: 13 }
     ],
-    inicio: { col: 1, row: 3, angulo: 0 },
-    meta: { col: 10, row: 10, colSpan: 4, rowSpan: 2 }
+    inicio: { col: 7, row: 3, angulo: 0 },
+    meta: { col: 5, row: 9, colSpan: 5, rowSpan: 5 }
   };
   var MAPA_LECCION_5 = RS.gridAdapter.aPixeles(GRID_LECCION_5);
   var GRID_LECCION_6 = {
@@ -1447,14 +1419,19 @@
       mapa: MAPA_LECCION_4,
       criterio: {
         evaluar: function (snapshot) {
-          if (!snapshot || !snapshot.estado) return false;
+          if (!snapshot || !snapshot.estado || !snapshot.metricas) return false;
+          if (snapshot.metricas.evalsSensor < 1) return false;
           return dentroDeMeta(MAPA_LECCION_4.meta, snapshot.estado.x, snapshot.estado.y);
         },
         describir: function (snapshot, ok) {
           if (!snapshot || !snapshot.estado) return null;
           var x = Math.round(snapshot.estado.x);
+          var evals = snapshot.metricas ? snapshot.metricas.evalsSensor : 0;
           if (ok) {
-            return 'El robot se detuvo dentro de la zona de meta (x=' + x + 'px).';
+            return 'El robot consultó su sensor y se detuvo dentro de la zona de meta, cerca del muro del fondo (x=' + x + 'px).';
+          }
+          if (!evals) {
+            return 'El robot terminó su ejecución sin haber consultado nunca su sensor de distancia.';
           }
           return 'El robot terminó en x=' + x + 'px, fuera de la zona de meta.';
         }
@@ -1481,23 +1458,15 @@
       mapa: MAPA_LECCION_5,
       criterio: {
         evaluar: function (snapshot) {
-          if (!snapshot || !snapshot.estado || !snapshot.metricas) return false;
-          if (snapshot.metricas.evalsSensor < 1) return false;
+          if (!snapshot || !snapshot.estado) return false;
           return dentroDeMeta(MAPA_LECCION_5.meta, snapshot.estado.x, snapshot.estado.y);
         },
         describir: function (snapshot, ok) {
           if (!snapshot || !snapshot.estado) return null;
           var x = Math.round(snapshot.estado.x);
           var y = Math.round(snapshot.estado.y);
-          var evals = snapshot.metricas ? snapshot.metricas.evalsSensor : 0;
           if (ok) {
-            return 'El robot consultó su sensor, tomó la decisión correcta y terminó en x=' + x + 'px, y=' + y + 'px, dentro de la zona de meta.';
-          }
-          if (!evals) {
-            return 'El robot terminó su ejecución sin haber consultado nunca su sensor, por lo que nunca tomó una decisión basada en lo que percibe.';
-          }
-          if (mismaAlturaQueInicio(snapshot, y)) {
-            return 'El robot consultó su sensor pero terminó casi a la misma altura que al inicio (y=' + y + 'px): la rama tomada no cambió su dirección de avance.';
+            return 'El robot recorrió el camino y se detuvo dentro de la zona de meta (x=' + x + 'px, y=' + y + 'px).';
           }
           return 'El robot terminó en x=' + x + 'px, y=' + y + 'px, fuera de la zona de meta.';
         }
