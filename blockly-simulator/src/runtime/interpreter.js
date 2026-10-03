@@ -1,9 +1,9 @@
 /**
  * RS.runtime.interpreter — explicit-stack tree walker over the program tree.
- * Descends into `repetir`/`si`/`si_sino`/`repetir_hasta`/`por_siempre` bodies
+ * Descends into `repetir`/`si`/`si_sino`/`repetir_hasta`/`mientras`/`por_siempre` bodies
  * at runtime (never pre-expanded); conditions and repetitions are evaluated
  * live, one leaf at a time. Loops are uncapped: every completed body pass of
- * repetir / repetir_hasta / por_siempre yields a `tick` leaf (implicit
+ * repetir / repetir_hasta / mientras / por_siempre yields a `tick` leaf (implicit
  * LOOP_TICK_MS of sim time) before the loop condition is re-evaluated, and
  * `salir` unwinds to the nearest enclosing loop.
  *
@@ -64,6 +64,8 @@
       var resultado;
       if (nombre === 'hayObstaculo') {
         resultado = RS.sensors.hayObstaculo(world, robotEstado);
+      } else if (nombre === 'noHayObstaculo') {
+        resultado = !RS.sensors.hayObstaculo(world, robotEstado);
       } else {
         throw new Error('Sensor desconocido: ' + nombre);
       }
@@ -82,6 +84,7 @@
       if (expr.k === 'variable') return Object.prototype.hasOwnProperty.call(entorno, expr.nombre) ? entorno[expr.nombre] : 0;
       if (expr.k === 'medirDistancia') return RS.sensors.medirDistancia(world, robotEstado);
       if (expr.k === 'hayObstaculo') return RS.sensors.hayObstaculo(world, robotEstado);
+      if (expr.k === 'noHayObstaculo') return !RS.sensors.hayObstaculo(world, robotEstado);
       if (expr.k === 'comparar') return evaluarCondicion(expr);
       return 0;
     }
@@ -126,8 +129,13 @@
       return resultado;
     }
 
+    /** Evaluates a si/loop node's condition: a `condicion` tree or a named `sensor`. */
+    function cumpleCond(node) {
+      return node.condicion ? evaluarCondicion(node.condicion) : evaluarSensor(node.sensor);
+    }
+
     function esBucle(frame) {
-      return frame.tipo === 'repetir' || frame.tipo === 'repetir_hasta' || frame.tipo === 'por_siempre';
+      return frame.tipo === 'repetir' || frame.tipo === 'repetir_hasta' || frame.tipo === 'mientras' || frame.tipo === 'por_siempre';
     }
 
     /** Pops frames up to and including the nearest loop; no-op if none. */
@@ -209,6 +217,15 @@
             continue;
           }
 
+          if (node.tipo === 'mientras') {
+            // Pre-test loop: zero iterations when the condition is false at
+            // encounter; otherwise push a loop frame (back-edge below).
+            if (cumpleCond(node)) {
+              stack.push({ tipo: 'mientras', cuerpo: node.cuerpo, index: 0, node: node });
+            }
+            continue;
+          }
+
           if (node.tipo === 'por_siempre') {
             // Unconditional loop: always pushes a frame. Only `salir` (or
             // the user stopping the run) ends it.
@@ -262,6 +279,16 @@
           // "while not" semantics).
           var cumpleFin = top.node.condicion ? evaluarCondicion(top.node.condicion) : evaluarSensor(top.node.sensor);
           if (cumpleFin) {
+            stack.pop();
+            continue;
+          }
+          top.index = 0;
+          continue;
+        }
+
+        if (top.tipo === 'mientras') {
+          // Body pass done (and tick yielded): re-test the condition.
+          if (!cumpleCond(top.node)) {
             stack.pop();
             continue;
           }

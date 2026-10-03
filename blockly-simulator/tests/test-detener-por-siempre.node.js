@@ -339,62 +339,84 @@ function tiposCategoria(toolbox, nombre) {
   return cat ? cat.contents.map(function (b) { return b.type; }) : null;
 }
 
-function tiposRepeticion(toolbox) {
-  return tiposCategoria(toolbox, 'Repetición');
+var TABLA = RS.toolbox.DESBLOQUEOS_POR_LECCION;
+
+/** Every distinct block type a toolbox offers, across all categories (presets share a type). */
+function todosLosTipos(toolbox) {
+  var out = [];
+  toolbox.contents.forEach(function (c) {
+    c.contents.forEach(function (b) { if (out.indexOf(b.type) === -1) out.push(b.type); });
+  });
+  return out;
 }
 
-function tiposSensor(toolbox) {
-  return tiposCategoria(toolbox, 'Sensores/Decisión');
+/** Cumulative expected type set for lesson `n`, straight from the spec table. */
+var ESPERADO = {
+  1: ['rs_inicio', 'rs_avanzar', 'rs_detener', 'rs_espera'],
+  3: ['rs_derecha', 'rs_izquierda', 'rs_retroceder'],
+  4: ['rs_declarar_variable', 'rs_obtener_variable'],
+  5: ['rs_repetir'],
+  6: ['rs_mientras', 'rs_si_obstaculo', 'rs_si_sino', 'rs_hay_obstaculo', 'rs_salir'],
+  7: ['rs_no_hay_obstaculo']
+};
+function acumulado(n) {
+  var out = [];
+  for (var id = 1; id <= n; id++) out = out.concat(ESPERADO[id] || []);
+  return out.sort();
 }
 
-var l6 = tiposRepeticion(RS.toolbox.paraLeccion(6));
-assert(l6 !== null && l6.indexOf('rs_por_siempre') === -1, 'L6: la categoria Repeticion NO contiene rs_por_siempre');
-assert(l6 !== null && l6.indexOf('rs_repetir') !== -1 && l6.indexOf('rs_repetir_hasta') !== -1, 'L6: conserva rs_repetir y rs_repetir_hasta');
-[1, 2, 3, 4].forEach(function (n) {
-  var rep = tiposRepeticion(RS.toolbox.paraLeccion(n));
-  assert(rep === null || rep.indexOf('rs_salir') === -1, 'L' + n + ': Salir no esta disponible antes de L5');
-});
-[5, 6].forEach(function (n) {
-  assert(tiposRepeticion(RS.toolbox.paraLeccion(n)).indexOf('rs_salir') !== -1, 'L' + n + ': Salir esta disponible');
-});
-assert(tiposRepeticion(RS.toolbox.paraLeccion(7)).indexOf('rs_salir') !== -1, 'L7: Salir esta disponible');
-assert(tiposRepeticion(RS.toolbox).indexOf('rs_salir') !== -1, 'RS.toolbox (sandbox) contiene rs_salir');
-['Movimiento'].forEach(function (nombre) {
-  var cat = RS.toolbox.contents.filter(function (c) { return c.name === nombre; })[0];
-  assert(cat.contents.every(function (b) { return !b.inputs || b.type === 'rs_espera'; }), 'toolbox: solo Delay lleva shadow de MS, los movimientos no');
-});
-assert(tiposRepeticion(RS.toolbox.paraLeccion(7)).indexOf('rs_por_siempre') !== -1, 'L7: la categoria Repeticion contiene rs_por_siempre');
-assert(tiposRepeticion(RS.toolbox).indexOf('rs_por_siempre') !== -1, 'RS.toolbox (sandbox) contiene rs_por_siempre');
+for (var n = 1; n <= 8; n++) {
+  var tiposN = todosLosTipos(RS.toolbox.paraLeccion(n)).sort();
+  assertEquals(tiposN, acumulado(n), 'L' + n + ': el toolbox ofrece exactamente el conjunto acumulado de bloques');
+  assert(tiposN.indexOf('rs_repetir_hasta') === -1, 'L' + n + ': rs_repetir_hasta no esta en el toolbox');
+  assert(RS.toolbox.paraLeccion(n).contents.every(function (c) { return c.contents.length > 0; }), 'L' + n + ': no hay categorias vacias');
+}
+assertEquals(Object.keys(TABLA), ['1', '2', '3', '4', '5', '6', '7', '8'], 'la tabla de desbloqueos cubre las lecciones 1..8');
 
-[4, 5, 6].forEach(function (n) {
-  var tipos = tiposRepeticion(RS.toolbox.paraLeccion(n));
-  assert(tipos !== null, 'L' + n + ': la categoria Repeticion existe');
-  assert(tipos !== null && tipos.indexOf('rs_repetir') !== -1 && tipos.indexOf('rs_repetir_hasta') !== -1,
-    'L' + n + ': la categoria Repeticion contiene rs_repetir y rs_repetir_hasta');
-  assert(tipos !== null && tipos.indexOf('rs_por_siempre') === -1, 'L' + n + ': la categoria Repeticion NO contiene rs_por_siempre todavia');
+// Category layout for the early lessons.
+assertEquals(RS.toolbox.paraLeccion(1).contents.map(function (c) { return c.name; }), ['Inicio', 'Movimiento', 'Temporales'],
+  'L1: categorias Inicio, Movimiento y Temporales');
+assertEquals(tiposCategoria(RS.toolbox.paraLeccion(1), 'Movimiento'), ['rs_avanzar', 'rs_detener'], 'L1: Movimiento solo ofrece avanzar y detener');
+assertEquals(RS.toolbox.paraLeccion(4).contents.map(function (c) { return c.name; }), ['Inicio', 'Movimiento', 'Temporales', 'Variables'],
+  'L4: aparece la categoria Variables');
+assertEquals(tiposCategoria(RS.toolbox.paraLeccion(6), 'Decisión'), ['rs_si_obstaculo', 'rs_si_sino'], 'L6: Decision ofrece si y si/si no');
+assertEquals(tiposCategoria(RS.toolbox.paraLeccion(6), 'Sensores'), ['rs_hay_obstaculo'], 'L6: Sensores solo ofrece hayObstaculo');
+assertEquals(tiposCategoria(RS.toolbox.paraLeccion(7), 'Sensores'), ['rs_hay_obstaculo', 'rs_no_hay_obstaculo'], 'L7: Sensores suma noHayObstaculo');
+assertEquals(tiposCategoria(RS.toolbox.paraLeccion(8), 'Repetición'), ['rs_repetir', 'rs_mientras', 'rs_salir'], 'L8: Repeticion ofrece repetir, mientras y Salir');
+
+// Temporales holds only Delay; movement blocks carry no shadow inputs.
+assertEquals(tiposCategoria(RS.toolbox, 'Temporales'), ['rs_espera'], 'Temporales contiene solo rs_espera');
+assertEquals(RS.blocks.TEMPORALES_TYPES, ['rs_espera'], 'RS.blocks.TEMPORALES_TYPES contiene solo rs_espera');
+assert(RS.blocks.MOVIMIENTO_TYPES.indexOf('rs_espera') === -1, 'rs_espera ya no pertenece a MOVIMIENTO_TYPES');
+assert(RS.toolbox.contents.filter(function (c) { return c.name === 'Movimiento'; })[0].contents.every(function (b) { return !b.inputs; }),
+  'toolbox: los movimientos no llevan shadow de MS');
+assertEquals(RS.toolbox.contents.filter(function (c) { return c.name === 'Temporales'; })[0].contents[0].inputs.MS.shadow.fields.NUM, 1000,
+  'Delay lleva el shadow de MS en Temporales');
+
+// Sandbox / unknown ids: the full toolbox, minus nothing (repetir_hasta stays only here).
+assert(RS.toolbox.paraLeccion(99) === RS.toolbox, 'un id desconocido devuelve el toolbox completo');
+assert(RS.toolbox.paraLeccion(undefined) === RS.toolbox, 'sin id devuelve el toolbox completo');
+assert(todosLosTipos(RS.toolbox).indexOf('rs_repetir_hasta') === -1, 'RS.toolbox (sandbox) tampoco ofrece rs_repetir_hasta');
+['rs_por_siempre', 'rs_salir', 'rs_mientras', 'rs_no_hay_obstaculo', 'rs_booleano', 'rs_medir_distancia', 'rs_comparar'].forEach(function (t) {
+  assert(todosLosTipos(RS.toolbox).indexOf(t) !== -1, 'RS.toolbox (sandbox) contiene ' + t);
+});
+assertEquals(RS.toolbox.contents.map(function (c) { return c.name; }),
+  ['Inicio', 'Movimiento', 'Temporales', 'Variables', 'Decisión', 'Repetición', 'Sensores'], 'RS.toolbox: orden de categorias del documento fuente');
+
+// Every table type is a real block and is offered by some category.
+var todosSandbox = todosLosTipos(RS.toolbox);
+Object.keys(TABLA).forEach(function (id) {
+  TABLA[id].forEach(function (t) {
+    assert(!!sandbox.window.Blockly.Blocks[t], 'tabla L' + id + ': ' + t + ' existe en Blockly.Blocks');
+    assert(todosSandbox.indexOf(t) !== -1, 'tabla L' + id + ': ' + t + ' esta en alguna categoria');
+  });
 });
 
-assert(tiposRepeticion(RS.toolbox.paraLeccion(3)) === null, 'L3: no hay categoria Repeticion todavia');
-
-var sensorL4 = tiposSensor(RS.toolbox.paraLeccion(4));
-assert(sensorL4 !== null && sensorL4.indexOf('rs_si_obstaculo') === -1 && sensorL4.indexOf('rs_si_sino') === -1,
-  'L4: la categoria Sensores/Decisión NO contiene rs_si_obstaculo ni rs_si_sino');
-var sensorL5 = tiposSensor(RS.toolbox.paraLeccion(5));
-assert(sensorL5 !== null && sensorL5.indexOf('rs_si_obstaculo') !== -1 && sensorL5.indexOf('rs_si_sino') !== -1,
-  'L5: la categoria Sensores/Decisión contiene rs_si_obstaculo y rs_si_sino');
-
-// Variables category gating: locked through L6, unlocked from L7 (and sandbox).
-[1, 2, 3, 4, 5, 6].forEach(function (n) {
-  assert(tiposCategoria(RS.toolbox.paraLeccion(n), 'Variables') === null, 'L' + n + ': no hay categoria Variables todavia');
-});
-var variablesL7 = tiposCategoria(RS.toolbox.paraLeccion(7), 'Variables');
-assert(variablesL7 !== null && variablesL7.indexOf('rs_declarar_variable') !== -1 && variablesL7.indexOf('rs_cambiar_variable') !== -1,
-  'L7: la categoria Variables existe con declarar y cambiar');
-assert(tiposCategoria(RS.toolbox.paraLeccion(8), 'Variables') !== null, 'L8: la categoria Variables sigue disponible');
-assert(tiposCategoria(RS.toolbox, 'Variables') !== null, 'RS.toolbox (sandbox) contiene la categoria Variables');
-var bloquesVariables = RS.blocks.VARIABLES_TYPES.slice().sort().join(',');
-var bloquesToolbox = (variablesL7 || []).filter(function (t, i, a) { return a.indexOf(t) === i; }).sort().join(',');
-assert(bloquesVariables === bloquesToolbox, 'L7: la categoria Variables ofrece los 5 tipos de RS.blocks.VARIABLES_TYPES');
+// Presets and default shadows.
+var declarar = RS.toolbox.contents.filter(function (c) { return c.name === 'Variables'; })[0].contents[0];
+assertEquals([declarar.fields.TIPO, declarar.fields.NOMBRE, declarar.inputs.VALOR.shadow.fields.NUM], ['int', 'giro', 500], 'preset de Variables: int giro = 500');
+var mientrasTb = RS.toolbox.contents.filter(function (c) { return c.name === 'Repetición'; })[0].contents.filter(function (b) { return b.type === 'rs_mientras'; })[0];
+assertEquals(mientrasTb.inputs.COND.shadow, { type: 'rs_booleano', fields: { BOOL: 'TRUE' } }, 'rs_mientras trae el shadow verdadero por defecto');
 
 console.log('\n' + (fallidos === 0 ? 'TODOS LOS TESTS PASARON' : (fallidos + ' TEST(S) FALLARON')) + ' (' + (total - fallidos) + '/' + total + ')');
 process.exit(fallidos === 0 ? 0 : 1);

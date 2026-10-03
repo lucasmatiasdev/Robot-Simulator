@@ -4,7 +4,8 @@
  * hayObstaculo()/medirDistancia() sensor blocks,
  * the repeat-N-times block, the repeat-until block (pre-test, "while not"),
  * the "por siempre" forever loop, the "Salir" break, the "si" decision block, and
- * "si/si no" (fixed two-slot if/else, no mutator). Also: rs_inicio (hat, no
+ * "si/si no" (fixed two-slot if/else, no mutator), the "mientras" while loop
+ * and the "noHayObstaculo" negated sensor. Also: rs_inicio (hat, no
  * code), rs_espera (Delay(ms), the only block that consumes time), and rs_comparar (usable
  * inside any COND value input). Variables (COLOR_VARIABLES): rs_declarar_variable,
  * rs_asignar_variable, rs_cambiar_variable, rs_obtener_variable and the
@@ -24,6 +25,7 @@
   var COLOR_REPETICION = 20;
   var COLOR_INICIO = 0;
   var COLOR_VARIABLES = 330;
+  var COLOR_TEMPORALES = 160;
 
   // Movement blocks only set the motor state (0 ms): they carry no duration.
   // Time passes in Delay(ms) (rs_espera) and nowhere else.
@@ -63,6 +65,18 @@
       this.setOutput(true, 'Boolean');
       this.setColour(COLOR_SENSORES);
       this.setTooltip('hayObstaculo(): true si hay un obstáculo cerca al frente.');
+    }
+  };
+
+  // Negated sensor reporter: true when nothing is close ahead. Maps to the
+  // `noHayObstaculo` sensor/Expr in program-tree.js and renders as
+  // `!hayObstaculo()` in C++.
+  Blockly.Blocks['rs_no_hay_obstaculo'] = {
+    init: function () {
+      this.appendDummyInput().appendField('noHayObstaculo()');
+      this.setOutput(true, 'Boolean');
+      this.setColour(COLOR_SENSORES);
+      this.setTooltip('noHayObstaculo(): true si NO hay un obstáculo cerca al frente.');
     }
   };
 
@@ -160,7 +174,7 @@
       this.setInputsInline(true);
       this.setPreviousStatement(true, null);
       this.setNextStatement(true, null);
-      this.setColour(COLOR_MOVIMIENTO);
+      this.setColour(COLOR_TEMPORALES);
       this.setTooltip('Delay(ms): deja pasar ms milisegundos con los motores como estén (es el único bloque que consume tiempo).');
     }
   };
@@ -199,6 +213,22 @@
     }
   };
 
+  // rs_mientras — pre-test "while cond" loop, uncapped (each pass costs an
+  // implicit loop tick). Same COND value input as rs_si_obstaculo; the
+  // toolbox seeds it with a `verdadero` shadow for `while (true)`. Maps to the
+  // 'mientras' program-tree node.
+  Blockly.Blocks['rs_mientras'] = {
+    init: function () {
+      this.appendValueInput('COND').setCheck('Boolean').appendField('mientras');
+      this.appendStatementInput('DO').setCheck(null);
+      this.setPreviousStatement(true, null);
+      this.setNextStatement(true, null);
+      this.setColour(COLOR_REPETICION);
+      this.setTooltip('Repite el cuerpo mientras la condición sea verdadera (evaluada antes de cada repetición).');
+      this.setInputsInline(true);
+    }
+  };
+
   // rs_por_siempre — forever loop. Chainable (has a next connection), so it
   // does not have to be the last block. Maps to the 'por_siempre' program-tree
   // node; it repeats until Salir runs or the user stops the run.
@@ -222,7 +252,7 @@
       this.setPreviousStatement(true, null);
       this.setNextStatement(false);
       this.setColour(COLOR_REPETICION);
-      this.setTooltip('Salir: sale del bucle más cercano (repetir, repetir hasta o por siempre) y sigue con el bloque que viene después.');
+      this.setTooltip('Salir: sale del bucle más cercano (repetir, mientras, repetir hasta o por siempre) y sigue con el bloque que viene después.');
     }
   };
 
@@ -328,9 +358,10 @@
 
   RS.blocks = {
     INICIO_TYPES: ['rs_inicio'],
-    MOVIMIENTO_TYPES: ['rs_avanzar', 'rs_retroceder', 'rs_izquierda', 'rs_derecha', 'rs_detener', 'rs_espera'],
-    SENSOR_TYPES: ['rs_hay_obstaculo', 'rs_medir_distancia', 'rs_si_obstaculo', 'rs_si_sino', 'rs_comparar'],
-    REPETICION_TYPES: ['rs_repetir', 'rs_repetir_hasta', 'rs_por_siempre', 'rs_salir'],
+    MOVIMIENTO_TYPES: ['rs_avanzar', 'rs_retroceder', 'rs_izquierda', 'rs_derecha', 'rs_detener'],
+    TEMPORALES_TYPES: ['rs_espera'],
+    SENSOR_TYPES: ['rs_hay_obstaculo', 'rs_no_hay_obstaculo', 'rs_medir_distancia', 'rs_si_obstaculo', 'rs_si_sino', 'rs_comparar'],
+    REPETICION_TYPES: ['rs_repetir', 'rs_mientras', 'rs_repetir_hasta', 'rs_por_siempre', 'rs_salir'],
     VARIABLES_TYPES: VARIABLES_TYPES,
     normalizarNombreVariable: normalizarNombreVariable
   };
