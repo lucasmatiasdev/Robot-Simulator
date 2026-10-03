@@ -1165,7 +1165,36 @@
   // (100,100), facing east in the top lane (wide enough for the ejemplo's
   // small square). The meta pocket sits at the east end of the bottom lane.
   // Lane centers are 160px apart, so one lane change is avanzar(1333).
-  var GRID_LECCION_7 = {
+   var GRID_LECCION_7 = {
+    version: 1, cols: 20, rows: 15,
+    muros: [
+      { col: 0, row: 0, colSpan: 20, rowSpan: 5 },
+      { col: 0, row: 10, colSpan: 20, rowSpan: 5 },
+      { col: 19, row: 5 },
+      { col: 19, row: 6 },
+      { col: 19, row: 7 },
+      { col: 18, row: 8 },
+      { col: 18, row: 9 },
+      { col: 18, row: 7 },
+      { col: 18, row: 6 },
+      { col: 18, row: 5 },
+      { col: 17, row: 5 },
+      { col: 17, row: 6 },
+      { col: 17, row: 7 },
+      { col: 17, row: 8 },
+      { col: 19, row: 9 },
+      { col: 19, row: 8 },
+      { col: 17, row: 9 }
+    ],
+    inicio: { col: 1, row: 7, angulo: 0 },
+    meta: { col: 13, row: 6, colSpan: 3, rowSpan: 3 }
+  };
+  var MAPA_LECCION_7 = RS.gridAdapter.aPixeles(GRID_LECCION_7);
+
+  // Start cell (2,2) = pixel (100,100): a single-route ring (upper corridor,
+  // right channel down, bottom corridor, left channel up, inner corridor)
+  // ending in the meta pocket, which is entered only from the inner corridor.
+  var GRID_LECCION_8 = {
     version: 1, cols: 20, rows: 15,
     muros: [
       { col: 0, row: 0, colSpan: 20 },
@@ -1179,132 +1208,6 @@
     ],
     inicio: { col: 2, row: 2, angulo: 0 },
     meta: { col: 15, row: 9, colSpan: 3, rowSpan: 3 }
-  };
-  var MAPA_LECCION_7 = RS.gridAdapter.aPixeles(GRID_LECCION_7);
-
-  // Start cell (2,2) = pixel (100,100): a single-route ring (upper corridor,
-  // right channel down, bottom corridor, left channel up, inner corridor)
-  // ending in the meta pocket, which is entered only from the inner corridor.
-  var GRID_LECCION_8 = {
-    version: 1, cols: 20, rows: 15,
-    muros: [
-      { col: 0, row: 0 },
-      { col: 1, row: 0 },
-      { col: 2, row: 0 },
-      { col: 3, row: 0 },
-      { col: 4, row: 0 },
-      { col: 5, row: 0 },
-      { col: 6, row: 0 },
-      { col: 7, row: 0 },
-      { col: 10, row: 0 },
-      { col: 9, row: 0 },
-      { col: 8, row: 0 },
-      { col: 11, row: 0 },
-      { col: 12, row: 0 },
-      { col: 16, row: 0 },
-      { col: 15, row: 0 },
-      { col: 14, row: 0 },
-      { col: 13, row: 0 },
-      { col: 17, row: 0 },
-      { col: 18, row: 0 },
-      { col: 19, row: 0 },
-      { col: 19, row: 1 },
-      { col: 19, row: 2 },
-      { col: 19, row: 3 },
-      { col: 19, row: 4 },
-      { col: 19, row: 5 },
-      { col: 19, row: 6 },
-      { col: 19, row: 7 },
-      { col: 19, row: 8 },
-      { col: 19, row: 9 },
-      { col: 19, row: 10 },
-      { col: 19, row: 11 },
-      { col: 19, row: 12 },
-      { col: 19, row: 13 },
-      { col: 19, row: 14 },
-      { col: 18, row: 14 },
-      { col: 17, row: 14 },
-      { col: 16, row: 14 },
-      { col: 15, row: 14 },
-      { col: 14, row: 14 },
-      { col: 13, row: 14 },
-      { col: 12, row: 14 },
-      { col: 11, row: 14 },
-      { col: 10, row: 14 },
-      { col: 9, row: 14 },
-      { col: 8, row: 14 },
-      { col: 7, row: 14 },
-      { col: 6, row: 14 },
-      { col: 5, row: 14 },
-      { col: 4, row: 14 },
-      { col: 3, row: 14 },
-      { col: 2, row: 14 },
-      { col: 1, row: 14 },
-      { col: 0, row: 14 },
-      { col: 0, row: 13 },
-      { col: 0, row: 12 },
-      { col: 0, row: 11 },
-      { col: 0, row: 10 },
-      { col: 0, row: 9 },
-      { col: 0, row: 8 },
-      { col: 0, row: 7 },
-      { col: 0, row: 6 },
-      { col: 0, row: 5 },
-      { col: 0, row: 4 },
-      { col: 1, row: 4 },
-      { col: 2, row: 4 },
-      { col: 3, row: 4 },
-      { col: 4, row: 4 },
-      { col: 5, row: 4 },
-      { col: 6, row: 4 },
-      { col: 7, row: 4 },
-      { col: 8, row: 4 },
-      { col: 9, row: 4 },
-      { col: 10, row: 4 },
-      { col: 11, row: 4 },
-      { col: 12, row: 4 },
-      { col: 13, row: 4 },
-      { col: 14, row: 4 },
-      { col: 15, row: 4 },
-      { col: 15, row: 5 },
-      { col: 15, row: 6 },
-      { col: 15, row: 7 },
-      { col: 15, row: 8 },
-      { col: 15, row: 9 },
-      { col: 15, row: 10 },
-      { col: 14, row: 10 },
-      { col: 13, row: 10 },
-      { col: 12, row: 10 },
-      { col: 11, row: 10 },
-      { col: 10, row: 10 },
-      { col: 9, row: 10 },
-      { col: 8, row: 10 },
-      { col: 7, row: 10 },
-      { col: 6, row: 10 },
-      { col: 5, row: 10 },
-      { col: 4, row: 10 },
-      { col: 4, row: 9 },
-      { col: 4, row: 8 },
-      { col: 5, row: 8 },
-      { col: 6, row: 8 },
-      { col: 7, row: 8 },
-      { col: 8, row: 8 },
-      { col: 9, row: 8 },
-      { col: 10, row: 8 },
-      { col: 11, row: 8 },
-      { col: 11, row: 9 },
-      { col: 10, row: 9 },
-      { col: 9, row: 9 },
-      { col: 8, row: 9 },
-      { col: 7, row: 9 },
-      { col: 6, row: 9 },
-      { col: 5, row: 9 },
-      { col: 0, row: 1 },
-      { col: 0, row: 2 },
-      { col: 0, row: 3 }
-    ],
-    inicio: { col: 2, row: 2, angulo: 0 },
-    meta: { col: 12, row: 8, colSpan: 3, rowSpan: 2 }
   };
   var MAPA_LECCION_8 = RS.gridAdapter.aPixeles(GRID_LECCION_8);
 
@@ -1458,15 +1361,23 @@
       mapa: MAPA_LECCION_5,
       criterio: {
         evaluar: function (snapshot) {
-          if (!snapshot || !snapshot.estado) return false;
+          if (!snapshot || !snapshot.estado || !snapshot.metricas) return false;
+          if (snapshot.metricas.evalsSensor < 1) return false;
           return dentroDeMeta(MAPA_LECCION_5.meta, snapshot.estado.x, snapshot.estado.y);
         },
         describir: function (snapshot, ok) {
           if (!snapshot || !snapshot.estado) return null;
           var x = Math.round(snapshot.estado.x);
           var y = Math.round(snapshot.estado.y);
+          var evals = snapshot.metricas ? snapshot.metricas.evalsSensor : 0;
           if (ok) {
-            return 'El robot recorrió el camino y se detuvo dentro de la zona de meta (x=' + x + 'px, y=' + y + 'px).';
+            return 'El robot consultó su sensor, tomó la decisión correcta y terminó en x=' + x + 'px, y=' + y + 'px, dentro de la zona de meta.';
+          }
+          if (!evals) {
+            return 'El robot terminó su ejecución sin haber consultado nunca su sensor, por lo que nunca tomó una decisión basada en lo que percibe.';
+          }
+          if (mismaAlturaQueInicio(snapshot, y)) {
+            return 'El robot consultó su sensor pero terminó casi a la misma altura que al inicio (y=' + y + 'px): la rama tomada no cambió su dirección de avance.';
           }
           return 'El robot terminó en x=' + x + 'px, y=' + y + 'px, fuera de la zona de meta.';
         }
@@ -1535,22 +1446,19 @@
         evaluar: function (snapshot) {
           if (!snapshot || !snapshot.estado || !snapshot.metricas) return false;
           var m = snapshot.metricas;
-          if (m.evalsSensor < 1 || m.cambiosVariable < 2) return false;
+          if (m.evalsSensor < 1) return false;
           return dentroDeMeta(MAPA_LECCION_7.meta, snapshot.estado.x, snapshot.estado.y);
         },
         describir: function (snapshot, ok) {
           if (!snapshot || !snapshot.estado) return null;
           var x = Math.round(snapshot.estado.x);
           var y = Math.round(snapshot.estado.y);
-          var m = snapshot.metricas || { evalsSensor: 0, cambiosVariable: 0 };
+          var m = snapshot.metricas || { evalsSensor: 0 };
           if (ok) {
-            return 'El robot recorrió los tres pasillos usando variables para recordar el tramo y la dirección, y llegó a la zona de meta (x=' + x + 'px, y=' + y + 'px).';
+            return 'El robot avanzó mientras no había obstáculo y se detuvo dentro de la zona de meta (x=' + x + 'px, y=' + y + 'px).';
           }
           if (!m.evalsSensor) {
-            return 'El robot terminó su ejecución sin haber consultado nunca su sensor para detectar el final de cada pasillo.';
-          }
-          if (!m.cambiosVariable || m.cambiosVariable < 2) {
-            return 'El programa casi no modificó ninguna variable: usa "cambiar" o "asignar" para que el contador y la bandera se actualicen durante el recorrido.';
+            return 'El robot terminó su ejecución sin haber consultado nunca su sensor para detectar el obstáculo.';
           }
           return 'El robot no llegó a la zona de meta: se detuvo en x=' + x + 'px, y=' + y + 'px.';
         }
@@ -1578,19 +1486,13 @@
       criterio: {
         evaluar: function (snapshot) {
           if (!snapshot || !snapshot.estado || !snapshot.metricas) return false;
-          var m = snapshot.metricas;
-          if (m.evalsSensor < 1) return false;
           return dentroDeMeta(MAPA_LECCION_8.meta, snapshot.estado.x, snapshot.estado.y);
         },
         describir: function (snapshot, ok) {
           if (!snapshot || !snapshot.estado) return null;
           var x = Math.round(snapshot.estado.x);
-          var m = snapshot.metricas || { evalsSensor: 0 };
           if (ok) {
-            return 'El robot recorrió el circuito, usó su sensor para decidir dónde girar y llegó a la zona de meta (x=' + x + 'px) sin chocar.';
-          }
-          if (!m.evalsSensor) {
-            return 'El robot terminó su ejecución sin haber consultado nunca su sensor durante el recorrido.';
+            return 'El robot recorrió el circuito y llegó a la zona de meta (x=' + x + 'px) sin chocar.';
           }
           return 'El robot no completó el circuito: se detuvo en x=' + x + 'px, fuera de la zona de meta.';
         }
