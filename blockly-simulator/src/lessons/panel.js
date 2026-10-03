@@ -78,6 +78,7 @@
         resultadoEl = document.createElement('p');
         resultadoEl.className = 'leccion-resultado';
         contenedor.appendChild(resultadoEl);
+        renderizarBotonSaltar(leccion);
       } else {
         resultadoEl = null;
         renderizarControlCompletado(leccion);
@@ -107,6 +108,28 @@
         if (RS.lessons.progress) RS.lessons.progress.marcarCompletada(leccion.id);
         contenedor.removeChild(boton);
         renderizarControlCompletado(leccion);
+      });
+      contenedor.appendChild(boton);
+    }
+
+    function esUltimaLeccion(leccion) {
+      var lista = RS.lessons.CONTENIDO || [];
+      return lista.length > 0 && lista[lista.length - 1].id === leccion.id;
+    }
+
+    // Manual escape hatch for when the automatic criterio doesn't fire: marks
+    // the lesson completed and goes straight to the next-lesson flow. Not
+    // shown on the last lesson (nothing to advance to).
+    function renderizarBotonSaltar(leccion) {
+      if (!contenedor || esUltimaLeccion(leccion)) return;
+
+      var boton = document.createElement('button');
+      boton.type = 'button';
+      boton.className = 'leccion-completar-btn';
+      boton.textContent = 'Marcar como completado';
+      boton.addEventListener('click', function () {
+        if (RS.lessons.progress) RS.lessons.progress.marcarCompletada(leccion.id);
+        if (alSolicitarSiguiente) alSolicitarSiguiente();
       });
       contenedor.appendChild(boton);
     }
