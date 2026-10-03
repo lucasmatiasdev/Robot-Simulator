@@ -1,6 +1,6 @@
 /**
  * Headless Node test for the lesson panel's manual "Marcar como completado"
- * button: shown on every lesson with a criterio except the last, never in the
+ * toolbar button: shown on every lesson except the last, never in the
  * sandbox, and clicking it persists completion and requests the next lesson.
  *
  *   node tests/test-lesson-skip-button.node.js
@@ -39,32 +39,27 @@ var contenido = RS.lessons.CONTENIDO;
 var ultimoId = contenido[contenido.length - 1].id;
 var avances = 0;
 
-function botonSaltar(contenedor) {
-  return contenedor.children.filter(function (c) {
-    return c.tag === 'button' && c.textContent === 'Marcar como completado';
-  })[0];
-}
-
 var contenedor = crearElemento('div');
-RS.lessons.panel.init(contenedor, { onSolicitarSiguiente: function () { avances++; } });
+var boton = crearElemento('button');
+boton.hidden = true;
+RS.lessons.panel.init(contenedor, { onSolicitarSiguiente: function () { avances++; }, botonSaltar: boton });
 
-// Shown on every criterio lesson except the last.
+// Visible on every lesson except the last.
 contenido.forEach(function (l) {
   RS.lessons.panel.mostrarLeccion(l.id);
-  var boton = botonSaltar(contenedor);
-  var esperado = !!l.criterio && l.id !== ultimoId;
-  assert.strictEqual(!!boton, esperado, 'leccion ' + l.id + ' boton=' + esperado);
+  var esperado = l.id !== ultimoId;
+  assert.strictEqual(boton.hidden, !esperado, 'leccion ' + l.id + ' visible=' + esperado);
 });
 
 // Hidden in sandbox.
 RS.lessons.panel.mostrarSandbox();
-assert.strictEqual(botonSaltar(contenedor), undefined, 'sandbox sin boton');
+assert.strictEqual(boton.hidden, true, 'sandbox sin boton');
 
 // Click: persists completion and advances.
-var objetivo = contenido.filter(function (l) { return l.criterio && l.id !== ultimoId; })[0];
+var objetivo = contenido.filter(function (l) { return l.id !== ultimoId; })[0];
 RS.lessons.panel.mostrarLeccion(objetivo.id);
 assert.strictEqual(RS.lessons.progress.estaCompletada(objetivo.id), false);
-botonSaltar(contenedor).listeners.click();
+boton.onclick();
 assert.strictEqual(RS.lessons.progress.estaCompletada(objetivo.id), true, 'persistida');
 assert.strictEqual(avances, 1, 'avanza una vez');
 

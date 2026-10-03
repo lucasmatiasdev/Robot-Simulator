@@ -229,12 +229,14 @@ html, body {
 }
 #btn-detener:hover:not(:disabled) { background: var(--dg-600); }
 
-#btn-reiniciar {
+#btn-reiniciar,
+#btn-marcar-completado {
   background: transparent;
   border-color: var(--n-600);
   color: var(--n-100);
 }
-#btn-reiniciar:hover:not(:disabled) { border-color: var(--n-400); }
+#btn-reiniciar:hover:not(:disabled),
+#btn-marcar-completado:hover:not(:disabled) { border-color: var(--n-400); }
 
 #barra button:disabled {
   background: var(--n-600);

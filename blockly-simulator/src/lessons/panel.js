@@ -27,10 +27,12 @@
     var estadoPrevio = null;
     var bannerSiguienteEl = null;
     var alSolicitarSiguiente = null;
+    var botonSaltarEl = null;
 
     function renderizarSandbox() {
       if (!contenedor) return;
       quitarBannerSiguiente();
+      ocultarBotonSaltar();
       contenedor.innerHTML = '';
 
       var h2 = document.createElement('h2');
@@ -50,6 +52,7 @@
     function renderizar(leccion) {
       if (!contenedor) return;
       quitarBannerSiguiente();
+      renderizarBotonSaltar(leccion);
       contenedor.innerHTML = '';
 
       var h2 = document.createElement('h2');
@@ -78,7 +81,6 @@
         resultadoEl = document.createElement('p');
         resultadoEl.className = 'leccion-resultado';
         contenedor.appendChild(resultadoEl);
-        renderizarBotonSaltar(leccion);
       } else {
         resultadoEl = null;
         renderizarControlCompletado(leccion);
@@ -117,21 +119,25 @@
       return lista.length > 0 && lista[lista.length - 1].id === leccion.id;
     }
 
-    // Manual escape hatch for when the automatic criterio doesn't fire: marks
-    // the lesson completed and goes straight to the next-lesson flow. Not
-    // shown on the last lesson (nothing to advance to).
-    function renderizarBotonSaltar(leccion) {
-      if (!contenedor || esUltimaLeccion(leccion)) return;
+    function ocultarBotonSaltar() {
+      if (botonSaltarEl) botonSaltarEl.hidden = true;
+    }
 
-      var boton = document.createElement('button');
-      boton.type = 'button';
-      boton.className = 'leccion-completar-btn';
-      boton.textContent = 'Marcar como completado';
-      boton.addEventListener('click', function () {
+    // Manual escape hatch for when the automatic criterio doesn't fire: the
+    // toolbar button (next to "Reiniciar") marks the lesson completed and goes
+    // straight to the next-lesson flow. Hidden on the last lesson (nothing to
+    // advance to) and in the sandbox.
+    function renderizarBotonSaltar(leccion) {
+      if (!botonSaltarEl) return;
+      if (esUltimaLeccion(leccion)) {
+        ocultarBotonSaltar();
+        return;
+      }
+      botonSaltarEl.hidden = false;
+      botonSaltarEl.onclick = function () {
         if (RS.lessons.progress) RS.lessons.progress.marcarCompletada(leccion.id);
         if (alSolicitarSiguiente) alSolicitarSiguiente();
-      });
-      contenedor.appendChild(boton);
+      };
     }
 
     function limpiarResultado() {
@@ -217,6 +223,7 @@
       init: function (el, opciones) {
         contenedor = el;
         alSolicitarSiguiente = (opciones && opciones.onSolicitarSiguiente) || null;
+        botonSaltarEl = (opciones && opciones.botonSaltar) || null;
         if (RS.runtime && RS.runtime.scheduler) {
           estadoPrevio = RS.runtime.scheduler.obtenerEstado();
           RS.runtime.scheduler.onCambioEstado(alCambiarEstadoScheduler);

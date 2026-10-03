@@ -51,7 +51,8 @@
     });
 
     RS.lessons.panel.init(document.getElementById('leccion-body'), {
-      onSolicitarSiguiente: avanzarDespuesDeCompletar
+      onSolicitarSiguiente: avanzarDespuesDeCompletar,
+      botonSaltar: document.getElementById('btn-marcar-completado')
     });
 
     RS.ui.initHighlight(workspace);
