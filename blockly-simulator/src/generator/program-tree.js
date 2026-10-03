@@ -8,16 +8,17 @@
  *   { tipo:'si',      sensor:'hayObstaculo', cuerpo:[...], blockId }
  *   { tipo:'si_sino', sensor|condicion, cuerpo:[...], sino:[...], blockId }
  *   { tipo:'repetir_hasta', sensor|condicion, cuerpo:[...], blockId }
+ *   { tipo:'mientras', sensor|condicion, cuerpo:[...], blockId }
  *   { tipo:'por_siempre', cuerpo:[...], blockId }
  *   { tipo:'declarar', nombre, tipoDato:'int'|'bool', valor:Expr, blockId }
  *   { tipo:'asignar',  nombre, valor:Expr|null, blockId }
  *   { tipo:'cambiar',  nombre, delta:int, blockId }
  *
  * Expr := {k:'numero',v} | {k:'booleano',v} | {k:'variable',nombre}
- *       | {k:'medirDistancia'} | {k:'hayObstaculo'} | {k:'comparar',op,izq,der}
+ *       | {k:'medirDistancia'} | {k:'hayObstaculo'} | {k:'noHayObstaculo'} | {k:'comparar',op,izq,der}
  * Only esperar carries a `valor`; it stays a number unless its MS input holds a variable
  * getter, in which case it is {k:'variable',nombre} (resolved at run time).
- * A COND is `sensor:'hayObstaculo'` (default shadow), `condicion:{op,izq,der}`
+ * A COND is `sensor:'hayObstaculo'` (default shadow) or `sensor:'noHayObstaculo'`, `condicion:{op,izq,der}`
  * (rs_comparar), or `condicion:{k:'variable'|'booleano',...}`.
  *
  * RS.protocol.toMqttPayload(node) strips a leaf action node down to the
@@ -46,6 +47,7 @@
     if (!block) return null;
     if (block.type === 'rs_medir_distancia') return { k: 'medirDistancia' };
     if (block.type === 'rs_hay_obstaculo') return { k: 'hayObstaculo' };
+    if (block.type === 'rs_no_hay_obstaculo') return { k: 'noHayObstaculo' };
     if (block.type === 'rs_numero') return { k: 'numero', v: Number(block.getFieldValue('NUM')) || 0 };
     return null;
   }
@@ -90,6 +92,8 @@
       nodo.condicion = leerComparador(target);
     } else if (target && (target.type === 'rs_obtener_variable' || target.type === 'rs_booleano')) {
       nodo.condicion = leerValor(target);
+    } else if (target && target.type === 'rs_no_hay_obstaculo') {
+      nodo.sensor = 'noHayObstaculo';
     } else {
       nodo.sensor = 'hayObstaculo';
     }
@@ -155,6 +159,10 @@
     if (type === 'rs_repetir_hasta') {
       var hastaCuerpoBlock = block.getInputTargetBlock('DO');
       return leerCond(block, { tipo: 'repetir_hasta', cuerpo: walkChain(hastaCuerpoBlock), blockId: block.id });
+    }
+
+    if (type === 'rs_mientras') {
+      return leerCond(block, { tipo: 'mientras', cuerpo: walkChain(block.getInputTargetBlock('DO')), blockId: block.id });
     }
 
     if (type === 'rs_por_siempre') {
@@ -242,7 +250,7 @@
   function tipoDeExpr(expr, declarados) {
     if (!expr) return null;
     if (expr.k === 'numero' || expr.k === 'medirDistancia') return 'int';
-    if (expr.k === 'booleano' || expr.k === 'hayObstaculo' || expr.k === 'comparar') return 'bool';
+    if (expr.k === 'booleano' || expr.k === 'hayObstaculo' || expr.k === 'noHayObstaculo' || expr.k === 'comparar') return 'bool';
     if (expr.k === 'variable') return declarados[expr.nombre] || null;
     return null;
   }
@@ -280,7 +288,7 @@
     // Comparison operands must be numbers: a bool variable or literal is not.
     function revisarOperando(operando) {
       revisarExpr(operando);
-      if (operando && tipoDeExpr(operando, declarados) === 'bool' && operando.k !== 'hayObstaculo' && operando.k !== 'comparar') {
+      if (operando && tipoDeExpr(operando, declarados) === 'bool' && operando.k !== 'hayObstaculo' && operando.k !== 'noHayObstaculo' && operando.k !== 'comparar') {
         falla('Un valor verdadero/falso no se puede comparar con un número' +
           (operando.k === 'variable' ? ' (la variable "' + operando.nombre + '" es bool).' : '.'));
       }
@@ -346,7 +354,7 @@
           }
         } else if (node.tipo === 'accion' && node.accion === 'esperar') {
           revisarDuracion(node.valor);
-        } else if (node.tipo === 'si' || node.tipo === 'si_sino' || node.tipo === 'repetir_hasta') {
+        } else if (node.tipo === 'si' || node.tipo === 'si_sino' || node.tipo === 'repetir_hasta' || node.tipo === 'mientras') {
           revisarCondicion(node);
         }
 
@@ -360,7 +368,7 @@
   };
 
   var MENSAJE_SALIR_FUERA_DE_BUCLE =
-    'El bloque "Salir" solo puede usarse dentro de un bucle (repetir, repetir hasta o por siempre).';
+    'El bloque "Salir" solo puede usarse dentro de un bucle (repetir, mientras, repetir hasta o por siempre).';
 
   /**
    * Blocks a Salir with no enclosing loop (top level, or inside si/si_sino
@@ -372,7 +380,7 @@
         var node = cuerpo[i];
         if (node.tipo === 'salir' && !dentroDeBucle) return true;
         var bucle = dentroDeBucle ||
-          node.tipo === 'repetir' || node.tipo === 'repetir_hasta' || node.tipo === 'por_siempre';
+          node.tipo === 'repetir' || node.tipo === 'repetir_hasta' || node.tipo === 'mientras' || node.tipo === 'por_siempre';
         if (huerfano(node.cuerpo, bucle) || huerfano(node.sino, bucle)) return true;
       }
       return false;

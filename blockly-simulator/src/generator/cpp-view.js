@@ -53,7 +53,7 @@
   /** True iff a value expression (program-tree.js Expr) reads the sensor, at any depth. */
   function exprUsaSensor(expr) {
     if (!expr || typeof expr !== 'object') return false;
-    if (expr.k === 'medirDistancia' || expr.k === 'hayObstaculo') return true;
+    if (expr.k === 'medirDistancia' || expr.k === 'hayObstaculo' || expr.k === 'noHayObstaculo') return true;
     if (expr.k === 'comparar') return exprUsaSensor(expr.izq) || exprUsaSensor(expr.der);
     return false;
   }
@@ -66,7 +66,7 @@
   function usaSensor(cuerpo) {
     for (var i = 0; i < cuerpo.length; i++) {
       var node = cuerpo[i];
-      if (node.tipo === 'si' || node.tipo === 'si_sino' || node.tipo === 'repetir_hasta') return true;
+      if (node.tipo === 'si' || node.tipo === 'si_sino' || node.tipo === 'repetir_hasta' || node.tipo === 'mientras') return true;
       if ((node.tipo === 'declarar' || node.tipo === 'asignar' || node.tipo === 'accion') && exprUsaSensor(node.valor)) return true;
       if ((node.tipo === 'repetir' || node.tipo === 'por_siempre') && usaSensor(node.cuerpo)) return true;
     }
@@ -127,6 +127,7 @@
     if (expr.k === 'variable') return expr.nombre;
     if (expr.k === 'medirDistancia') return 'medirDistancia()';
     if (expr.k === 'hayObstaculo') return 'hayObstaculo()';
+    if (expr.k === 'noHayObstaculo') return '!hayObstaculo()';
     if (expr.k === 'comparar') return '(' + valorATexto(expr.izq) + ' ' + expr.op + ' ' + valorATexto(expr.der) + ')';
     return '0';
   }
@@ -150,6 +151,7 @@
       if (node.condicion.k === 'variable' || node.condicion.k === 'booleano') return valorATexto(node.condicion);
       return operandoATexto(node.condicion.izq) + ' ' + node.condicion.op + ' ' + operandoATexto(node.condicion.der);
     }
+    if (node.sensor === 'noHayObstaculo') return '!hayObstaculo()';
     // Default shadow (no rs_comparar swapped in): bare hayObstaculo().
     return 'hayObstaculo()';
   }
@@ -358,6 +360,14 @@
         // Plain infinite loop, uncapped: it runs until a `break;` (Salir).
         addLinea(indent, node.blockId, [
           tok('while', 'kw'), tok(' (', 'punct'), tok('true', 'kw'), tok(') {', 'punct')
+        ], 'guion');
+        renderCuerpo(node.cuerpo, indent + 1, depth + 1);
+        addLinea(indent, null, [tok('}', 'punct')], 'guion');
+        return;
+      }
+      if (node.tipo === 'mientras') {
+        addLinea(indent, node.blockId, [
+          tok('while', 'kw'), tok(' (' + condicionATexto(node) + ') {', 'punct')
         ], 'guion');
         renderCuerpo(node.cuerpo, indent + 1, depth + 1);
         addLinea(indent, null, [tok('}', 'punct')], 'guion');
