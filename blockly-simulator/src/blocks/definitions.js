@@ -25,6 +25,7 @@
   var COLOR_REPETICION = 20;
   var COLOR_INICIO = 0;
   var COLOR_VARIABLES = 330;
+  var COLOR_TEMPORALES = 160;
 
   // Movement blocks only set the motor state (0 ms): they carry no duration.
   // Time passes in Delay(ms) (rs_espera) and nowhere else.
@@ -173,7 +174,7 @@
       this.setInputsInline(true);
       this.setPreviousStatement(true, null);
       this.setNextStatement(true, null);
-      this.setColour(COLOR_MOVIMIENTO);
+      this.setColour(COLOR_TEMPORALES);
       this.setTooltip('Delay(ms): deja pasar ms milisegundos con los motores como estén (es el único bloque que consume tiempo).');
     }
   };
@@ -357,7 +358,8 @@
 
   RS.blocks = {
     INICIO_TYPES: ['rs_inicio'],
-    MOVIMIENTO_TYPES: ['rs_avanzar', 'rs_retroceder', 'rs_izquierda', 'rs_derecha', 'rs_detener', 'rs_espera'],
+    MOVIMIENTO_TYPES: ['rs_avanzar', 'rs_retroceder', 'rs_izquierda', 'rs_derecha', 'rs_detener'],
+    TEMPORALES_TYPES: ['rs_espera'],
     SENSOR_TYPES: ['rs_hay_obstaculo', 'rs_no_hay_obstaculo', 'rs_medir_distancia', 'rs_si_obstaculo', 'rs_si_sino', 'rs_comparar'],
     REPETICION_TYPES: ['rs_repetir', 'rs_mientras', 'rs_repetir_hasta', 'rs_por_siempre', 'rs_salir'],
     VARIABLES_TYPES: VARIABLES_TYPES,
