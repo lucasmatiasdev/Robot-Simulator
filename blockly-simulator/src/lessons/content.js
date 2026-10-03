@@ -15,10 +15,11 @@
  * `criterio.evaluar(snapshot)` checks `dentroDeMeta(...)` (see check.js for
  * the snapshot shape).
  *
- * Lessons 3-4 (this slice) introduce no new block types: Lesson 3
- * (Secuencias) uses only movement blocks; Lesson 4 (Sensores) uses only the
- * pre-existing `rs_si_obstaculo`/`rs_hay_obstaculo`/`rs_comparar` sensor
- * blocks. A lesson's `criterio` may also expose an optional
+ * Lesson order follows data/Simulador.txt: 1 Bloques, 2 Secuencia, 3 Secuencia
+ * II, 4 Variables, 5 Iteración, 6 Condición y sensores, 7 Condición II,
+ * 8 Integración. Which blocks each lesson unlocks lives in
+ * RS.toolbox.DESBLOQUEOS_POR_LECCION (src/blocks/toolbox.js). A lesson's
+ * `criterio` may also expose an optional
  * `describir(snapshot, ok)` hook for lesson-specific behavioral feedback
  * text (see check.js).
  */
@@ -1161,15 +1162,15 @@
     {
       id: 1,
       nivel: 'Nivel 1 — Reconocimiento',
-      titulo: '¿Qué es un robot?',
-      objetivo: 'En esta lección aprenderás a identificar los componentes básicos de un robot móvil y a comprender su función dentro del simulador.',
-      concepto: 'Un robot está compuesto por un sensor (percibe el entorno), un actuador (produce movimiento o acción), un controlador (decide qué hacer) y un entorno (el espacio donde el robot se mueve). En el simulador, estos cuatro elementos ya están presentes: el sensor de distancia, las ruedas como actuador, el programa de bloques como controlador y el mapa como entorno.',
+      titulo: 'Bloques',
+      objetivo: 'En esta lección vas a conocer cómo está organizado el simulador y cómo funcionan los bloques que se arrastran para programar al robot.',
+      concepto: 'Una vez iniciada una lección, la pantalla se divide en tres zonas: a la izquierda está la lección con su explicación; en el medio está el espacio de trabajo, donde puedes arrastrar bloques y donde ya hay un conjunto de bloques insertados; a la derecha está el simulador, arriba, con el robot y el desafío o mapa, y abajo el código que se genera para el robot. Los bloques se agrupan por categoría (Inicio, Movimiento, Temporales, Variables, Decisión, Repetición y Sensores) y cada lección desbloquea solo los que necesitas. Un robot combina un sensor (percibe el entorno), un actuador (produce movimiento), un controlador (decide qué hacer: el programa de bloques) y un entorno (el mapa donde se mueve).',
       ejemplo: 'Ya hay un programa armado esperándote: INICIO → avanzar → Delay(' + MS_PRECARGA_LECCION_1 + ') → detener(). No necesitas construir nada todavía — mira el panel Simulador y presiona Ejecutar.',
-      bloques: 'avanzar, Delay(ms), detener() — ya están armados como referencia; el objetivo de esta lección es identificarlos, no construirlos.',
-      comoFunciona: 'El chasis azul es el cuerpo del robot. Las ruedas (actuador) permiten el movimiento. El sensor frontal mide la distancia a los obstáculos. El programa que armas con bloques cumple el rol de controlador: decide qué instrucción ejecutar.',
+      bloques: 'Inicio, avanzar, Delay(ms), detener() — ya están armados como referencia; el objetivo de esta lección es identificarlos, no construirlos.',
+      comoFunciona: 'El espacio de trabajo muestra el programa armado con bloques: cada bloque se encastra debajo del anterior y se ejecuta en ese orden. El simulador muestra al robot en su mapa: el chasis azul es el cuerpo, las ruedas son el actuador y el sensor frontal mide la distancia a los obstáculos. El código de la parte inferior es la traducción del programa de bloques, y el programa cumple el rol de controlador: decide qué instrucción ejecutar.',
       prueba: 'Presiona Ejecutar y observa cómo el robot avanza y se detiene dentro de la zona de meta marcada en el panel Simulador. Mientras corre, relaciona lo que ves con los roles de la sección «¿Cómo funciona?»: el controlador (el programa) ordena avanzar, el actuador (las ruedas) produce el movimiento y el sensor sigue midiendo distancia aunque el programa no lo consulte todavía.',
       modificacion: 'No aplica en esta lección: no hay programa que modificar todavía.',
-      desafio: 'Presiona Ejecutar y confirma que el robot llega y queda detenido dentro de la zona de meta marcada. Después, señala sobre el panel Simulador dónde ubicarías el sensor, el actuador y el controlador del robot.',
+      desafio: 'Presiona Ejecutar y confirma que el robot llega y queda detenido dentro de la zona de meta marcada. Después, señala en la pantalla dónde está la lección, dónde se arman los bloques, dónde se ve el simulador y dónde aparece el código.',
       criterioTexto: 'El robot debe llegar y quedar detenido dentro de la zona de meta marcada en el mapa, ejecutando el programa ya armado.',
       pista: 'Pista 1: recuerda que un robot siempre combina percepción (sensor), decisión (controlador) y acción (actuador).',
       competencias: 'C1 — Fundamentos de robótica',
@@ -1186,11 +1187,11 @@
     {
       id: 2,
       nivel: 'Nivel 2 — Aplicación guiada',
-      titulo: 'Movimiento',
-      objetivo: 'En esta lección aprenderás a utilizar los bloques de movimiento para hacer que el robot avance y se detenga.',
-      concepto: 'El robot se mueve cuando su controlador ejecuta instrucciones de movimiento: avanzar, retroceder y girar. Una instrucción de movimiento no tiene duración propia: enciende los motores y estos siguen encendidos hasta que otro bloque los cambie. El bloque Delay(ms) hace que el programa espere ese tiempo (en milisegundos) mientras los motores siguen en marcha, y detener() los apaga.',
+      titulo: 'Secuencia',
+      objetivo: 'En esta lección aprenderás qué es un robot y a ordenar tus primeros bloques en una secuencia: iniciar, avanzar, esperar y detener.',
+      concepto: 'Un robot es una máquina que percibe su entorno con sensores, decide con un controlador y actúa con motores. Aquí el controlador es tu programa de bloques. En este desafío usas los dos bloques de movimiento iniciales: avanzar, que enciende los motores hacia adelante, y detener(), que los apaga. Una instrucción de movimiento no tiene duración propia: los motores siguen encendidos hasta que otro bloque los cambie. El bloque Delay(ms) hace que el programa espere ese tiempo (en milisegundos) mientras los motores siguen en marcha. Los bloques se ejecutan en orden, de arriba hacia abajo: eso es una secuencia.',
       ejemplo: 'INICIO → avanzar → Delay(2500) → detener()',
-      bloques: 'avanzar, Delay(ms), detener()',
+      bloques: 'Inicio, avanzar, Delay(ms), detener()',
       comoFunciona: 'El bloque avanzar enciende los motores hacia adelante, pero no espera: el robot sigue avanzando mientras el programa ejecuta Delay(2500), que espera 2500 milisegundos. Después, el bloque detener() apaga los motores. Juntos forman una secuencia: primero se ejecuta avanzar, luego Delay y, solo cuando este termina, se ejecuta detener.',
       prueba: 'Arma la secuencia avanzar → Delay(2500) → detener() en el editor y presiona Ejecutar. Observa cómo se desplaza el robot en el panel Simulador.',
       modificacion: 'Cambia el valor de Delay(2500) por un número distinto y vuelve a ejecutar. Observa cómo cambia la distancia recorrida.',
@@ -1212,17 +1213,17 @@
     {
       id: 3,
       nivel: 'Nivel 2 — Aplicación guiada',
-      titulo: 'Secuencias',
-      objetivo: 'En esta lección aprenderás que las acciones de un robot pueden ejecutarse en un orden determinado, y que ese orden cambia el resultado final del recorrido.',
-      concepto: 'Un programa de robot es una secuencia: una lista de instrucciones que se ejecutan una después de la otra, en el orden en que fueron escritas. El robot no "decide" el orden por sí solo — recorre las instrucciones exactamente como el controlador las armó. Cambiar el orden de dos instrucciones cambia el camino que recorre el robot, aunque las instrucciones sean las mismas.',
-      ejemplo: 'INICIO → avanzar → Delay(1250) → derecha → Delay(500) → avanzar → Delay(500) → detener()',
-      bloques: 'avanzar, Delay(ms), derecha, retroceder, izquierda, detener()',
-      comoFunciona: 'Cada bloque se ejecuta en orden, y cada Delay deja pasar el tiempo antes del siguiente: primero avanzar con Delay(1250) desplaza al robot hacia adelante, luego derecha con Delay(500) lo gira sobre su lugar hacia el sur, y solo después avanzar con Delay(500) lo desplaza en la nueva dirección. Si se invirtiera el orden del giro y el segundo avance, el robot terminaría en un punto distinto.',
-      prueba: 'Arma la secuencia avanzar → Delay(1250) → derecha → Delay(500) → avanzar → Delay(500) → detener() en el editor y presiona Ejecutar. Observa el camino en forma de "L" que recorre el robot en el panel Simulador: avanza hacia el este, gira y baja hacia el sur sin tocar el primer pilar.',
-      modificacion: 'Cambia el orden de los dos últimos tramos (avanzar → Delay(500) antes de derecha → Delay(500)) y vuelve a ejecutar. Observa que ahora el robot choca contra el primer pilar: las instrucciones son las mismas, pero el camino final es distinto.',
-      desafio: 'Arma una secuencia que rodee los dos pilares del pasillo — girando en el momento justo cada vez — y llegue a la zona de meta marcada al este. Vas a necesitar 4 giros.',
-      criterioTexto: 'El robot debe girar a tiempo para esquivar el primer pilar, volver a girar para rodear el segundo, y terminar detenido dentro de la zona de meta marcada al este, sin colisionar en ningún tramo. El tramo hacia el norte es angosto (unos 20 px de margen), así que su duración debe ser precisa.',
-      pista: 'Pista 1: recuerda que las instrucciones se ejecutan en el orden exacto en que las colocaste, una tras otra. Pista 2: si avanzas demasiado antes de girar, vas a chocar contra el primer pilar — el giro tiene que ocurrir antes de llegar a él. Pista 3: en total necesitas 4 giros: baja para pasar por debajo del primer pilar, vuelve a orientarte al este, sube para pasar por encima del segundo pilar y vuelve a orientarte al este. Pista 4: usa izquierda para los giros hacia la izquierda. El tramo hacia el norte es el más exigente: su margen es de unos 170 ms, así que ajusta ese Delay con cuidado y prueba valores cercanos.',
+      titulo: 'Secuencia II',
+      objetivo: 'En esta lección aprenderás a combinar giros y avances en una secuencia más larga, para llevar al robot por un recorrido con forma de L.',
+      concepto: 'Se añaden los bloques derecha e izquierda (y retroceder). Igual que avanzar, trabajan junto con Delay: encienden los motores y estos siguen en marcha mientras el programa espera, así que el tiempo del Delay decide cuánto gira el robot (500 ms equivalen a un giro de 90°, un ángulo recto). El bloque detener() apaga todos los motores, por eso conviene ponerlo entre un tramo y el siguiente. El mapa tiene forma de L: hay una curva que obliga a redireccionar al robot. Cambiar el orden de los bloques cambia el recorrido.',
+      ejemplo: 'INICIO → avanzar → Delay(3000) → detener() → derecha → Delay(500) → detener() → avanzar → Delay(2500) → detener()',
+      bloques: 'Inicio, avanzar, retroceder, derecha, izquierda, Delay(ms), detener()',
+      comoFunciona: 'Cada bloque se ejecuta en orden. Primero avanzar con Delay(3000) lleva al robot hacia el este por el tramo recto y detener() apaga los motores. Luego derecha con Delay(500) lo gira 90° sobre su lugar hacia el sur y el siguiente detener() frena el giro. Por último, avanzar con Delay(2500) lo desplaza en la nueva dirección hasta la meta y detener() lo deja quieto.',
+      prueba: 'Arma la secuencia avanzar → Delay(3000) → detener() → derecha → Delay(500) → detener() → avanzar → Delay(2500) → detener() en el editor y presiona Ejecutar. Observa el recorrido en forma de "L": el robot avanza hacia el este, gira a la derecha en la curva y baja hacia el sur.',
+      modificacion: 'Cambia el Delay(500) del giro por Delay(250) y vuelve a ejecutar. Observa que el robot gira solo la mitad de un ángulo recto y su recorrido ya no sigue la curva del mapa: el tiempo de giro decide el ángulo.',
+      desafio: 'Arma una secuencia con el orden Iniciar → Avanzar → Delay → Detener → Derecha → Delay → Detener → Avanzar → Delay → Detener que lleve al robot por la curva del mapa en L hasta la zona de meta marcada.',
+      criterioTexto: 'El robot debe avanzar por el tramo recto, girar a la derecha en la curva y quedar detenido dentro de la zona de meta marcada, sin colisionar.',
+      pista: 'Pista 1: recuerda que las instrucciones se ejecutan en el orden exacto en que las colocaste, una tras otra. Pista 2: si avanzas demasiado antes de girar, el robot chocará contra la pared; el giro tiene que ocurrir antes de llegar a ella. Pista 3: 500 ms de giro equivalen a un ángulo recto. Pista 4: detener() apaga todos los motores; úsalo entre un tramo y el siguiente.',
       competencias: 'C3 — Secuenciación de instrucciones',
       resultados: 'RA3 — Secuencias',
       // Geometry/verification: see MAPA_LECCION_3 above.
@@ -1250,19 +1251,19 @@
     {
       id: 4,
       nivel: 'Nivel 2 — Aplicación guiada',
-      titulo: 'Sensores',
-      objetivo: 'En esta lección aprenderás a usar el bloque "repetir hasta" para hacer que el robot avance en pasos cortos hasta que el sensor detecte un obstáculo, sin calcular de antemano cuántas veces hace falta repetir.',
-      concepto: 'Un sensor es un componente que percibe una condición del entorno — en este caso, la distancia hasta el obstáculo más cercano frente al robot. El bloque "repetir hasta" es un bucle de pre-verificación: antes de cada pasada, consulta esa lectura; si todavía es falsa, ejecuta el cuerpo una vez y vuelve a preguntar; en cuanto se vuelve verdadera, el bucle termina sin ejecutar una pasada más. Así el controlador no necesita calcular de antemano cuántos pasos hacen falta: el propio sensor le indica cuándo detenerse. Si la condición nunca llegara a cumplirse, el bucle seguiría repitiendo hasta que el robot choque o presiones Detener.',
-      ejemplo: 'INICIO → repetir hasta hayObstaculo() { avanzar → Delay(100) } → detener()',
-      bloques: 'avanzar, Delay(ms), repetir hasta (hayObstaculo) hacer, comparar (medirDistancia < número), detener()',
-      comoFunciona: 'Antes de cada pasada del bucle, el bloque "repetir hasta" consulta la condición hayObstaculo(). Mientras sea falsa, ejecuta avanzar → Delay(100) y vuelve a preguntar. En cuanto hayObstaculo() se vuelve verdadera, el bucle termina sin ejecutar una pasada más, y el programa continúa con la siguiente instrucción (si hay alguna). Si la condición nunca se cumpliera, el bucle seguiría repitiendo hasta que el robot choque o presiones Detener.',
-      prueba: 'Arma "repetir hasta hayObstaculo() { avanzar → Delay(100) }" seguido de detener() en el editor y presiona Ejecutar. Observa que el robot avanza en pasos cortos y se detiene solo, sin que hayas calculado a mano cuántos pasos hacían falta.',
-      modificacion: 'Reemplaza la condición hayObstaculo() del bucle por un bloque comparar que evalúe medirDistancia() contra un número (por ejemplo, medirDistancia() < 20) y vuelve a ejecutar. El robot se detiene en un punto ligeramente distinto (x=612px), pero sigue dentro de la zona de meta: la decisión de cuándo terminar el bucle sigue dependiendo de una lectura del sensor, no de un valor de posición fijo.',
-      desafio: 'Programa al robot para que se acerque al muro del fondo repitiendo un paso pequeño hasta detectarlo con el sensor, y quede detenido dentro de la zona de meta marcada, sin calcular a mano una distancia fija de antemano.',
-      criterioTexto: 'El robot debe quedar detenido dentro de la zona de meta marcada, cerca del muro del fondo, habiendo consultado el sensor al menos una vez durante la ejecución.',
-      pista: 'Pista 1: recuerda que "repetir hasta" consulta la condición antes de cada pasada, no solo al final. Pista 2: si el paso de avanzar es demasiado grande, el robot puede pasarse del punto donde el sensor detecta el muro; usa pasos pequeños, como avanzar → Delay(100). Pista 3: si el bucle nunca detecta el muro, el robot seguirá avanzando hasta chocar — revisa que la condición del bucle sea realmente la que detecta el muro que tienes adelante. Pista 4: el sensor solo detecta el muro cuando el robot ya está cerca de él; con pasos de 100 ms, la última pasada se completa cuando el robot todavía está a una distancia segura.',
-      competencias: 'C4 — Sensores y decisión',
-      resultados: 'RA4 — Sensores',
+      titulo: 'Variables',
+      objetivo: 'En esta lección aprenderás a guardar un valor en una variable y a usarla dentro de un bloque, para que el giro del robot dependa de un único número que puedes cambiar en un solo lugar.',
+      concepto: 'Una variable es un nombre que guarda un valor mientras el programa se ejecuta. Se declara una sola vez indicando su tipo: "int" guarda números enteros y "bool" guarda verdadero o falso. Como el tiempo de giro es siempre el mismo, conviene guardarlo: crear una variable giro con valor 500 permite escribir derecha → Delay(giro) y el robot dobla en ángulo recto; si más adelante ese valor cambia, solo hay que modificarlo en la declaración. La variable se declara al principio del programa, antes de usarla.',
+      ejemplo: 'INICIO → declarar int giro = 500 → avanzar → Delay(3000) → detener() → derecha → Delay(giro) → detener() → avanzar → Delay(2500) → detener()',
+      bloques: 'Inicio, declarar (int / bool), valor de variable, avanzar, retroceder, derecha, izquierda, Delay(ms), detener()',
+      comoFunciona: 'El bloque "declarar int giro = 500" crea la variable con valor 500 al comienzo del programa. Más adelante, el bloque de valor de variable giro se coloca dentro del Delay del giro: en vez de un número fijo, el Delay lee lo que guarda la variable. El resto funciona igual que en la lección anterior: avanzar, girar con derecha y volver a avanzar, con detener() entre un tramo y el siguiente.',
+      prueba: 'Arma el ejemplo (declarar int giro = 500 → avanzar → Delay(3000) → detener() → derecha → Delay(giro) → detener() → avanzar → Delay(2500) → detener()) y presiona Ejecutar. Observa que el robot sigue el mismo recorrido en L de la lección anterior, pero ahora el giro depende de la variable.',
+      modificacion: 'Cambia el valor de la declaración de 500 a 250 y vuelve a ejecutar sin tocar el resto del programa. Observa que el giro cambia, porque el Delay del giro lee el nuevo valor de la variable.',
+      desafio: 'Resuelve de nuevo el recorrido en L de la lección anterior, pero declarando una variable giro con valor 500 y usándola como tiempo del Delay en el bloque derecha.',
+      criterioTexto: 'El robot debe llegar y quedar detenido dentro de la zona de meta marcada, usando una variable para el tiempo de giro.',
+      pista: 'Pista 1: declara la variable antes del primer movimiento, no dentro de un tramo. Pista 2: arrastra el bloque de valor de variable al hueco del Delay del giro, en lugar de escribir un número. Pista 3: 500 ms de giro equivalen a un ángulo recto. Pista 4: el nombre que eliges en la declaración debe ser el mismo que usas al leer la variable.',
+      competencias: 'C4 — Variables y estado del programa',
+      resultados: 'RA4 — Uso de variables',
       // Geometry/verification: see MAPA_LECCION_4 above.
       grid: GRID_LECCION_4,
       mapa: MAPA_LECCION_4,

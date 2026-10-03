@@ -182,7 +182,7 @@ try { sinIni = descL5({ estado: { x: 300, y: 300 }, metricas: { evalsSensor: 1 }
 assert(typeof sinIni === 'string', 'L5 describir without inicial returns a string instead of throwing');
 
 // Text anchors: each ejemplo quotes its reference Delay ms (Salir for L5); stale L1/L2 values are gone.
-[[1, 'Delay(' + MS1 + ')'], [2, 'Delay(2500)'], [3, 'Delay(1250)'], [4, 'repetir hasta hayObstaculo() { avanzar → Delay(100) }'], [5, 'repetir 40 veces'], [5, '{ Salir }']]
+[[1, 'Delay(' + MS1 + ')'], [2, 'Delay(2500)'], [3, 'Delay(3000)'], [4, 'declarar int giro = 500'], [4, 'Delay(giro)'], [5, 'repetir 40 veces'], [5, '{ Salir }']]
   .forEach(function (a) {
     assert(lecciones[a[0] - 1].ejemplo.indexOf(a[1]) !== -1, 'L' + a[0] + ' ejemplo contains ' + a[1]);
   });
