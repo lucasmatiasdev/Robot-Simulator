@@ -1323,18 +1323,21 @@
       criterio: {
         evaluar: function (snapshot) {
           if (!snapshot || !snapshot.estado || !snapshot.metricas) return false;
-          if (snapshot.metricas.evalsSensor < 1) return false;
-          return dentroDeMeta(MAPA_LECCION_4.meta, snapshot.estado.x, snapshot.estado.y);
+          return dentroDeMeta(MAPA_LECCION_4.meta, snapshot.estado.x, snapshot.estado.y) &&
+            (snapshot.metricas.declaraciones || 0) >= 1 &&
+            (snapshot.metricas.lecturasVariable || 0) >= 1;
         },
         describir: function (snapshot, ok) {
           if (!snapshot || !snapshot.estado) return null;
           var x = Math.round(snapshot.estado.x);
-          var evals = snapshot.metricas ? snapshot.metricas.evalsSensor : 0;
           if (ok) {
-            return 'El robot consultó su sensor y se detuvo dentro de la zona de meta, cerca del muro del fondo (x=' + x + 'px).';
+            return 'El robot se detuvo dentro de la zona de meta, cerca del muro del fondo (x=' + x + 'px).';
           }
-          if (!evals) {
-            return 'El robot terminó su ejecución sin haber consultado nunca su sensor de distancia.';
+          if (dentroDeMeta(MAPA_LECCION_4.meta, snapshot.estado.x, snapshot.estado.y) && snapshot.metricas) {
+            if (!(snapshot.metricas.declaraciones >= 1)) {
+              return 'El robot llegó a la zona de meta, pero el programa nunca declaró una variable.';
+            }
+            return 'El robot llegó a la zona de meta y la variable se declaró, pero nunca se usó (por ejemplo, dentro del Delay del giro).';
           }
           return 'El robot terminó en x=' + x + 'px, fuera de la zona de meta.';
         }
@@ -1362,22 +1365,17 @@
       criterio: {
         evaluar: function (snapshot) {
           if (!snapshot || !snapshot.estado || !snapshot.metricas) return false;
-          if (snapshot.metricas.evalsSensor < 1) return false;
           return dentroDeMeta(MAPA_LECCION_5.meta, snapshot.estado.x, snapshot.estado.y);
         },
         describir: function (snapshot, ok) {
           if (!snapshot || !snapshot.estado) return null;
           var x = Math.round(snapshot.estado.x);
           var y = Math.round(snapshot.estado.y);
-          var evals = snapshot.metricas ? snapshot.metricas.evalsSensor : 0;
           if (ok) {
-            return 'El robot consultó su sensor, tomó la decisión correcta y terminó en x=' + x + 'px, y=' + y + 'px, dentro de la zona de meta.';
-          }
-          if (!evals) {
-            return 'El robot terminó su ejecución sin haber consultado nunca su sensor, por lo que nunca tomó una decisión basada en lo que percibe.';
+            return 'El robot terminó en x=' + x + 'px, y=' + y + 'px, dentro de la zona de meta.';
           }
           if (mismaAlturaQueInicio(snapshot, y)) {
-            return 'El robot consultó su sensor pero terminó casi a la misma altura que al inicio (y=' + y + 'px): la rama tomada no cambió su dirección de avance.';
+            return 'El robot terminó casi a la misma altura que al inicio (y=' + y + 'px): la rama tomada no cambió su dirección de avance.';
           }
           return 'El robot terminó en x=' + x + 'px, y=' + y + 'px, fuera de la zona de meta.';
         }

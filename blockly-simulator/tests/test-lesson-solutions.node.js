@@ -98,6 +98,9 @@ function cerca(snap, x, y, tol) {
 
 // The 8 reference solutions (design geometry; ms = round(px / 0.12)).
 var MS1 = RS.lessons.MS_PRECARGA_LECCION_1;
+// L4 (Variables): declares int giro = 500 and reads it in the turn Delay.
+var refL4 = plano([decl('giro', 'int', num(500)), av(3000), det(), mov('derecha'),
+  { tipo: 'accion', accion: 'esperar', valor: vr('giro'), blockId: 'b' }, det(), hasta([av(100)]), det()]);
 // L8 (Integración): spiral-like circuit. East along the top lane to the gap
 // (x=640, 4500 ms from x=100), then south / west / south / east, each leg ending
 // in front of a wall detected by the sensor.
@@ -110,8 +113,8 @@ var referencias = [
   { n: 1, arbol: [av(MS1), det()], x: 60 + MS1 * 0.12, y: 300 },
   { n: 2, arbol: [av(2500), det()], x: 360, y: 300 },
   { n: 3, arbol: [av(3000), det(), der(500), det(), av(2500), det()], x: 500, y: 440 },
-  { n: 4, arbol: [av(3000), det(), der(500), det(), hasta([av(100)]), det()], x: 500, y: 443, sensor: true },
-  { n: 5, arbol: refL5, x: 275, y: 477, sensor: true },
+  { n: 4, arbol: refL4, x: 500, y: 443 },
+  { n: 5, arbol: refL5, x: 275, y: 477 },
   { n: 6, arbol: [hasta([av(100)]), det()], x: 600, y: 300, sensor: true },
   { n: 7, arbol: refL7, x: 600, y: 300, sensor: true },
   { n: 8, arbol: refL8, x: 676, y: 403, sensor: true }
@@ -119,12 +122,27 @@ var referencias = [
 
 referencias.forEach(function (r) {
   var s = correr(r.n, r.arbol);
-  var dentro = cerca(s, r.x, r.y, r.sensor ? TOL_BUCLE : 0.5);
+  var dentro = cerca(s, r.x, r.y, (r.sensor || r.n === 4 || r.n === 5) ? TOL_BUCLE : 0.5);
   assert(s.ok.ok && s.resultadoRun !== 'error' && dentro,
     'L' + r.n + ' reference solution passes; final pose ' + s.pose + ', expected (' + r.x + ',' + r.y + ')' +
     (s.ok.ok ? '' : ' — criterio failed: ' + s.ok.observado));
   if (r.sensor) assert(s.metricas.evalsSensor >= 1, 'L' + r.n + ' reference consults the sensor (evalsSensor=' + s.metricas.evalsSensor + ')');
 });
+
+// L4 requires a variable that is declared AND read; reaching the meta is not enough.
+var sinSensorL4 = correr(4, [decl('giro', 'int', num(500)), av(3000), det(), mov('derecha'),
+  { tipo: 'accion', accion: 'esperar', valor: vr('giro'), blockId: 'b' }, det(), av(2500), det()]);
+assert(sinSensorL4.metricas.evalsSensor === 0 && sinSensorL4.resultadoRun !== 'error' && sinSensorL4.ok.ok,
+  'L4 variable route that reaches the meta without querying the sensor passes; got ' + sinSensorL4.pose + ' / ' + sinSensorL4.ok.observado);
+var sinVarL4 = correr(4, [av(3000), det(), der(500), det(), av(2500), det()]);
+assert(!sinVarL4.ok.ok && /nunca declar/.test(sinVarL4.ok.observado || ''),
+  'L4 route without a variable fails with the declare message; got ' + sinVarL4.ok.observado);
+var sinLecturaL4 = correr(4, [decl('giro', 'int', num(500)), av(3000), det(), der(500), det(), av(2500), det()]);
+assert(!sinLecturaL4.ok.ok && /nunca se us/.test(sinLecturaL4.ok.observado || ''),
+  'L4 declared-but-unused variable fails with the unused message; got ' + sinLecturaL4.ok.observado);
+assert(sinVarL4.metricas.declaraciones === 0 && sinLecturaL4.metricas.declaraciones === 1 &&
+  sinLecturaL4.metricas.lecturasVariable === 0 && sinLecturaL4.pose === sinVarL4.pose,
+  'L4 declared/unused routes reach the same meta pose with the expected metrics');
 
 // L1 geometric check: center inside meta x in [320,520] via the shared constant.
 var s1 = correr(1, [av(MS1), det()]);
