@@ -32,6 +32,8 @@
     var listeners = [];
     var evalsSensor = 0;
     var cambiosVariable = 0;
+    var declaraciones = 0;
+    var lecturasVariable = 0;
 
     function notificar() {
       listeners.forEach(function (fn) { fn(estado); });
@@ -122,6 +124,8 @@
         if (!actual) {
           var nodo = interpreter.siguienteNodo();
           if (interpreter.cambiosVariable) cambiosVariable = interpreter.cambiosVariable();
+          if (interpreter.declaraciones) declaraciones = interpreter.declaraciones();
+          if (interpreter.lecturasVariable) lecturasVariable = interpreter.lecturasVariable();
           if (nodo === null) {
             if (!motoresEncendidos()) {
               estado = 'idle';
@@ -228,6 +232,8 @@
         if (RS.ui && RS.ui.feedback) RS.ui.feedback.limpiar();
         evalsSensor = 0;
         cambiosVariable = 0;
+        declaraciones = 0;
+        lecturasVariable = 0;
         actual = null;
         restanteActual = 0;
         ultimoMotor = null;
@@ -244,7 +250,9 @@
        * obtenerMetricas() — observed-behavior counters used by lesson
        * criteria (see lessons/check.js). `limiteSeguridad` is deprecated and
        * always null (loops are uncapped; kept so criterio code still reads
-       * it). `cambiosVariable` counts executed asignar/cambiar nodes.
+       * it). `cambiosVariable` counts executed asignar/cambiar nodes,
+       * `declaraciones` executed declarar nodes and `lecturasVariable` variable
+       * value reads.
        * `finConMotores` is true when the program ended with motors on.
        */
       obtenerMetricas: function () {
@@ -252,6 +260,8 @@
           evalsSensor: evalsSensor,
           limiteSeguridad: null,
           cambiosVariable: cambiosVariable,
+          declaraciones: declaraciones,
+          lecturasVariable: lecturasVariable,
           finConMotores: finPrograma
         };
       },

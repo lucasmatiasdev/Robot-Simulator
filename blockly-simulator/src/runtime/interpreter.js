@@ -46,6 +46,8 @@
   function crear(tree, world, robotEstado, onSensorEval) {
     var stack = [{ tipo: 'root', cuerpo: tree || [], index: 0 }];
     var cambiosVariable = 0;
+    var declaraciones = 0;
+    var lecturasVariable = 0;
 
     var tipos = recolectarDeclaraciones(tree);
     var entorno = {};
@@ -81,7 +83,10 @@
     function evaluarValor(expr) {
       if (!expr) return 0;
       if (expr.k === 'numero' || expr.k === 'booleano') return expr.v;
-      if (expr.k === 'variable') return Object.prototype.hasOwnProperty.call(entorno, expr.nombre) ? entorno[expr.nombre] : 0;
+      if (expr.k === 'variable') {
+        lecturasVariable += 1;
+        return Object.prototype.hasOwnProperty.call(entorno, expr.nombre) ? entorno[expr.nombre] : 0;
+      }
       if (expr.k === 'medirDistancia') return RS.sensors.medirDistancia(world, robotEstado);
       if (expr.k === 'hayObstaculo') return RS.sensors.hayObstaculo(world, robotEstado);
       if (expr.k === 'noHayObstaculo') return !RS.sensors.hayObstaculo(world, robotEstado);
@@ -159,6 +164,7 @@
           if (node.tipo === 'declarar' || node.tipo === 'asignar') {
             guardar(node.nombre, evaluarValor(node.valor));
             if (node.tipo === 'asignar') cambiosVariable += 1;
+            else declaraciones += 1;
             continue;
           }
 
@@ -310,7 +316,11 @@
       siguienteNodo: siguienteNodo,
       terminado: function () { return stack.length === 0; },
       // cambiosVariable() -> count of asignar/cambiar executions so far.
-      cambiosVariable: function () { return cambiosVariable; }
+      cambiosVariable: function () { return cambiosVariable; },
+      // declaraciones() -> count of declarar executions so far.
+      declaraciones: function () { return declaraciones; },
+      // lecturasVariable() -> count of variable value reads so far.
+      lecturasVariable: function () { return lecturasVariable; }
     };
   }
 

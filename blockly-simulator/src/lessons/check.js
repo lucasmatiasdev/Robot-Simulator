@@ -9,13 +9,14 @@
  *   resultadoRun — the scheduler state the run ended in
  *   colision  — the colliding obstacle/'limite' when resultadoRun === 'error', else null
  *   metricas  — RS.runtime.scheduler.obtenerMetricas(): { evalsSensor, limiteSeguridad,
- *               cambiosVariable, finConMotores }.
+ *               cambiosVariable, declaraciones, lecturasVariable, finConMotores }.
  *               `evalsSensor` counts sensor/comparator evaluations during the
  *               run (used by lessons whose criterion requires the student to
  *               actually consult the sensor, not just reach a position).
  *               `limiteSeguridad` is deprecated and always null (loops are
- *               uncapped); `finConMotores` is true when the program ended
- *               with motors on.
+ *               uncapped); `declaraciones`/`lecturasVariable` count executed
+ *               declarar nodes and variable value reads; `finConMotores` is
+ *               true when the program ended with motors on.
  *
  * Returns { ok, observado }. `observado` describes ONLY observed robot
  * behavior — it never names which block to add/change/remove (see

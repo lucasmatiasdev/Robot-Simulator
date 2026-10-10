@@ -156,6 +156,8 @@ assertEquals(valores([acc('esperar', 'x', 250)]), [250], 'una duracion numerica 
   ]);
   assertEquals(r.hojas.map(function (h) { return h.valor; }), [4], 'asignar y luego cambiar acumulan sobre la misma variable');
   assertEquals(r.walker.cambiosVariable(), 2, 'cambiosVariable cuenta asignar y cambiar pero no declarar');
+  assertEquals(r.walker.declaraciones(), 1, 'declaraciones cuenta cada declarar ejecutado');
+  assertEquals(r.walker.lecturasVariable(), 1, 'lecturasVariable cuenta las lecturas del valor de una variable (solo el Delay aqui)');
 })();
 
 // Variable-only comparisons are not sensor readings.
@@ -181,6 +183,14 @@ assertEquals(valores([acc('esperar', 'x', 250)]), [250], 'una duracion numerica 
   sch.iniciarConArbol([decl('c', 'int', num(0)), camb('c', 1), asig('c', num(5)), acc('esperar', 'e', 16)]);
   for (var i = 0; i < 50 && sch.obtenerEstado() === 'running'; i++) sch._procesarFrame(16);
   assertEquals(sch.obtenerMetricas().cambiosVariable, 2, 'scheduler.obtenerMetricas().cambiosVariable refleja el recorrido');
+  assertEquals(sch.obtenerMetricas().declaraciones, 1, 'scheduler.obtenerMetricas().declaraciones refleja el recorrido');
+  assertEquals(sch.obtenerMetricas().lecturasVariable, 0, 'scheduler.obtenerMetricas().lecturasVariable es 0 si nunca se lee la variable');
+  sch.reiniciar();
+  sch.iniciarConArbol([decl('c', 'int', num(0)), acc('esperar', 'e', vr('c'))]);
+  for (var j = 0; j < 50 && sch.obtenerEstado() === 'running'; j++) sch._procesarFrame(16);
+  assertEquals(sch.obtenerMetricas().lecturasVariable, 1, 'scheduler.obtenerMetricas().lecturasVariable cuenta la lectura en el Delay');
+  sch.iniciarConArbol([acc('esperar', 'e', 16)]);
+  assertEquals(sch.obtenerMetricas().declaraciones, 0, 'iniciarConArbol resetea declaraciones y lecturasVariable');
   sch.reiniciar();
 })();
 
