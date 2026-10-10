@@ -63,6 +63,7 @@ function vr(nombre) { return { k: 'variable', nombre: nombre }; }
 function decl(nombre, tipoDato, valor) { return { tipo: 'declarar', nombre: nombre, tipoDato: tipoDato, valor: valor, blockId: 'b' }; }
 function asig(nombre, valor) { return { tipo: 'asignar', nombre: nombre, valor: valor, blockId: 'b' }; }
 function camb(nombre, delta) { return { tipo: 'cambiar', nombre: nombre, delta: delta, blockId: 'b' }; }
+function mientrasNo(cuerpo) { return { tipo: 'mientras', sensor: 'noHayObstaculo', cuerpo: plano(cuerpo), blockId: 'b' }; }
 function hastaCond(condicion, cuerpo) { return { tipo: 'repetir_hasta', condicion: condicion, cuerpo: plano(cuerpo), blockId: 'b' }; }
 function siSinoVar(nombre, cuerpo, sino) { return { tipo: 'si_sino', condicion: vr(nombre), cuerpo: plano(cuerpo), sino: plano(sino), blockId: 'b' }; }
 
@@ -97,40 +98,23 @@ function cerca(snap, x, y, tol) {
 
 // The 8 reference solutions (design geometry; ms = round(px / 0.12)).
 var MS1 = RS.lessons.MS_PRECARGA_LECCION_1;
-var pasoL8 = [hasta([av(125)]), der(500)];
-var refL8 = plano([pasoL8, pasoL8, pasoL8, pasoL8, pasoL8, hasta([av(125)]), det()]);
-// L7 (Variables): serpentine, three lanes; `filas` counts the two lane changes
-// and `haciaDerecha` flips the turn direction at each end. One lane change =
-// avanzar(1333) (lane centers are 160px apart).
-var refL7 = [
-  decl('filas', 'int', num(0)),
-  decl('haciaDerecha', 'bool', bool(true)),
-  hastaCond({ op: '>=', izq: vr('filas'), der: num(2) }, [
-    hasta([av(100)]),
-    siSinoVar('haciaDerecha',
-      [der(500), av(1333), der(500), asig('haciaDerecha', bool(false))],
-      [izq(500), av(1333), izq(500), asig('haciaDerecha', bool(true))]),
-    camb('filas', 1)
-  ]),
-  hasta([av(100)]),
-  det()
-];
-// The L7 ejemplo: a small square counted with a variable.
-var ejemploL7 = [
-  decl('lados', 'int', num(0)),
-  hastaCond({ op: '>=', izq: vr('lados'), der: num(4) }, [av(300), der(500), camb('lados', 1)]),
-  det()
-];
-var refL5 = [hasta([av(100)]), der(500), rep(40, [siSino([salir()], [av(100)])]), det()];
+// L8 (Integración): spiral-like circuit. East along the top lane to the gap
+// (x=640, 4500 ms from x=100), then south / west / south / east, each leg ending
+// in front of a wall detected by the sensor.
+var refL8 = plano([av(4500), der(500), hasta([av(100)]), der(500), hasta([av(100)]),
+  izq(500), hasta([av(100)]), izq(500), hasta([av(100)]), det()]);
+// L7 (Condición II): "mientras noHayObstaculo() { avanzar, Delay(100) }" then detener().
+var refL7 = [mientrasNo([av(100)]), det()];
+var refL5 = [rep(2, [hasta([av(100)]), der(500)]), hasta([av(100)]), det()];
 var referencias = [
   { n: 1, arbol: [av(MS1), det()], x: 60 + MS1 * 0.12, y: 300 },
   { n: 2, arbol: [av(2500), det()], x: 360, y: 300 },
-  { n: 3, arbol: [av(1250), der(500), av(500), izq(500), av(1900), izq(500), av(917), der(500), av(2000), det()], x: 678, y: 249.96 },
-  { n: 4, arbol: [hasta([av(100)]), det()], x: 600, y: 300, sensor: true },
-  { n: 5, arbol: refL5, x: 480, y: 404, sensor: true },
+  { n: 3, arbol: [av(3000), det(), der(500), det(), av(2500), det()], x: 500, y: 440 },
+  { n: 4, arbol: [av(3000), det(), der(500), det(), hasta([av(100)]), det()], x: 500, y: 443, sensor: true },
+  { n: 5, arbol: refL5, x: 275, y: 477, sensor: true },
   { n: 6, arbol: [hasta([av(100)]), det()], x: 600, y: 300, sensor: true },
-  { n: 7, arbol: refL7, x: 688, y: 420, sensor: true },
-  { n: 8, arbol: refL8, x: 520, y: 325, sensor: true }
+  { n: 7, arbol: refL7, x: 600, y: 300, sensor: true },
+  { n: 8, arbol: refL8, x: 676, y: 403, sensor: true }
 ];
 
 referencias.forEach(function (r) {
@@ -146,29 +130,29 @@ referencias.forEach(function (r) {
 var s1 = correr(1, [av(MS1), det()]);
 assert(s1.estado.x >= 320 && s1.estado.x <= 520, 'L1 shared constant ' + MS1 + ' ends inside meta (x=' + s1.estado.x.toFixed(2) + ')');
 
-// Sensor-threshold behavior (L4): 3900 ms stops at x=528 with no obstacle detected.
-var s4 = correr(4, [av(3900), siHay([det()]), det()]);
-assert(Math.abs(s4.estado.x - 528) <= 0.5 && s4.hayObstaculo === false, 'L4 avanzar(3900) stops at x=528 without hayObstaculo (' + s4.pose + ')');
+// Sensor-threshold behavior (L4): 3400 ms stops at x=548 with no obstacle detected (the sensor fires from x=560).
+var s4 = correr(4, [av(3400), siHay([det()]), det()]);
+assert(Math.abs(s4.estado.x - 548) <= 0.5 && s4.hayObstaculo === false, 'L4 avanzar(3400) stops at x=548 without hayObstaculo (' + s4.pose + ')');
 
 // Non-passing runs: no collision, ok=false.
-var n3 = correr(3, [av(1250), der(500), av(500), det()]);
-assert(!n3.ok.ok && n3.resultadoRun !== 'error' && cerca(n3, 210, 360), 'L3 ejemplo ends at (210,360) without passing; got ' + n3.pose);
-var m3 = correr(3, [av(1250), av(500), der(500), det()]);
-assert(m3.resultadoRun === 'error' && !m3.ok.ok, 'L3 modificacion (swapped last two blocks) hits pillar 1; got ' + m3.resultadoRun + ' at ' + m3.pose);
+var n3 = correr(3, [av(3000), der(500), av(500), det()]);
+assert(!n3.ok.ok && n3.resultadoRun !== 'error' && cerca(n3, 500, 200), 'L3 ejemplo ends at (500,200) without passing; got ' + n3.pose);
+var m3 = correr(3, [av(3000), av(2500), der(500), det()]);
+assert(m3.resultadoRun === 'error' && !m3.ok.ok, 'L3 modificacion (swapped last two blocks) hits the east wall; got ' + m3.resultadoRun + ' at ' + m3.pose);
 var refL5SinGiro = [hasta([av(100)]), rep(40, [siSino([salir()], [av(100)])]), det()];
 var n5 = correr(5, refL5SinGiro);
-assert(!n5.ok.ok && n5.resultadoRun !== 'error' && cerca(n5, 480, 140, TOL_BUCLE) && /misma altura/.test(n5.ok.observado),
-  'L5 variant without derecha(500) ends at (480,140) with "misma altura" feedback; got ' + n5.pose + ' / ' + n5.ok.observado);
+assert(!n5.ok.ok && n5.resultadoRun !== 'error' && cerca(n5, 639, 140, TOL_BUCLE) && /misma altura/.test(n5.ok.observado),
+  'L5 variant without derecha(500) ends at (639,140) with "misma altura" feedback; got ' + n5.pose + ' / ' + n5.ok.observado);
 var n8 = correr(8, [hasta([av(100)]), der(500), det()]);
 assert(!n8.ok.ok && n8.resultadoRun !== 'error', 'L8 ejemplo does not pass and does not collide; got ' + n8.pose);
-var n7 = correr(7, ejemploL7);
-assert(!n7.ok.ok && n7.resultadoRun !== 'error' && n7.metricas.cambiosVariable === 4,
-  'L7 ejemplo does not pass, does not collide and changes the counter 4 times; got ' + n7.pose + ', cambiosVariable=' + n7.metricas.cambiosVariable);
-// L7 criterio requires variable changes: the same route with no variables reaches the meta but fails.
-var sinVariablesL7 = correr(7, [hasta([av(100)]), der(500), av(1333), der(500), hasta([av(100)]), izq(500), av(1333), izq(500), hasta([av(100)]), det()]);
-assert(sinVariablesL7.resultadoRun !== 'error' && cerca(sinVariablesL7, 688, 420, TOL_BUCLE) && !sinVariablesL7.ok.ok && sinVariablesL7.metricas.cambiosVariable === 0,
-  'L7 route without variables reaches the meta but does not pass (cambiosVariable=' + sinVariablesL7.metricas.cambiosVariable + '); got ' + sinVariablesL7.pose);
-assert(/variable/.test(sinVariablesL7.ok.observado), 'L7 describir explains the missing variable use: ' + sinVariablesL7.ok.observado);
+// L7 negatives (Condición II): the criterio needs a sensor query and the goal.
+var sinSensorL7 = correr(7, [av(4500), det()]);
+assert(sinSensorL7.resultadoRun !== 'error' && cerca(sinSensorL7, 600, 300) && sinSensorL7.metricas.evalsSensor === 0 && !sinSensorL7.ok.ok,
+  'L7 route that reaches the meta without querying the sensor does not pass (evalsSensor=' + sinSensorL7.metricas.evalsSensor + '); got ' + sinSensorL7.pose);
+assert(/sensor/.test(sinSensorL7.ok.observado), 'L7 describir explains the missing sensor use: ' + sinSensorL7.ok.observado);
+var cortoL7 = correr(7, [siHay([det()]), av(2000), det()]);
+assert(cortoL7.resultadoRun !== 'error' && cortoL7.metricas.evalsSensor >= 1 && cerca(cortoL7, 300, 300) && !cortoL7.ok.ok,
+  'L7 route that stops short of the meta does not pass; got ' + cortoL7.pose);
 var sinInicial = null;
 try { sinInicial = correr(5, refL5SinGiro, false); } catch (e) { sinInicial = e; }
 assert(sinInicial && !(sinInicial instanceof Error), 'L5 describir does not throw without snapshot.inicial');
