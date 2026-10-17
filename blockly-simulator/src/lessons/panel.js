@@ -42,7 +42,7 @@
 
       var p = document.createElement('p');
       p.className = 'leccion-sandbox-msg';
-      p.textContent = 'Práctica libre: armá cualquier programa y ejecutalo. No hay objetivo ni criterio de éxito en este modo.';
+      p.textContent = 'Práctica libre: armá cualquier programa y ejecutalo. No hay criterio de éxito; si dibujás una meta en el mapa y el robot termina sobre ella, te lo avisamos.';
       contenedor.appendChild(p);
 
       resultadoEl = null;
@@ -182,6 +182,37 @@
       document.body.appendChild(bannerSiguienteEl);
     }
 
+    // Sandbox-only modal: the robot ended a run on the goal cell. Closable,
+    // no progress marking and no next-lesson button.
+    function mostrarBannerMeta() {
+      if (bannerSiguienteEl) return;
+
+      bannerSiguienteEl = document.createElement('div');
+      bannerSiguienteEl.className = 'leccion-modal-overlay';
+
+      var tarjeta = document.createElement('div');
+      tarjeta.className = 'leccion-siguiente-banner';
+
+      var mensaje = document.createElement('p');
+      mensaje.textContent = '¡Llegaste a la meta!';
+      tarjeta.appendChild(mensaje);
+
+      var boton = document.createElement('button');
+      boton.type = 'button';
+      boton.className = 'leccion-siguiente-btn';
+      boton.textContent = 'Seguir practicando';
+      boton.addEventListener('click', quitarBannerSiguiente);
+      tarjeta.appendChild(boton);
+
+      bannerSiguienteEl.appendChild(tarjeta);
+      document.body.appendChild(bannerSiguienteEl);
+    }
+
+    function robotEnMeta() {
+      if (!RS.world || !RS.world.meta || !RS.robot) return false;
+      return RS.world.enMeta(RS.robot.estado.x, RS.robot.estado.y);
+    }
+
     function quitarBannerSiguiente() {
       if (!bannerSiguienteEl) return;
       if (bannerSiguienteEl.parentNode) bannerSiguienteEl.parentNode.removeChild(bannerSiguienteEl);
@@ -203,8 +234,15 @@
       var eraRunning = estadoPrevio === 'running';
       estadoPrevio = nuevoEstado;
 
+      // A new run (or any non-terminal change) dismisses a stale sandbox modal.
+      if (nuevoEstado === 'running' && !leccionActiva) quitarBannerSiguiente();
       if (!eraRunning) return; // only react to a run that just ended
-      if (!leccionActiva || !leccionActiva.criterio) return; // e.g. Lesson 1: no run-derived check
+      if (!leccionActiva) {
+        // Sandbox: no criterio, only a goal-reached notice on a clean end.
+        if (nuevoEstado !== 'error' && robotEnMeta()) mostrarBannerMeta();
+        return;
+      }
+      if (!leccionActiva.criterio) return; // e.g. Lesson 1: no run-derived check
 
       var snapshot = construirSnapshot(nuevoEstado);
       var resultado = RS.lessons.check.evaluar(leccionActiva, snapshot);

@@ -1,7 +1,8 @@
 /**
  * RS.ui.mapEditor — sandbox grid map editor (design D5).
  *
- * Lets the student click cells on the sandbox canvas to place/clear walls,
+ * Lets the student click or drag on the sandbox canvas to place/clear walls
+ * (region-aware, shared with RS.ui.lessonMapEditor), drag a goal rectangle,
  * move the robot's start pose, and move the goal cell, then persists the
  * result to localStorage (`rs-sandbox-mapa-v1`) so it survives a reload.
  * Lessons never touch this module — only main.js's onIniciarSandbox wires
@@ -11,7 +12,7 @@
  * borrarCelda, establecerInicio, establecerMeta, guardar, cargarGuardado,
  * borrarGuardado) are exposed on `_pure` so they can be exercised headless
  * from tests/test-map-editor.node.js — no DOM/canvas involved. DOM/canvas
- * click-hit-testing (init/alClick) is NOT covered by an automated test:
+ * click-hit-testing (init/alPresionar) is NOT covered by an automated test:
  * this repo has no headless browser harness, and getBoundingClientRect()-
  * based scaling needs a real laid-out canvas to be meaningful. That gap is
  * documented, not silently skipped (see tasks.md 3.6).
@@ -139,6 +140,9 @@
     var mapaActual = null;
     var herramienta = 'muro'; // 'muro' | 'borrar' | 'inicio' | 'meta'
     var modoEdicion = false;
+    var arrastrando = false;
+    var ancla = null;       // cell where the current drag started (goal rectangle origin)
+    var ultimaCelda = null; // last cell painted, to skip repeats while dragging
 
     function celdaDentroDeLimites(celda) {
       return celda.col >= 0 && celda.col < mapaActual.cols &&
@@ -153,29 +157,81 @@
       return !!(RS.runtime && RS.runtime.scheduler && RS.runtime.scheduler.obtenerEstado() === 'running');
     }
 
-    function alClick(evt) {
-      // Editing is blocked while the scheduler is running (design D5) and
-      // whenever the toolbar's "edit map" mode is off.
-      if (!modoEdicion || !mapaActual || corriendoAhora()) return;
+    /**
+     * Region-aware editing lives in RS.ui.lessonMapEditor._pure; it is read
+     * at call time (that script loads after this one). Without it, the 1x1
+     * helpers above are used, so this module still works standalone.
+     */
+    function regiones() {
+      return (RS.ui.lessonMapEditor && RS.ui.lessonMapEditor._pure) || null;
+    }
 
-      var celda = celdaDesdeEvento(canvas, evt);
-      if (!celdaDentroDeLimites(celda)) return;
-
-      if (herramienta === 'muro') colocarMuro(mapaActual, celda);
-      else if (herramienta === 'borrar') borrarCelda(mapaActual, celda);
+    function aplicarCelda(celda) {
+      var r = regiones();
+      if (herramienta === 'muro') (r ? r.colocarMuro : colocarMuro)(mapaActual, celda);
+      else if (herramienta === 'borrar') (r ? r.borrarCeldaRegion : borrarCelda)(mapaActual, celda);
       else if (herramienta === 'inicio') establecerInicio(mapaActual, celda);
-      else if (herramienta === 'meta') establecerMeta(mapaActual, celda);
-
-      guardar(mapaActual);
+      else if (herramienta === 'meta') {
+        if (r) r.establecerMetaRect(mapaActual, ancla, celda);
+        else establecerMeta(mapaActual, celda);
+      }
       aplicarAlMundo();
       if (RS.robot) RS.robot.reset();
     }
 
+    function alPresionar(evt) {
+      // Editing is blocked while the scheduler is running (design D5) and
+      // whenever the toolbar's "edit map" mode is off.
+      if (!modoEdicion || !mapaActual || corriendoAhora() || evt.button > 0) return;
+
+      var celda = celdaDesdeEvento(canvas, evt);
+      if (!celdaDentroDeLimites(celda)) return;
+
+      if (canvas.setPointerCapture && evt.pointerId !== undefined) canvas.setPointerCapture(evt.pointerId);
+      arrastrando = true;
+      ancla = celda;
+      ultimaCelda = celda;
+      aplicarCelda(celda);
+    }
+
+    function alMover(evt) {
+      if (!arrastrando || !mapaActual) return;
+      if (!modoEdicion || corriendoAhora()) { alSoltar(); return; }
+      var celda = celdaDesdeEvento(canvas, evt);
+      if (ultimaCelda && celda.col === ultimaCelda.col && celda.row === ultimaCelda.row) return;
+      // The goal rectangle clamps to the grid; every other tool ignores outside cells.
+      if (herramienta !== 'meta' && !celdaDentroDeLimites(celda)) return;
+      // A fast drag can skip cells between two pointer events: fill the gap.
+      var anterior = ultimaCelda;
+      ultimaCelda = celda;
+      if (anterior && (herramienta === 'muro' || herramienta === 'borrar')) {
+        var pasos = Math.max(Math.abs(celda.col - anterior.col), Math.abs(celda.row - anterior.row));
+        for (var i = 1; i < pasos; i++) {
+          var intermedia = {
+            col: Math.round(anterior.col + (celda.col - anterior.col) * i / pasos),
+            row: Math.round(anterior.row + (celda.row - anterior.row) * i / pasos)
+          };
+          if (celdaDentroDeLimites(intermedia)) aplicarCelda(intermedia);
+        }
+      }
+      aplicarCelda(celda);
+    }
+
+    function alSoltar() {
+      if (arrastrando && mapaActual) guardar(mapaActual);
+      arrastrando = false;
+      ancla = null;
+      ultimaCelda = null;
+    }
+
     return {
-      /** Wires click handling to the sim canvas. Call once, at startup. */
+      /** Wires pointer handling to the sim canvas. Call once, at startup. */
       init: function (canvasEl) {
         canvas = canvasEl;
-        canvas.addEventListener('click', alClick);
+        canvas.addEventListener('pointerdown', alPresionar);
+        canvas.addEventListener('pointermove', alMover);
+        canvas.addEventListener('pointerup', alSoltar);
+        canvas.addEventListener('pointercancel', alSoltar);
       },
 
       /**
@@ -196,6 +252,8 @@
       /** Toggles "edit map" mode; also toggles the grid overlay via renderer.mostrarGrilla. */
       establecerModoEdicion: function (activo) {
         modoEdicion = !!activo;
+        if (!modoEdicion) alSoltar();
+        if (canvas) canvas.style.touchAction = modoEdicion ? 'none' : '';
         if (RS.renderer) RS.renderer.mostrarGrilla = modoEdicion;
       },
       enModoEdicion: function () { return modoEdicion; },
